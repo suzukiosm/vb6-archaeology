@@ -32,7 +32,7 @@
 
 | パス | 役割 |
 |---|---|
-| `source/` | 読取専用の VB6 正本（既定。`アイコー/` も hooks で保護） |
+| `source/` | 読取専用の VB6 正本（キット既定。別名は config で指定） |
 | `working/extracts/` | VBP 切り出しコピー（分析用） |
 | `working/reports/` | inventory / deep_read / comprehension 等 |
 | `working/skeletons/` | Form skeleton JSON（再実装に渡す中間成果） |
@@ -62,7 +62,7 @@
 
 ## 不変条件
 
-- `protected_source_dirs`（既定 `source/` · `アイコー/`）へは **書込・移動・改名・削除禁止**（hooks 強制）
+- `protected_source_dirs`（キット既定 `source/`）へは **書込・移動・改名・削除禁止**（hooks 強制）
 - 例外: `python tools/make_fixture.py` のみフィクスチャ再生成を許可（shell allowlist）
 - 推定（役割・呼び出し・業務意味）は **証拠必須**。正規表現一括の callgraph は作らない
 - 「100%」「done」はチェックリスト達成のみ。アプリ全体理解と混同しない

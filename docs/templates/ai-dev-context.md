@@ -18,7 +18,7 @@
 
 | 領域 | 規則 |
 |---|---|
-| 正本（例: `source/` / `アイコー/`） | 読取専用 |
+| 正本（例: `source/`。別名は config） | 読取専用 |
 | `working/extracts/` | 切り出しコピー |
 | `working/reports/` · `docs/` | 調査成果 |
 | `tools/` | 再利用解析の正 |

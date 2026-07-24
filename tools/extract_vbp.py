@@ -2,7 +2,7 @@
 """Copy a VB6 .vbp and its referenced source files.
 
 Never writes under protected source trees listed in archaeology.config.json
-(default: source/, アイコー/).
+(default: source/).
 """
 
 from __future__ import annotations

@@ -11,7 +11,7 @@ REPO_ROOT = TOOLS_DIR.parent
 CONFIG_NAME = "archaeology.config.json"
 
 DEFAULTS: dict = {
-    "protected_source_dirs": ["source", "アイコー"],
+    "protected_source_dirs": ["source"],
     "default_source_dir": "source",
     "extracts_dir": "working/extracts",
     "reports_dir": "working/reports",

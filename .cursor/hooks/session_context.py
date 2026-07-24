@@ -9,7 +9,7 @@ import sys
 CONTEXT = (
     "[vb6-archaeology] Before work: Read AGENTS.md then docs/ai-onboarding.md. "
     "Canon: docs/flow/_master.md. Cycle: verify → understand (tools/) → optional implement. "
-    "Protected dirs (source/, アイコー/, …) are read-only "
+    "Protected dirs (default source/, see archaeology.config.json) are read-only "
     "(exception: python tools/make_fixture.py). "
     "Commands: /vb6-extract /vb6-inventory /frm-deep-read /vb6-comprehend /vb6-report /kit-smoke."
 )

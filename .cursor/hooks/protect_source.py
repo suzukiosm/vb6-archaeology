@@ -23,7 +23,7 @@ def repo_root() -> Path:
 
 def protected_names() -> list[str]:
     cfg_path = repo_root() / "archaeology.config.json"
-    names = ["source", "アイコー"]
+    names = ["source"]
     if cfg_path.is_file():
         try:
             data = json.loads(cfg_path.read_text(encoding="utf-8"))

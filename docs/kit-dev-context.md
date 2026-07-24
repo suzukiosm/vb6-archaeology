@@ -12,7 +12,7 @@ VB6 を壊さず理解するための汎用 OS（docs / .cursor / tools）を維
 
 - コアツール: extract / inventory / verify / frm_deep_read / runtime_layout
 - フィクスチャ: `source/mini_vbp/`（`make_fixture.py`・日本語 Caption 含む CP932）
-- hooks: 保護ディレクトリへの書込拒否（config 駆動）。`make_fixture.py` のみ shell allowlist
+- hooks: 保護ディレクトリへの書込拒否（キット既定名は `source/` のみ。別名は消費者 config）。`make_fixture.py` のみ shell allowlist
 - AI 起動順: `AGENTS.md` → `docs/ai-onboarding.md`
 
 ## 3. 次手（キット）

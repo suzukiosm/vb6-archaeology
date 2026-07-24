@@ -10,5 +10,5 @@
 | runtime_layout | コード部が書き換える Left/Top/Visible 等のカタログ |
 | tick | 理解の最小単位（主要 Sub 1 つの精読） |
 | 到達不能 | UI から開けない / 死んだメニュー等（証拠必須） |
-| 保護ディレクトリ | hooks が書込を拒否するパス（config で列挙） |
+| 保護ディレクトリ | hooks が書込を拒否するパス。キット既定名は `source/`（`archaeology.config.json` の `protected_source_dirs` で変更） |
 | 消費者リポ | 本キットを採用して特定アプリを扱う側のリポジトリ |

@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "_note": "Protects directories listed in archaeology.config.json protected_source_dirs (default: source, アイコー).",
+  "_note": "Protects directories listed in archaeology.config.json protected_source_dirs (kit default: source).",
   "hooks": {
     "sessionStart": [
       {

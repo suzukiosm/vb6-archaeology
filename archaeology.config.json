@@ -1,8 +1,7 @@
 {
   "$schema_comment": "vb6-archaeology kit configuration. Agents: Read AGENTS.md then docs/ai-onboarding.md.",
   "protected_source_dirs": [
-    "source",
-    "アイコー"
+    "source"
   ],
   "default_source_dir": "source",
   "extracts_dir": "working/extracts",
@@ -13,8 +12,8 @@
   "reports_http_port": 8765,
   "geometry_hints": {},
   "notes": {
-    "protected": "Directories listed in protected_source_dirs are read-only. Hooks deny Write/StrReplace/Delete into them. Exception: python tools/make_fixture.py may regenerate source/mini_vbp/.",
+    "protected": "Directories listed in protected_source_dirs are read-only. Hooks deny Write/StrReplace/Delete into them. Exception: python tools/make_fixture.py may regenerate source/mini_vbp/. Rename via this list if your immutable tree is not called source/.",
     "geometry_hints": "Optional map of FormName → {left,top,width,height} twips used when evaluating parent-relative runtime expressions.",
-    "consumer": "When adopting this kit into another repo, copy archaeology.config.json and set protected_source_dirs to your immutable VB6 tree name. Use requires LICENSE permission."
+    "consumer": "When adopting this kit, set protected_source_dirs to your immutable VB6 tree name(s). Use requires LICENSE permission."
   }
 }

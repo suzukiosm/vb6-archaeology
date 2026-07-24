@@ -12,7 +12,7 @@ alwaysApply: true
 
 ## プロジェクト固有
 
-- **保護ディレクトリは改変禁止**（`archaeology.config.json` の `protected_source_dirs`。既定 `source/` · `アイコー/`）。書込・移動・改名・削除・整形すべて不可。読取のみ。例外: `python tools/make_fixture.py`。
+- **保護ディレクトリは改変禁止**（`archaeology.config.json` の `protected_source_dirs`。キット既定は `source/`）。書込・移動・改名・削除・整形すべて不可。読取のみ。例外: `python tools/make_fixture.py`。
 - 作業成果は **`working/`** · **`tools/`** · **`docs/`** · **`.cursor/`** およびルートの入口/設定（`AGENTS.md` · `README.md` · `LICENSE` · `archaeology.config.json` 等）のみ。
 - VB6 テキストは **CP932**。内容判断は Python（`tools/`）経由。Cursor Read の化けを根拠にしない。
 - サイクル: **検証 → 理解 →（任意）実装**。使い捨て `working/_*.py` を増やさず `tools/` を改定。

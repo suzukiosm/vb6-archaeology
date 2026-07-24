@@ -37,12 +37,26 @@ docs/templates/              # 初回コピー元
 
 ## 設定
 
-`archaeology.config.json` の例（再実装あり）:
+キット既定の正本ディレクトリ名は **`source/`**。  
+既存ツリーが別の名前なら、`protected_source_dirs` / `default_source_dir` だけ合わせる（フォルダを無理に `source` に改名しなくてよい）。
 
 ```json
 {
-  "protected_source_dirs": ["アイコー", "source"],
-  "default_source_dir": "アイコー",
+  "protected_source_dirs": ["source"],
+  "default_source_dir": "source",
+  "extracts_dir": "working/extracts",
+  "reports_dir": "working/reports",
+  "skeletons_dir": "working/skeletons",
+  "geometry_hints": {}
+}
+```
+
+再実装がある場合の例:
+
+```json
+{
+  "protected_source_dirs": ["vb6_originals"],
+  "default_source_dir": "vb6_originals",
   "extracts_dir": "working/extracts",
   "reports_dir": "working/reports",
   "skeletons_dir": "working/web/src/lib",
@@ -52,8 +66,7 @@ docs/templates/              # 初回コピー元
 }
 ```
 
-- キット既定の `skeletons_dir` は `working/skeletons`
-- 再実装が `working/web/src/lib` に skeleton を置くなら上のように変更
+- `skeletons_dir` 既定は `working/skeletons`
 - `geometry_hints` は親フォーム相対の実行時式を数値化するときだけ使う（任意）
 
 ## 初回セットアップ手順（エージェント向け）
@@ -62,7 +75,7 @@ docs/templates/              # 初回コピー元
 2. 上記最小セットを消費者リポへコピー
 3. `docs/templates/ai-dev-context.md` → `docs/ai-dev-context.md` を作成し、対象 VBP を記入
 4. `docs/templates/project-local.mdc` → `.cursor/rules/project-local.mdc`
-5. 正本を保護ディレクトリへ配置（または既存パスを `protected_source_dirs` に追加）
+5. 正本を保護ディレクトリへ配置し、`protected_source_dirs` を実名に合わせる
 6. extract → inventory → verify を実 VBP で実行
 7. `AGENTS.md` の入口表を消費者のレポートパスに合わせて更新
 
