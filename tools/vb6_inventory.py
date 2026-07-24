@@ -30,7 +30,8 @@ from lib.config import decode_vb6_bytes, reports_root  # noqa: E402
 from lib.vbparse import iter_logical_lines  # noqa: E402
 
 # Bump when parse_* output shape or semantics change (invalidates the cache).
-PARSER_VERSION = "inv-2"
+# Suffix is part of the key (see inventory_file): .frm vs .bas parse differently.
+PARSER_VERSION = "inv-3"
 
 PROC_RE = re.compile(
     r"^(?:(Public|Private|Friend)\s+)?(?:Static\s+)?"
@@ -297,14 +298,16 @@ def classify_events(procs: list[dict], control_names: set[str], is_form: bool) -
 
 def inventory_file(path: Path, use_cache: bool = True) -> dict:
     raw = path.read_bytes()
+    # Include suffix: identical bytes as .frm vs .bas produce different results.
+    key: str | None = None
     if use_cache:
-        key = content_key(raw, PARSER_VERSION)
+        key = content_key(raw, f"{PARSER_VERSION}|{path.suffix.lower()}")
         hit = cache_load(key)
         if hit is not None:
             hit["file"] = path.name  # same content, possibly different filename
             return hit
     result = _parse_bytes(raw, path)
-    if use_cache:
+    if use_cache and key is not None:
         cache_store(key, result)
     return result
 
@@ -501,7 +504,7 @@ def write_html(report: dict, out: Path) -> None:
         kind = f["form_kind"] or ("Module" if f["type"] == "module" else "?")
         anchor = f"f{i}"
         toc_rows.append(
-            f"<tr class='tocrow'><td class='num'>{i}</td>"
+            f"<tr class='tocrow' data-for='{anchor}'><td class='num'>{i}</td>"
             f"<td><a href='#{anchor}'><code>{e(f['file'])}</code></a></td>"
             f"<td>{e(kind)}</td><td><code>{e(f['vb_name'] or '?')}</code></td>"
             f"<td class='num'>{f['total_lines']:,}</td>"
@@ -615,18 +618,19 @@ summary{{cursor:pointer;padding:.3rem 0}}
   var q=document.getElementById('q');
   var count=document.getElementById('count');
   var secs=Array.prototype.slice.call(document.querySelectorAll('details.filesec'));
-  var rows=Array.prototype.slice.call(document.querySelectorAll('tr.tocrow'));
+  // textContent (not innerText): hidden sections still match on later queries.
+  var hay=secs.map(function(s){{return (s.textContent||'').toLowerCase();}});
+  // One hit per file: detail text is authoritative; TOC row follows via data-for.
   function apply(){{
     var t=q.value.trim().toLowerCase();
     var shown=0;
-    secs.forEach(function(s){{
-      var hit=!t||s.innerText.toLowerCase().indexOf(t)>=0;
+    secs.forEach(function(s,i){{
+      var hit=!t||hay[i].indexOf(t)>=0;
       s.style.display=hit?'':'none';
-      if(t&&hit){{s.open=true;shown++;}}
-    }});
-    rows.forEach(function(r){{
-      var hit=!t||r.innerText.toLowerCase().indexOf(t)>=0;
-      r.style.display=hit?'':'none';
+      var row=document.querySelector('tr.tocrow[data-for="'+s.id+'"]');
+      if(row) row.style.display=hit?'':'none';
+      if(hit) shown++;
+      if(t&&hit) s.open=true;
     }});
     count.textContent=t?(shown+' / '+secs.length+' 件一致'):(secs.length+' ファイル');
   }}

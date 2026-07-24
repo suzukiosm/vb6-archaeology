@@ -50,7 +50,7 @@ python tools/runtime_layout.py --extract working\extracts\mini_vbp
 
 - `--jobs N` — ファイルを N 並列で解析（既定 1＝逐次）。大規模ツリーで有効。VBP 記載順は維持。
 - `--no-cache` — 内容ハッシュキャッシュ（`working/.cache/`）を無効化。
-  - 既定はキャッシュ有効。SHA-256（パーサ版＋バイト列）キーで未変更ファイルの再解析をskip。
+  - 既定はキャッシュ有効。SHA-256（パーサ版＋拡張子＋バイト列）キーで未変更ファイルの再解析をskip（`.frm`/`.bas` は別エントリ）。
   - パーサ挙動を変えたら `vb6_inventory.PARSER_VERSION` を上げて自動無効化する。
 - 棚卸し対象: Sub/Function/Property/Declare に加え、モジュールレベルの **Const / Enum / Type / Event**（プロシージャ内ローカルは除外）。
 - HTML レポートは検索ボックス（ファイル名 / VB_Name / プロシージャ / 宣言名）と全開閉ボタン付き。
