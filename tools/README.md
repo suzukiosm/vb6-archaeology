@@ -52,7 +52,10 @@ python tools/runtime_layout.py --extract working\extracts\mini_vbp
 - `--no-cache` — 内容ハッシュキャッシュ（`working/.cache/`）を無効化。
   - 既定はキャッシュ有効。SHA-256（パーサ版＋拡張子＋バイト列）キーで未変更ファイルの再解析をskip（`.frm`/`.bas` は別エントリ）。
   - パーサ挙動を変えたら `vb6_inventory.PARSER_VERSION` を上げて自動無効化する。
-- 棚卸し対象: Sub/Function/Property/Declare に加え、モジュールレベルの **Const / Enum / Type / Event**（プロシージャ内ローカルは除外）。
+- `--skip-parent-common` — VBP パスが親ディレクトリを2段以上辿るもの（`..\..\` 系）をスキップ。共有ライブラリ参照を棚卸しから外す任意オプション（既定オフ）。
+- 棚卸し対象:
+  - VBP: **Form / Module / Class**、`Object=`（OCX 等）、Version / Command32 / HelpFile などメタ
+  - プロシージャ: Sub/Function/Property + **引数・戻り値**、Declare、モジュールレベル Const/Enum/Type/Event
 - HTML レポートは検索ボックス（ファイル名 / VB_Name / プロシージャ / 宣言名）と全開閉ボタン付き。
 
 ## 共有ライブラリ（追加）

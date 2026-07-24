@@ -3,9 +3,9 @@
 
 Reads an extracted VBP (CP932) and lists, per source file, every procedure
 definition found at line start. No call-graph guessing; only facts:
-  - VBP metadata (Startup, Title, form/module list in VBP order)
+  - VBP metadata (Startup, Title, version, Object=, form/module/class in VBP order)
   - per file: VB_Name, form kind, controls (from the .frm header)
-  - per procedure: kind, visibility, line range, event-handler classification
+  - per procedure: kind, visibility, params, returns, line range, event role
 
 Outputs <stem>_inventory.json / .md / .html into working/reports/.
 Read-only on sources.
@@ -31,7 +31,27 @@ from lib.vbparse import iter_logical_lines  # noqa: E402
 
 # Bump when parse_* output shape or semantics change (invalidates the cache).
 # Suffix is part of the key (see inventory_file): .frm vs .bas parse differently.
-PARSER_VERSION = "inv-3"
+PARSER_VERSION = "inv-4"
+
+# VBP project metadata: lowercase match → canonical key for report consumers.
+VBP_META_CANON = {
+    "startup": "Startup",
+    "title": "Title",
+    "exename32": "ExeName32",
+    "iconform": "IconForm",
+    "name": "Name",
+    "command32": "Command32",
+    "helpfile": "HelpFile",
+    "majorver": "MajorVer",
+    "minorver": "MinorVer",
+    "revisionver": "RevisionVer",
+    "versioncomments": "VersionComments",
+    "versioncompanyname": "VersionCompanyName",
+    "versionfiledescription": "VersionFileDescription",
+    "versionlegalcopyright": "VersionLegalCopyright",
+    "versionproductname": "VersionProductName",
+}
+AS_RETURN_RE = re.compile(r"(?i)^As\s+(.+?)\s*$")
 
 PROC_RE = re.compile(
     r"^(?:(Public|Private|Friend)\s+)?(?:Static\s+)?"
@@ -71,24 +91,115 @@ def decode(raw: bytes) -> str:
     return decode_vb6_bytes(raw)
 
 
-def parse_vbp(vbp_path: Path) -> dict:
+def looks_like_parent_common(path: str) -> bool:
+    """True when a VBP path climbs two or more parent dirs (shared-lib style).
+
+    Inspired by vbSpec's optional skip of ``..\\..``-style entries. Default off
+    in this kit; enable via ``--skip-parent-common``.
+    """
+    norm = path.replace("/", "\\")
+    return sum(1 for part in norm.split("\\") if part == "..") >= 2
+
+
+def parse_vbp(vbp_path: Path, *, skip_parent_common: bool = False) -> dict:
+    """Parse VBP facts: forms, modules, classes, Object= components, meta.
+
+    ``Class=`` uses the same ``Ident; path`` shape as ``Module=``. Paths that
+    look like shared parent-tree libs may be omitted when
+    ``skip_parent_common`` is set (recorded under ``skipped_parent_common``).
+    """
     text = decode(vbp_path.read_bytes())
     forms: list[str] = []
     modules: list[dict] = []
+    classes: list[dict] = []
+    objects: list[dict] = []
+    skipped_parent_common: list[dict] = []
     meta: dict[str, str] = {}
+
+    def maybe_skip(kind: str, path: str, ident: str = "") -> bool:
+        if skip_parent_common and looks_like_parent_common(path):
+            skipped_parent_common.append(
+                {"kind": kind, "file": path, "ident": ident or None}
+            )
+            return True
+        return False
+
     for line in text.splitlines():
         line = line.strip()
+        if not line or line.startswith("["):
+            continue
         if line.startswith("Form="):
-            name = line.split("=", 1)[1].strip()
+            name = line.split("=", 1)[1].strip().strip('"')
+            if maybe_skip("form", name):
+                continue
             if name not in forms:
                 forms.append(name)
         elif line.startswith("Module="):
             ident, _, fname = line.split("=", 1)[1].partition(";")
-            modules.append({"module": ident.strip(), "file": fname.strip()})
-        elif line.startswith(("Startup=", "Title=", "ExeName32=", "IconForm=", "Name=")):
-            key, _, val = line.partition("=")
-            meta[key] = val.strip('"')
-    return {"forms": forms, "modules": modules, "meta": meta}
+            ident, fname = ident.strip(), fname.strip().strip('"')
+            if maybe_skip("module", fname, ident):
+                continue
+            modules.append({"module": ident, "file": fname})
+        elif line.startswith("Class="):
+            ident, _, fname = line.split("=", 1)[1].partition(";")
+            ident, fname = ident.strip(), fname.strip().strip('"')
+            if maybe_skip("class", fname, ident):
+                continue
+            classes.append({"class": ident, "file": fname})
+        elif line.startswith("Object="):
+            raw = line.split("=", 1)[1].strip()
+            if ";" in raw:
+                file_part = raw.split(";")[-1].strip() or None
+            else:
+                file_part = None  # malformed / GUID-only; keep raw for evidence
+            objects.append({"raw": raw, "file": file_part})
+        else:
+            key, sep, val = line.partition("=")
+            canon = VBP_META_CANON.get(key.lower()) if sep else None
+            if canon:
+                meta[canon] = val.strip().strip('"')
+    return {
+        "forms": forms,
+        "modules": modules,
+        "classes": classes,
+        "objects": objects,
+        "skipped_parent_common": skipped_parent_common,
+        "meta": meta,
+    }
+
+
+def extract_params_returns(after_name: str) -> tuple[str, str | None]:
+    """Parse ``(params) [As return]`` after a procedure name on a folded line."""
+    s = after_name.lstrip()
+    if not s.startswith("("):
+        return "", None
+    depth = 0
+    for i, ch in enumerate(s):
+        if ch == "(":
+            depth += 1
+        elif ch == ")":
+            depth -= 1
+            if depth == 0:
+                params = s[1:i].strip()
+                rest = s[i + 1 :].strip()
+                # Strip trailing ' comment (common on hand-written signatures).
+                cpos = rest.find("'")
+                if cpos >= 0:
+                    rest = rest[:cpos].rstrip()
+                m = AS_RETURN_RE.match(rest)
+                return params, (m.group(1).strip() if m else None)
+    return s[1:].strip(), None
+
+
+def file_kind_label(f: dict) -> str:
+    if f.get("form_kind"):
+        return f["form_kind"]
+    t = f.get("type")
+    if t == "class":
+        return "Class"
+    if t == "module":
+        return "Module"
+    return "?"
 
 
 def parse_form_header(lines: list[str]) -> tuple[str | None, list[dict]]:
@@ -144,10 +255,13 @@ def parse_procedures(lines: list[str]) -> tuple[list[dict], list[dict]]:
             # a Declare line also matches PROC_RE via "Sub|Function"? no: Declare comes first
             if pm and not stripped.lower().startswith("declare"):
                 kind = re.sub(r"\s+", " ", pm.group(2)).title()
+                params, returns = extract_params_returns(stripped[pm.end() :])
                 open_proc = {
                     "name": pm.group(3),
                     "kind": kind,
                     "visibility": (pm.group(1) or "Public").capitalize(),
+                    "params": params,
+                    "returns": returns,
                     "line_start": ll.phys_start,
                 }
         else:
@@ -342,15 +456,23 @@ def _parse_bytes(raw: bytes, path: Path) -> dict:
 
 
 def build_report(
-    extract_dir: Path, vbp_path: Path, use_cache: bool = True, jobs: int = 1
+    extract_dir: Path,
+    vbp_path: Path,
+    use_cache: bool = True,
+    jobs: int = 1,
+    skip_parent_common: bool = False,
 ) -> dict:
-    vbp = parse_vbp(vbp_path)
+    vbp = parse_vbp(vbp_path, skip_parent_common=skip_parent_common)
     missing: list[str] = []
-    ordered = [(f, "form") for f in vbp["forms"]] + [
-        (m["file"], "module") for m in vbp["modules"]
-    ]
+    # VBP order: Form → Module → Class (same family as extract_vbp FILE_KEYS).
+    ordered = (
+        [(f, "form") for f in vbp["forms"]]
+        + [(m["file"], "module") for m in vbp["modules"]]
+        + [(c["file"], "class") for c in vbp["classes"]]
+    )
     present: list[tuple[str, str]] = []
     for fname, ftype in ordered:
+        # Relative paths may include subdirs; resolve against extract_dir.
         if (extract_dir / fname).is_file():
             present.append((fname, ftype))
         else:
@@ -368,7 +490,9 @@ def build_report(
             files: list[dict] = list(pool.map(work, present))
     else:
         files = [work(item) for item in present]
-    listed = {f["file"].lower() for f in files} | {m.lower() for m in missing}
+    listed = {Path(f["file"]).name.lower() for f in files} | {
+        Path(m).name.lower() for m in missing
+    }
     extras = sorted(
         p.name
         for p in extract_dir.iterdir()
@@ -379,42 +503,59 @@ def build_report(
         "stem": vbp_path.stem,
         "extract_dir": str(extract_dir.resolve()),
         "meta": vbp["meta"],
+        "objects": vbp["objects"],
         "file_count": len(files),
         "proc_total": sum(len(f["procedures"]) for f in files),
         "files": files,
         "missing_in_extract": missing,
         "not_in_vbp": extras,
+        "skipped_parent_common": vbp["skipped_parent_common"],
     }
 
 
 def write_markdown(report: dict, out: Path) -> None:
     meta = report["meta"]
+    ver = ".".join(
+        meta.get(k, "?") for k in ("MajorVer", "MinorVer", "RevisionVer")
+    )
     L = [
         f"# {report['vbp']} インベントリ（VBP → ファイル → プロシージャ）",
         "",
         f"- Startup: `{meta.get('Startup', '?')}` / Title: `{meta.get('Title', '?')}` / Exe: `{meta.get('ExeName32', '?')}`",
-        f"- ファイル: **{report['file_count']}**（VBP 記載順） / プロシージャ合計: **{report['proc_total']}**",
+        f"- Name: `{meta.get('Name', '?')}` / Version: `{ver}` / Command32: `{meta.get('Command32') or '—'}`",
+        f"- ファイル: **{report['file_count']}**（VBP 記載順 Form→Module→Class） / プロシージャ合計: **{report['proc_total']}**",
         "- 行頭のプロシージャ定義のみを機械抽出（呼び出し推定なし）。行番号は抽出コピーの実ファイル基準。",
         "",
     ]
+    if report.get("objects"):
+        objs = ", ".join(
+            f"`{o['file']}`" if o.get("file") else f"`{o['raw']}`"
+            for o in report["objects"]
+        )
+        L.append(f"- Object（OCX 等）: {objs}")
     if report["missing_in_extract"]:
         L.append(f"- ⚠ VBP に記載だが抽出フォルダに無い: {', '.join(report['missing_in_extract'])}")
     if report["not_in_vbp"]:
         L.append(f"- ⚠ 抽出フォルダにあるが VBP 未記載: {', '.join(report['not_in_vbp'])}")
+    if report.get("skipped_parent_common"):
+        sk = ", ".join(
+            f"`{s['file']}`" for s in report["skipped_parent_common"]
+        )
+        L.append(f"- （参考）親共通パスをスキップ: {sk}")
     L.append("")
     L.append("## 目次")
     L.append("")
     L.append("| # | ファイル | 種別 | VB_Name | 行数 | コントロール | プロシージャ |")
     L.append("|---:|---|---|---|---:|---:|---:|")
     for i, f in enumerate(report["files"], 1):
-        kind = f["form_kind"] or ("Module" if f["type"] == "module" else "?")
+        kind = file_kind_label(f)
         L.append(
             f"| {i} | `{f['file']}` | {kind} | `{f['vb_name'] or '?'}` "
             f"| {f['total_lines']:,} | {f['control_count'] or '-'} | {len(f['procedures'])} |"
         )
     L.append("")
     for f in report["files"]:
-        kind = f["form_kind"] or "Module"
+        kind = file_kind_label(f)
         L.append(f"## {f['file']} — `{f['vb_name'] or '?'}`（{kind}, {f['total_lines']:,} 行）")
         L.append("")
         events = [p for p in f["procedures"] if p["role"] == "event"]
@@ -422,22 +563,25 @@ def write_markdown(report: dict, out: Path) -> None:
         if events:
             L.append(f"### イベントハンドラ（{len(events)}）")
             L.append("")
-            L.append("| コントロール | イベント | プロシージャ | 行 | 規模 |")
-            L.append("|---|---|---|---|---:|")
+            L.append("| コントロール | イベント | プロシージャ | 引数 | 行 | 規模 |")
+            L.append("|---|---|---|---|---|---:|")
             for p in sorted(events, key=lambda x: (x["event_owner"].lower(), x["event_name"].lower())):
                 L.append(
                     f"| `{p['event_owner']}` | {p['event_name']} | `{p['name']}` "
+                    f"| `{p.get('params') or ''}` "
                     f"| {p['line_start']}–{p['line_end']} | {p['lines']} |"
                 )
             L.append("")
         if general:
-            L.append(f"### Sub / Function（{len(general)}）")
+            L.append(f"### Sub / Function / Property（{len(general)}）")
             L.append("")
-            L.append("| 種別 | 名前 | 可視性 | 行 | 規模 |")
-            L.append("|---|---|---|---|---:|")
+            L.append("| 種別 | 名前 | 可視性 | 引数 | 戻り値 | 行 | 規模 |")
+            L.append("|---|---|---|---|---|---|---:|")
             for p in general:
+                ret = p.get("returns") or "—"
                 L.append(
                     f"| {p['kind']} | `{p['name']}` | {p['visibility']} "
+                    f"| `{p.get('params') or ''}` | `{ret}` "
                     f"| {p['line_start']}–{p['line_end']} | {p['lines']} |"
                 )
             L.append("")
@@ -484,16 +628,20 @@ def write_html(report: dict, out: Path) -> None:
         rows = []
         for p in procs:
             loc = f"{p['line_start']}–{p['line_end']}"
+            params = e(p.get("params") or "")
             if event:
                 rows.append(
                     f"<tr><td><code>{e(p['event_owner'])}</code></td>"
                     f"<td>{e(p['event_name'])}</td><td><code>{e(p['name'])}</code></td>"
+                    f"<td><code>{params}</code></td>"
                     f"<td>{loc}</td><td class='num'>{p['lines']}</td></tr>"
                 )
             else:
+                ret = e(p["returns"]) if p.get("returns") else "—"
                 rows.append(
                     f"<tr><td>{e(p['kind'])}</td><td><code>{e(p['name'])}</code></td>"
-                    f"<td>{e(p['visibility'])}</td><td>{loc}</td>"
+                    f"<td>{e(p['visibility'])}</td><td><code>{params}</code></td>"
+                    f"<td><code>{ret}</code></td><td>{loc}</td>"
                     f"<td class='num'>{p['lines']}</td></tr>"
                 )
         return "".join(rows)
@@ -501,7 +649,7 @@ def write_html(report: dict, out: Path) -> None:
     toc_rows = []
     sections = []
     for i, f in enumerate(report["files"], 1):
-        kind = f["form_kind"] or ("Module" if f["type"] == "module" else "?")
+        kind = file_kind_label(f)
         anchor = f"f{i}"
         toc_rows.append(
             f"<tr class='tocrow' data-for='{anchor}'><td class='num'>{i}</td>"
@@ -521,13 +669,17 @@ def write_html(report: dict, out: Path) -> None:
             blocks.append(
                 f"<h4>イベントハンドラ（{len(events)}）</h4>"
                 "<table><tr><th>コントロール</th><th>イベント</th><th>プロシージャ</th>"
-                "<th>行</th><th>規模</th></tr>" + proc_rows(events, True) + "</table>"
+                "<th>引数</th><th>行</th><th>規模</th></tr>"
+                + proc_rows(events, True)
+                + "</table>"
             )
         if general:
             blocks.append(
-                f"<h4>Sub / Function（{len(general)}）</h4>"
-                "<table><tr><th>種別</th><th>名前</th><th>可視性</th><th>行</th>"
-                "<th>規模</th></tr>" + proc_rows(general, False) + "</table>"
+                f"<h4>Sub / Function / Property（{len(general)}）</h4>"
+                "<table><tr><th>種別</th><th>名前</th><th>可視性</th><th>引数</th>"
+                "<th>戻り値</th><th>行</th><th>規模</th></tr>"
+                + proc_rows(general, False)
+                + "</table>"
             )
         if f["declares"]:
             items = "".join(
@@ -576,7 +728,21 @@ def write_html(report: dict, out: Path) -> None:
         warns.append("VBP 記載だが抽出に無い: " + ", ".join(map(e, report["missing_in_extract"])))
     if report["not_in_vbp"]:
         warns.append("抽出にあるが VBP 未記載: " + ", ".join(map(e, report["not_in_vbp"])))
+    if report.get("skipped_parent_common"):
+        warns.append(
+            "親共通パスをスキップ: "
+            + ", ".join(e(s["file"]) for s in report["skipped_parent_common"])
+        )
     warn_html = "".join(f"<p class='warn'>⚠ {w}</p>" for w in warns)
+    ver = ".".join(meta.get(k, "?") for k in ("MajorVer", "MinorVer", "RevisionVer"))
+    obj_html = ""
+    if report.get("objects"):
+        obj_html = (
+            "<br>Object: "
+            + ", ".join(
+                f"<code>{e(o['file'] or o['raw'])}</code>" for o in report["objects"]
+            )
+        )
 
     doc = f"""<!DOCTYPE html>
 <html lang="ja"><head><meta charset="utf-8">
@@ -599,7 +765,8 @@ summary{{cursor:pointer;padding:.3rem 0}}
 </style></head><body>
 <h1>{e(report['vbp'])} インベントリ（VBP → ファイル → プロシージャ）</h1>
 <p class="meta">Startup: <code>{e(meta.get('Startup', '?'))}</code> ／ Title: <code>{e(meta.get('Title', '?'))}</code> ／ Exe: <code>{e(meta.get('ExeName32', '?'))}</code><br>
-ファイル {report['file_count']}（VBP 記載順） ／ プロシージャ合計 {report['proc_total']}。
+Name: <code>{e(meta.get('Name', '?'))}</code> ／ Version: <code>{e(ver)}</code> ／ Command32: <code>{e(meta.get('Command32') or '—')}</code>{obj_html}<br>
+ファイル {report['file_count']}（VBP 記載順 Form→Module→Class） ／ プロシージャ合計 {report['proc_total']}。
 行頭のプロシージャ定義のみを機械抽出（呼び出し推定なし）。行番号は working/extracts の実ファイル基準。</p>
 {warn_html}
 <div class="toolbar">
@@ -661,6 +828,11 @@ def main(argv: list[str] | None = None) -> int:
         default=1,
         help="Parse files in parallel with N workers (default 1; helps large trees)",
     )
+    parser.add_argument(
+        "--skip-parent-common",
+        action="store_true",
+        help="Skip VBP entries whose path climbs two or more parent dirs (..\\..)",
+    )
     args = parser.parse_args(argv)
 
     root = args.extract_dir if args.extract_dir.is_absolute() else REPO_ROOT / args.extract_dir
@@ -674,7 +846,13 @@ def main(argv: list[str] | None = None) -> int:
             raise SystemExit(f"expected exactly one .vbp in {root}, found {len(cands)}")
         vbp = cands[0]
 
-    report = build_report(root, vbp, use_cache=not args.no_cache, jobs=args.jobs)
+    report = build_report(
+        root,
+        vbp,
+        use_cache=not args.no_cache,
+        jobs=args.jobs,
+        skip_parent_common=args.skip_parent_common,
+    )
 
     out_dir = args.out_dir or reports_root()
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -695,8 +873,10 @@ def main(argv: list[str] | None = None) -> int:
                 "html": str(html_path),
                 "files": report["file_count"],
                 "procs": report["proc_total"],
+                "objects": len(report.get("objects") or []),
                 "missing_in_extract": report["missing_in_extract"],
                 "not_in_vbp": report["not_in_vbp"],
+                "skipped_parent_common": report.get("skipped_parent_common") or [],
             },
             ensure_ascii=False,
             indent=2,

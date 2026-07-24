@@ -18,8 +18,13 @@ Type=Exe
 Form=Form1.frm
 Module=Module1; Module1.bas
 Module=Module2; Module2.bas
+Class=Widget; Widget.cls
+Object={00000000-0000-0000-0000-000000000000}#1.0#0; Dummy.OCX
 Startup="Form1"
 Name="proj"
+MajorVer=1
+MinorVer=0
+RevisionVer=0
 """
 
 FRM = """\
@@ -34,6 +39,7 @@ End Sub
 
 BAS1 = 'Attribute VB_Name = "Module1"\nPublic Sub A()\nEnd Sub\n'
 BAS2 = 'Attribute VB_Name = "Module2"\nPublic Function B()\nEnd Function\n'
+CLS = 'Attribute VB_Name = "Widget"\nPublic Function Ping(ByVal x As Long) As Long\nPing = x\nEnd Function\n'
 
 
 class BuildReportTests(unittest.TestCase):
@@ -44,6 +50,7 @@ class BuildReportTests(unittest.TestCase):
         (self.d / "Form1.frm").write_bytes(FRM.encode("cp932"))
         (self.d / "Module1.bas").write_bytes(BAS1.encode("cp932"))
         (self.d / "Module2.bas").write_bytes(BAS2.encode("cp932"))
+        (self.d / "Widget.cls").write_bytes(CLS.encode("cp932"))
         self.vbp = self.d / "proj.vbp"
 
     def tearDown(self) -> None:
@@ -58,12 +65,21 @@ class BuildReportTests(unittest.TestCase):
         rep = inv.build_report(self.d, self.vbp, use_cache=False, jobs=4)
         self.assertEqual(
             [f["file"] for f in rep["files"]],
-            ["Form1.frm", "Module1.bas", "Module2.bas"],
+            ["Form1.frm", "Module1.bas", "Module2.bas", "Widget.cls"],
+        )
+        self.assertEqual(
+            [f["type"] for f in rep["files"]],
+            ["form", "module", "module", "class"],
         )
 
     def test_proc_total(self) -> None:
         rep = inv.build_report(self.d, self.vbp, use_cache=False, jobs=1)
-        self.assertEqual(rep["proc_total"], 3)
+        self.assertEqual(rep["proc_total"], 4)
+        widget = next(f for f in rep["files"] if f["file"] == "Widget.cls")
+        ping = widget["procedures"][0]
+        self.assertEqual(ping["params"], "ByVal x As Long")
+        self.assertEqual(ping["returns"], "Long")
+        self.assertEqual(rep["objects"][0]["file"], "Dummy.OCX")
 
     def test_cache_key_includes_suffix(self) -> None:
         raw = b"Attribute VB_Name = \"X\"\n"

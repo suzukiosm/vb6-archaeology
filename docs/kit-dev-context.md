@@ -20,6 +20,7 @@ VB6 を壊さず理解するための汎用 OS（docs / .cursor / tools）を維
 - `runtime_layout.py` 内の Show 経路ヒューリスティック（特定 Form 名分岐）をさらに設定化
 - inventory ↔ レポート名集合照合の定型ツール化
 - 消費者初回採用フィードバックの反映
+- （採用済・参考）vbSpec 由来の事実層: `Class=` / シグネチャ / `Object=`・Version メタ / 任意 `--skip-parent-common`。コメント仕様書化は非採用
 
 ## 4. 触ってよい／いけない
 

@@ -13,10 +13,16 @@ VBP = """\
 Type=Exe
 Form=Form1.frm
 Module=Module1; Module1.bas
+Class=Widget; Widget.cls
+Object={F9043C88-F6F2-101A-A3C9-08002B2F49FB}#1.2#0; ComDlg32.OCX
 Startup="Form1"
 Title="ミニ考古"
 ExeName32="mini.exe"
 Name="mini_vbp"
+MajorVer=1
+MinorVer=0
+RevisionVer=0
+Command32=""
 """
 
 FRM = """\
@@ -88,12 +94,30 @@ Public Function AddOne(ByVal n As Long) As Long
 End Function
 """
 
+CLS = """\
+VERSION 1.0 CLASS
+BEGIN
+  MultiUse = -1  'True
+END
+Attribute VB_Name = "Widget"
+Attribute VB_GlobalNameSpace = False
+Attribute VB_Creatable = True
+Attribute VB_PredeclaredId = False
+Attribute VB_Exposed = False
+Option Explicit
+
+Public Function Ping(ByVal x As Long) As Long
+    Ping = x
+End Function
+"""
+
 
 def main() -> int:
     OUT.mkdir(parents=True, exist_ok=True)
     (OUT / "mini_vbp.vbp").write_bytes(VBP.encode("cp932"))
     (OUT / "Form1.frm").write_bytes(FRM.encode("cp932"))
     (OUT / "Module1.bas").write_bytes(BAS.encode("cp932"))
+    (OUT / "Widget.cls").write_bytes(CLS.encode("cp932"))
     readme = REPO / "source" / "README.md"
     if not readme.is_file():
         readme.write_text(
