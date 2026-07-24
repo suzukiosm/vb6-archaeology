@@ -38,6 +38,25 @@ END_RE = re.compile(r"^End\s+(Sub|Function|Property)\b", re.IGNORECASE)
 CONTROL_RE = re.compile(r"^\s*Begin\s+([\w.]+)\s+(\w+)")
 VBNAME_RE = re.compile(r'^Attribute\s+VB_Name\s*=\s*"([^"]+)"', re.IGNORECASE)
 
+# Module-level declarations (facts only; locals inside procedures are excluded)
+CONST_RE = re.compile(
+    r"^(?:(Public|Private|Global)\s+)?Const\s+([A-Za-z_]\w*)\s*=\s*(.+)$",
+    re.IGNORECASE,
+)
+ENUM_RE = re.compile(
+    r"^(?:(Public|Private)\s+)?Enum\s+([A-Za-z_]\w*)", re.IGNORECASE
+)
+TYPE_RE = re.compile(
+    r"^(?:(Public|Private)\s+)?Type\s+([A-Za-z_]\w*)\s*$", re.IGNORECASE
+)
+EVENT_RE = re.compile(
+    r"^(?:(Public)\s+)?Event\s+([A-Za-z_]\w*)\s*\((.*)\)\s*$", re.IGNORECASE
+)
+END_ENUM_RE = re.compile(r"^End\s+Enum\b", re.IGNORECASE)
+END_TYPE_RE = re.compile(r"^End\s+Type\b", re.IGNORECASE)
+ENUM_MEMBER_RE = re.compile(r"^([A-Za-z_]\w*)\s*(?:=\s*(.+))?$")
+TYPE_FIELD_RE = re.compile(r"^([A-Za-z_][\w]*(?:\([^)]*\))?)\s+As\s+(.+)$", re.IGNORECASE)
+
 
 def decode(raw: bytes) -> str:
     """Config-driven decode (cp932 primary + fallbacks from archaeology.config.json)."""
@@ -137,6 +156,118 @@ def parse_procedures(lines: list[str]) -> tuple[list[dict], list[dict]]:
     return procs, declares
 
 
+def parse_declarations(lines: list[str]) -> dict:
+    """Collect module-level Const / Enum / Type / Event facts.
+
+    Declarations inside a Sub/Function/Property are excluded (locals). Enum and
+    Type blocks close on ``End Enum`` / ``End Type`` (neither matches END_RE, so
+    the verify_inventory proc/End invariant is unaffected). Line numbers are
+    physical. Multi-declaration single lines (``Const A = 1, B = 2``) capture the
+    first name only — noted as a known limitation.
+    """
+    consts: list[dict] = []
+    enums: list[dict] = []
+    types: list[dict] = []
+    events: list[dict] = []
+    logical = iter_logical_lines(lines)
+    in_header = bool(logical) and logical[0].text.startswith("VERSION")
+    in_proc = False
+    open_enum: dict | None = None
+    open_type: dict | None = None
+
+    for ll in logical:
+        s = ll.text
+        if in_header:
+            if VBNAME_RE.match(s):
+                in_header = False
+            continue
+
+        if open_enum is not None:
+            if END_ENUM_RE.match(s):
+                open_enum["line_end"] = ll.phys_end
+                enums.append(open_enum)
+                open_enum = None
+            elif not s.startswith("'") and s:
+                mm = ENUM_MEMBER_RE.match(s)
+                if mm:
+                    open_enum["members"].append({"name": mm.group(1), "line": ll.phys_start})
+            continue
+        if open_type is not None:
+            if END_TYPE_RE.match(s):
+                open_type["line_end"] = ll.phys_end
+                types.append(open_type)
+                open_type = None
+            elif not s.startswith("'") and s:
+                fm = TYPE_FIELD_RE.match(s)
+                if fm:
+                    open_type["fields"].append(
+                        {"name": fm.group(1), "as": fm.group(2).strip(), "line": ll.phys_start}
+                    )
+            continue
+
+        # Track procedure context so locals are not counted as module-level.
+        if not in_proc:
+            pm = PROC_RE.match(s)
+            if pm and not s.lower().startswith("declare"):
+                in_proc = True
+                continue
+        else:
+            if END_RE.match(s):
+                in_proc = False
+            continue
+
+        # Module-level declarations only reach here.
+        em = ENUM_RE.match(s)
+        if em:
+            open_enum = {
+                "name": em.group(2),
+                "visibility": (em.group(1) or "Public").capitalize(),
+                "line": ll.phys_start,
+                "line_end": ll.phys_start,
+                "members": [],
+            }
+            continue
+        tm = TYPE_RE.match(s)
+        if tm:
+            open_type = {
+                "name": tm.group(2),
+                "visibility": (tm.group(1) or "Public").capitalize(),
+                "line": ll.phys_start,
+                "line_end": ll.phys_start,
+                "fields": [],
+            }
+            continue
+        vm = EVENT_RE.match(s)
+        if vm:
+            events.append(
+                {
+                    "name": vm.group(2),
+                    "visibility": (vm.group(1) or "Public").capitalize(),
+                    "args": vm.group(3).strip(),
+                    "line": ll.phys_start,
+                }
+            )
+            continue
+        cm = CONST_RE.match(s)
+        if cm:
+            consts.append(
+                {
+                    "name": cm.group(2),
+                    "visibility": (cm.group(1) or "Private").capitalize(),
+                    "value": cm.group(3).strip(),
+                    "line": ll.phys_start,
+                }
+            )
+
+    if open_enum is not None:  # unterminated
+        open_enum["unterminated"] = True
+        enums.append(open_enum)
+    if open_type is not None:
+        open_type["unterminated"] = True
+        types.append(open_type)
+    return {"consts": consts, "enums": enums, "types": types, "events": events}
+
+
 def classify_events(procs: list[dict], control_names: set[str], is_form: bool) -> None:
     prefixes = {n.lower() for n in control_names}
     if is_form:
@@ -168,6 +299,7 @@ def inventory_file(path: Path) -> dict:
     is_form = path.suffix.lower() == ".frm"
     form_kind, controls = parse_form_header(lines) if is_form else (None, [])
     procs, declares = parse_procedures(lines)
+    decls = parse_declarations(lines)
     classify_events(procs, {c["name"] for c in controls}, is_form)
     return {
         "file": path.name,
@@ -177,6 +309,10 @@ def inventory_file(path: Path) -> dict:
         "control_count": len(controls),
         "controls": controls,
         "declares": declares,
+        "consts": decls["consts"],
+        "enums": decls["enums"],
+        "types": decls["types"],
+        "events": decls["events"],
         "procedures": procs,
     }
 
@@ -275,6 +411,32 @@ def write_markdown(report: dict, out: Path) -> None:
             for d in f["declares"]:
                 L.append(f"- `{d['name']}` ({d['kind']}, {d['lib']}) — L{d['line']}")
             L.append("")
+        if f.get("consts"):
+            L.append(f"### 定数（Const, {len(f['consts'])}）")
+            L.append("")
+            for c in f["consts"]:
+                L.append(f"- `{c['name']}` = `{c['value']}` ({c['visibility']}) — L{c['line']}")
+            L.append("")
+        if f.get("enums"):
+            L.append(f"### 列挙型（Enum, {len(f['enums'])}）")
+            L.append("")
+            for en in f["enums"]:
+                members = ", ".join(m["name"] for m in en["members"]) or "—"
+                L.append(f"- `{en['name']}` ({en['visibility']}) L{en['line']}–{en['line_end']}: {members}")
+            L.append("")
+        if f.get("types"):
+            L.append(f"### ユーザー定義型（Type, {len(f['types'])}）")
+            L.append("")
+            for t in f["types"]:
+                fields = ", ".join(fld["name"] for fld in t["fields"]) or "—"
+                L.append(f"- `{t['name']}` ({t['visibility']}) L{t['line']}–{t['line_end']}: {fields}")
+            L.append("")
+        if f.get("events"):
+            L.append(f"### イベント宣言（Event, {len(f['events'])}）")
+            L.append("")
+            for ev in f["events"]:
+                L.append(f"- `{ev['name']}({ev['args']})` ({ev['visibility']}) — L{ev['line']}")
+            L.append("")
     out.write_text("\n".join(L) + "\n", encoding="utf-8")
 
 
@@ -337,6 +499,36 @@ def write_html(report: dict, out: Path) -> None:
                 for d in f["declares"]
             )
             blocks.append(f"<h4>API 宣言（{len(f['declares'])}）</h4><ul>{items}</ul>")
+        if f.get("consts"):
+            items = "".join(
+                f"<li><code>{e(c['name'])}</code> = <code>{e(c['value'])}</code>"
+                f"（{e(c['visibility'])}）L{c['line']}</li>"
+                for c in f["consts"]
+            )
+            blocks.append(f"<h4>定数（Const, {len(f['consts'])}）</h4><ul>{items}</ul>")
+        if f.get("enums"):
+            items = "".join(
+                f"<li><code>{e(en['name'])}</code>（{e(en['visibility'])}）"
+                f"L{en['line']}–{en['line_end']}: "
+                f"{e(', '.join(m['name'] for m in en['members']) or '—')}</li>"
+                for en in f["enums"]
+            )
+            blocks.append(f"<h4>列挙型（Enum, {len(f['enums'])}）</h4><ul>{items}</ul>")
+        if f.get("types"):
+            items = "".join(
+                f"<li><code>{e(t['name'])}</code>（{e(t['visibility'])}）"
+                f"L{t['line']}–{t['line_end']}: "
+                f"{e(', '.join(fld['name'] for fld in t['fields']) or '—')}</li>"
+                for t in f["types"]
+            )
+            blocks.append(f"<h4>ユーザー定義型（Type, {len(f['types'])}）</h4><ul>{items}</ul>")
+        if f.get("events"):
+            items = "".join(
+                f"<li><code>{e(ev['name'])}({e(ev['args'])})</code>"
+                f"（{e(ev['visibility'])}）L{ev['line']}</li>"
+                for ev in f["events"]
+            )
+            blocks.append(f"<h4>イベント宣言（Event, {len(f['events'])}）</h4><ul>{items}</ul>")
         sections.append(
             f"<details id='{anchor}'><summary><b>{e(f['file'])}</b> — "
             f"<code>{e(f['vb_name'] or '?')}</code>（{e(kind)}, {f['total_lines']:,} 行, "
