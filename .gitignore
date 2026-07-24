@@ -11,9 +11,8 @@ Thumbs.db
 .idea/
 .vscode/
 
-# Cursor hook auto state (index may be tracked by consumer choice)
-.cursor/hooks/state/continual-learning.json
-.cursor/hooks/state/*.log
+# Cursor hook auto state (machine-specific; absolute paths, mtimes)
+.cursor/hooks/state/
 
 # Working outputs (keep directory placeholders)
 working/.cache/
