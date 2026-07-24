@@ -22,7 +22,8 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT / "tools"))
-from lib.config import reports_root  # noqa: E402
+from lib.config import decode_vb6_bytes, reports_root  # noqa: E402
+from lib.vbparse import iter_logical_lines  # noqa: E402
 
 PROC_RE = re.compile(
     r"^(?:(Public|Private|Friend)\s+)?(?:Static\s+)?"
@@ -39,12 +40,8 @@ VBNAME_RE = re.compile(r'^Attribute\s+VB_Name\s*=\s*"([^"]+)"', re.IGNORECASE)
 
 
 def decode(raw: bytes) -> str:
-    for enc in ("cp932", "utf-8-sig"):
-        try:
-            return raw.decode(enc)
-        except UnicodeDecodeError:
-            continue
-    return raw.decode("cp932", errors="replace")
+    """Config-driven decode (cp932 primary + fallbacks from archaeology.config.json)."""
+    return decode_vb6_bytes(raw)
 
 
 def parse_vbp(vbp_path: Path) -> dict:
@@ -86,16 +83,23 @@ def parse_form_header(lines: list[str]) -> tuple[str | None, list[dict]]:
 
 
 def parse_procedures(lines: list[str]) -> tuple[list[dict], list[dict]]:
+    """Return (procedures, declares).
+
+    Line numbers are physical (1-based). ``_`` continuations are folded so that
+    multi-line ``Declare`` signatures capture the full Lib target, while the
+    reported ``line`` stays the physical line where the statement begins.
+    """
     procs: list[dict] = []
     declares: list[dict] = []
-    in_header = lines and lines[0].startswith("VERSION")
+    logical = iter_logical_lines(lines)
+    in_header = bool(logical) and logical[0].text.startswith("VERSION")
     open_proc: dict | None = None
-    for idx, line in enumerate(lines, start=1):
+    for ll in logical:
+        stripped = ll.text
         if in_header:
-            if VBNAME_RE.match(line):
+            if VBNAME_RE.match(stripped):
                 in_header = False
             continue
-        stripped = line.strip()
         dm = DECLARE_RE.match(stripped)
         if dm and open_proc is None:
             declares.append(
@@ -104,7 +108,7 @@ def parse_procedures(lines: list[str]) -> tuple[list[dict], list[dict]]:
                     "kind": dm.group(2).capitalize(),
                     "visibility": (dm.group(1) or "Public").capitalize(),
                     "lib": dm.group(4),
-                    "line": idx,
+                    "line": ll.phys_start,
                 }
             )
             continue
@@ -117,12 +121,12 @@ def parse_procedures(lines: list[str]) -> tuple[list[dict], list[dict]]:
                     "name": pm.group(3),
                     "kind": kind,
                     "visibility": (pm.group(1) or "Public").capitalize(),
-                    "line_start": idx,
+                    "line_start": ll.phys_start,
                 }
         else:
             if END_RE.match(stripped):
-                open_proc["line_end"] = idx
-                open_proc["lines"] = idx - open_proc["line_start"] + 1
+                open_proc["line_end"] = ll.phys_end
+                open_proc["lines"] = ll.phys_end - open_proc["line_start"] + 1
                 procs.append(open_proc)
                 open_proc = None
     if open_proc is not None:  # unterminated (should not happen in valid VB6)
