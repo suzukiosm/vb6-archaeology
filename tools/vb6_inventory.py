@@ -501,7 +501,7 @@ def write_html(report: dict, out: Path) -> None:
         kind = f["form_kind"] or ("Module" if f["type"] == "module" else "?")
         anchor = f"f{i}"
         toc_rows.append(
-            f"<tr><td class='num'>{i}</td>"
+            f"<tr class='tocrow'><td class='num'>{i}</td>"
             f"<td><a href='#{anchor}'><code>{e(f['file'])}</code></a></td>"
             f"<td>{e(kind)}</td><td><code>{e(f['vb_name'] or '?')}</code></td>"
             f"<td class='num'>{f['total_lines']:,}</td>"
@@ -563,7 +563,7 @@ def write_html(report: dict, out: Path) -> None:
             )
             blocks.append(f"<h4>イベント宣言（Event, {len(f['events'])}）</h4><ul>{items}</ul>")
         sections.append(
-            f"<details id='{anchor}'><summary><b>{e(f['file'])}</b> — "
+            f"<details class='filesec' id='{anchor}'><summary><b>{e(f['file'])}</b> — "
             f"<code>{e(f['vb_name'] or '?')}</code>（{e(kind)}, {f['total_lines']:,} 行, "
             f"proc {len(f['procedures'])}）</summary>" + "".join(blocks) + "</details>"
         )
@@ -589,17 +589,53 @@ details{{border:1px solid #ddd;border-radius:6px;margin:.4rem 0;padding:.3rem .8
 summary{{cursor:pointer;padding:.3rem 0}}
 .warn{{color:#a00}}
 .meta{{color:#555}}
+.toolbar{{position:sticky;top:0;background:#fff;padding:.6rem 0;border-bottom:1px solid #eee;z-index:1;display:flex;gap:.5rem;align-items:center;flex-wrap:wrap}}
+.toolbar input{{flex:1;min-width:12rem;padding:.35rem .5rem;font-size:.9rem;border:1px solid #bbb;border-radius:4px}}
+.toolbar button{{padding:.35rem .7rem;font-size:.85rem;cursor:pointer;border:1px solid #bbb;border-radius:4px;background:#f7f7f7}}
+.toolbar .count{{color:#555;font-size:.8rem;white-space:nowrap}}
 </style></head><body>
 <h1>{e(report['vbp'])} インベントリ（VBP → ファイル → プロシージャ）</h1>
 <p class="meta">Startup: <code>{e(meta.get('Startup', '?'))}</code> ／ Title: <code>{e(meta.get('Title', '?'))}</code> ／ Exe: <code>{e(meta.get('ExeName32', '?'))}</code><br>
 ファイル {report['file_count']}（VBP 記載順） ／ プロシージャ合計 {report['proc_total']}。
 行頭のプロシージャ定義のみを機械抽出（呼び出し推定なし）。行番号は working/extracts の実ファイル基準。</p>
 {warn_html}
+<div class="toolbar">
+  <input id="q" type="search" placeholder="検索: ファイル名 / VB_Name / プロシージャ名 / Const / Enum …" autocomplete="off">
+  <button id="expandAll" type="button">全て開く</button>
+  <button id="collapseAll" type="button">全て閉じる</button>
+  <span class="count" id="count"></span>
+</div>
 <h2>目次</h2>
 <table><tr><th>#</th><th>ファイル</th><th>種別</th><th>VB_Name</th><th>行数</th><th>Ctrl</th><th>Proc</th></tr>
 {''.join(toc_rows)}</table>
 <h2>ファイル別詳細</h2>
 {''.join(sections)}
+<script>
+(function(){{
+  var q=document.getElementById('q');
+  var count=document.getElementById('count');
+  var secs=Array.prototype.slice.call(document.querySelectorAll('details.filesec'));
+  var rows=Array.prototype.slice.call(document.querySelectorAll('tr.tocrow'));
+  function apply(){{
+    var t=q.value.trim().toLowerCase();
+    var shown=0;
+    secs.forEach(function(s){{
+      var hit=!t||s.innerText.toLowerCase().indexOf(t)>=0;
+      s.style.display=hit?'':'none';
+      if(t&&hit){{s.open=true;shown++;}}
+    }});
+    rows.forEach(function(r){{
+      var hit=!t||r.innerText.toLowerCase().indexOf(t)>=0;
+      r.style.display=hit?'':'none';
+    }});
+    count.textContent=t?(shown+' / '+secs.length+' 件一致'):(secs.length+' ファイル');
+  }}
+  q.addEventListener('input',apply);
+  document.getElementById('expandAll').onclick=function(){{secs.forEach(function(s){{if(s.style.display!=='none')s.open=true;}});}};
+  document.getElementById('collapseAll').onclick=function(){{secs.forEach(function(s){{s.open=false;}});}};
+  apply();
+}})();
+</script>
 </body></html>
 """
     out.write_text(doc, encoding="utf-8")
