@@ -18,6 +18,7 @@ import html
 import json
 import re
 import sys
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -337,21 +338,33 @@ def _parse_bytes(raw: bytes, path: Path) -> dict:
     }
 
 
-def build_report(extract_dir: Path, vbp_path: Path, use_cache: bool = True) -> dict:
+def build_report(
+    extract_dir: Path, vbp_path: Path, use_cache: bool = True, jobs: int = 1
+) -> dict:
     vbp = parse_vbp(vbp_path)
-    files: list[dict] = []
     missing: list[str] = []
     ordered = [(f, "form") for f in vbp["forms"]] + [
         (m["file"], "module") for m in vbp["modules"]
     ]
+    present: list[tuple[str, str]] = []
     for fname, ftype in ordered:
-        p = extract_dir / fname
-        if not p.is_file():
+        if (extract_dir / fname).is_file():
+            present.append((fname, ftype))
+        else:
             missing.append(fname)
-            continue
-        info = inventory_file(p, use_cache=use_cache)
+
+    def work(item: tuple[str, str]) -> dict:
+        fname, ftype = item
+        info = inventory_file(extract_dir / fname, use_cache=use_cache)
         info["type"] = ftype
-        files.append(info)
+        return info
+
+    # ThreadPoolExecutor.map preserves input order, so VBP order is kept.
+    if jobs and jobs > 1 and len(present) > 1:
+        with ThreadPoolExecutor(max_workers=jobs) as pool:
+            files: list[dict] = list(pool.map(work, present))
+    else:
+        files = [work(item) for item in present]
     listed = {f["file"].lower() for f in files} | {m.lower() for m in missing}
     extras = sorted(
         p.name
@@ -602,6 +615,12 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="Disable the content-hash parse cache (working/.cache/)",
     )
+    parser.add_argument(
+        "--jobs",
+        type=int,
+        default=1,
+        help="Parse files in parallel with N workers (default 1; helps large trees)",
+    )
     args = parser.parse_args(argv)
 
     root = args.extract_dir if args.extract_dir.is_absolute() else REPO_ROOT / args.extract_dir
@@ -615,7 +634,7 @@ def main(argv: list[str] | None = None) -> int:
             raise SystemExit(f"expected exactly one .vbp in {root}, found {len(cands)}")
         vbp = cands[0]
 
-    report = build_report(root, vbp, use_cache=not args.no_cache)
+    report = build_report(root, vbp, use_cache=not args.no_cache, jobs=args.jobs)
 
     out_dir = args.out_dir or reports_root()
     out_dir.mkdir(parents=True, exist_ok=True)
