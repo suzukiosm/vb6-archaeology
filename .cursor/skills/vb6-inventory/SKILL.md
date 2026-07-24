@@ -26,9 +26,14 @@ description: >-
    python tools/verify_inventory.py working\reports\<stem>_inventory.json
    ```
 
-2. `missing_in_extract` / `not_in_vbp` を確認。
+2. レポート上の次を確認する:
+   - `missing_in_extract` / `not_in_vbp`
+   - `warnings`（パス欠落の `Form=` / `Module=` / `Class=`）
+   - 任意で `--skip-parent-common` を使った場合は `skipped_parent_common`
 3. **機械検証必須**: `count mismatches: none` まで。
 4. HTML はローカル HTTP（`/serve-reports`）。
+
+オプション詳細は `tools/README.md`（inventory 節）。VBP キーは `docs/reference/vbp-keys.md`。
 
 ## 位置づけ
 

@@ -56,7 +56,9 @@ python tools/runtime_layout.py --extract working\extracts\mini_vbp
 - 棚卸し対象:
   - VBP: **Form / Module / Class**、`Object=`（OCX 等）、Version / Command32 / HelpFile などメタ
   - プロシージャ: Sub/Function/Property + **引数・戻り値**、Declare、モジュールレベル Const/Enum/Type/Event
+- パス欠落の `Form=` / `Module=` / `Class=` は一覧に入れず `warnings` に出す（JSON / MD / HTML / CLI サマリ）。
 - HTML レポートは検索ボックス（ファイル名 / VB_Name / プロシージャ / 宣言名）と全開閉ボタン付き。
+- VBP キーの正: `docs/reference/vbp-keys.md`。
 
 ## 共有ライブラリ（追加）
 
@@ -73,9 +75,9 @@ python -m unittest discover -s tools -p "test_*.py" -v
 
 - `test_runtime_layout.py` — Show 経路の文脈解決（合成データ）
 - `test_vbparse.py` — 行連結畳み込みと物理行番号の保持
-- `test_inventory.py` — proc/Declare 抽出、Const/Enum/Type/Event、End 数不変条件
+- `test_inventory.py` — proc/Declare/Property シグネチャ、Const/Enum/Type/Event、Class=/Object=/meta、`warnings`、`--skip-parent-common`、End 数不変条件
 - `test_cache.py` — 内容ハッシュキー・保存/読込
-- `test_build_report.py` — 並列＝逐次の一致・VBP 順維持
+- `test_build_report.py` — 並列＝逐次の一致・VBP 順維持・HTML 検索 TOC
 
 いずれも特定顧客アプリの正本は不要（合成データ／一時ディレクトリ）。
 
