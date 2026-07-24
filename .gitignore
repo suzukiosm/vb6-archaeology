@@ -16,6 +16,7 @@ Thumbs.db
 .cursor/hooks/state/*.log
 
 # Working outputs (keep directory placeholders)
+working/.cache/
 working/extracts/**
 !working/extracts/.gitkeep
 working/reports/**

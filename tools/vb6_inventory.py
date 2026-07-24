@@ -22,8 +22,14 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT / "tools"))
+from lib.cache import content_key  # noqa: E402
+from lib.cache import load as cache_load  # noqa: E402
+from lib.cache import store as cache_store  # noqa: E402
 from lib.config import decode_vb6_bytes, reports_root  # noqa: E402
 from lib.vbparse import iter_logical_lines  # noqa: E402
+
+# Bump when parse_* output shape or semantics change (invalidates the cache).
+PARSER_VERSION = "inv-2"
 
 PROC_RE = re.compile(
     r"^(?:(Public|Private|Friend)\s+)?(?:Static\s+)?"
@@ -288,8 +294,22 @@ def classify_events(procs: list[dict], control_names: set[str], is_form: bool) -
             p["role"] = "general"
 
 
-def inventory_file(path: Path) -> dict:
-    lines = decode(path.read_bytes()).splitlines()
+def inventory_file(path: Path, use_cache: bool = True) -> dict:
+    raw = path.read_bytes()
+    if use_cache:
+        key = content_key(raw, PARSER_VERSION)
+        hit = cache_load(key)
+        if hit is not None:
+            hit["file"] = path.name  # same content, possibly different filename
+            return hit
+    result = _parse_bytes(raw, path)
+    if use_cache:
+        cache_store(key, result)
+    return result
+
+
+def _parse_bytes(raw: bytes, path: Path) -> dict:
+    lines = decode(raw).splitlines()
     vb_name = None
     for line in lines:
         m = VBNAME_RE.match(line)
@@ -317,7 +337,7 @@ def inventory_file(path: Path) -> dict:
     }
 
 
-def build_report(extract_dir: Path, vbp_path: Path) -> dict:
+def build_report(extract_dir: Path, vbp_path: Path, use_cache: bool = True) -> dict:
     vbp = parse_vbp(vbp_path)
     files: list[dict] = []
     missing: list[str] = []
@@ -329,7 +349,7 @@ def build_report(extract_dir: Path, vbp_path: Path) -> dict:
         if not p.is_file():
             missing.append(fname)
             continue
-        info = inventory_file(p)
+        info = inventory_file(p, use_cache=use_cache)
         info["type"] = ftype
         files.append(info)
     listed = {f["file"].lower() for f in files} | {m.lower() for m in missing}
@@ -577,6 +597,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("extract_dir", type=Path)
     parser.add_argument("--vbp", type=Path, default=None, help="default: sole *.vbp in extract_dir")
     parser.add_argument("--out-dir", type=Path, default=None)
+    parser.add_argument(
+        "--no-cache",
+        action="store_true",
+        help="Disable the content-hash parse cache (working/.cache/)",
+    )
     args = parser.parse_args(argv)
 
     root = args.extract_dir if args.extract_dir.is_absolute() else REPO_ROOT / args.extract_dir
@@ -590,7 +615,7 @@ def main(argv: list[str] | None = None) -> int:
             raise SystemExit(f"expected exactly one .vbp in {root}, found {len(cands)}")
         vbp = cands[0]
 
-    report = build_report(root, vbp)
+    report = build_report(root, vbp, use_cache=not args.no_cache)
 
     out_dir = args.out_dir or reports_root()
     out_dir.mkdir(parents=True, exist_ok=True)
