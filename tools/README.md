@@ -46,13 +46,35 @@ python tools/runtime_layout.py --extract working\extracts\mini_vbp
 - `archaeology.config.json` の `geometry_hints` で親フォーム相対式を数値化できる（任意）
 - `skeletons_dir` 既定は `working/skeletons`（消費者は web lib 等へ変更可）
 
+## inventory の性能・拡張オプション
+
+- `--jobs N` — ファイルを N 並列で解析（既定 1＝逐次）。大規模ツリーで有効。VBP 記載順は維持。
+- `--no-cache` — 内容ハッシュキャッシュ（`working/.cache/`）を無効化。
+  - 既定はキャッシュ有効。SHA-256（パーサ版＋バイト列）キーで未変更ファイルの再解析をskip。
+  - パーサ挙動を変えたら `vb6_inventory.PARSER_VERSION` を上げて自動無効化する。
+- 棚卸し対象: Sub/Function/Property/Declare に加え、モジュールレベルの **Const / Enum / Type / Event**（プロシージャ内ローカルは除外）。
+- HTML レポートは検索ボックス（ファイル名 / VB_Name / プロシージャ / 宣言名）と全開閉ボタン付き。
+
+## 共有ライブラリ（追加）
+
+| モジュール | 用途 |
+|---|---|
+| `lib/vbparse.py` | `_` 行連結の畳み込み（物理行番号を保持する logical line） |
+| `lib/cache.py` | 内容アドレス指定の解析キャッシュ（`working/.cache/`） |
+
 ## テスト
 
 ```powershell
-python -m unittest tools.test_runtime_layout -v
+python -m unittest discover -s tools -p "test_*.py" -v
 ```
 
-`test_runtime_layout.py` は Show 経路の文脈解決ロジックを合成データで検証する（特定顧客アプリの正本は不要）。
+- `test_runtime_layout.py` — Show 経路の文脈解決（合成データ）
+- `test_vbparse.py` — 行連結畳み込みと物理行番号の保持
+- `test_inventory.py` — proc/Declare 抽出、Const/Enum/Type/Event、End 数不変条件
+- `test_cache.py` — 内容ハッシュキー・保存/読込
+- `test_build_report.py` — 並列＝逐次の一致・VBP 順維持
+
+いずれも特定顧客アプリの正本は不要（合成データ／一時ディレクトリ）。
 
 ## 由来と非対象
 
