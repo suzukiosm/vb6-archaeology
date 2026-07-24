@@ -163,18 +163,50 @@ HELPFILE="proj.hlp"
     def test_skip_parent_common(self) -> None:
         vbp = """\
 Form=Form1.frm
+Form=..\\..\\shared\\Shared.frm
 Module=Shared; ..\\..\\common\\Shared.bas
 Class=Local; Local.cls
+Class=Remote; ..\\..\\common\\Remote.cls
 """
         with tempfile.TemporaryDirectory() as td:
             path = Path(td) / "proj.vbp"
             path.write_bytes(vbp.encode("cp932"))
             kept = inv.parse_vbp(path, skip_parent_common=False)
             skipped = inv.parse_vbp(path, skip_parent_common=True)
+        self.assertEqual(len(kept["forms"]), 2)
         self.assertEqual(len(kept["modules"]), 1)
+        self.assertEqual(len(kept["classes"]), 2)
+        self.assertEqual(skipped["forms"], ["Form1.frm"])
         self.assertEqual(skipped["modules"], [])
         self.assertEqual(skipped["classes"][0]["file"], "Local.cls")
-        self.assertEqual(skipped["skipped_parent_common"][0]["file"], "..\\..\\common\\Shared.bas")
+        skipped_files = {s["file"] for s in skipped["skipped_parent_common"]}
+        self.assertEqual(
+            skipped_files,
+            {
+                "..\\..\\shared\\Shared.frm",
+                "..\\..\\common\\Shared.bas",
+                "..\\..\\common\\Remote.cls",
+            },
+        )
+
+    def test_module_class_without_path_warned(self) -> None:
+        vbp = """\
+Form=
+Module=Orphan
+Class=Bare;
+Module=Ok; Ok.bas
+"""
+        with tempfile.TemporaryDirectory() as td:
+            path = Path(td) / "proj.vbp"
+            path.write_bytes(vbp.encode("cp932"))
+            got = inv.parse_vbp(path)
+        self.assertEqual(got["forms"], [])
+        self.assertEqual(got["modules"], [{"module": "Ok", "file": "Ok.bas"}])
+        self.assertEqual(got["classes"], [])
+        reasons = {(w["kind"], w["reason"], w.get("ident")) for w in got["warnings"]}
+        self.assertIn(("form", "missing_path", None), reasons)
+        self.assertIn(("module", "missing_path", "Orphan"), reasons)
+        self.assertIn(("class", "missing_path", "Bare"), reasons)
 
     def test_array_param_parens(self) -> None:
         params, ret = inv.extract_params_returns("(ByRef a() As Long) As Boolean")

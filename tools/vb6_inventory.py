@@ -104,8 +104,9 @@ def looks_like_parent_common(path: str) -> bool:
 def parse_vbp(vbp_path: Path, *, skip_parent_common: bool = False) -> dict:
     """Parse VBP facts: forms, modules, classes, Object= components, meta.
 
-    ``Class=`` uses the same ``Ident; path`` shape as ``Module=``. Paths that
-    look like shared parent-tree libs may be omitted when
+    ``Class=`` uses the same ``Ident; path`` shape as ``Module=``. Entries
+    without a path (no ``; file``) are omitted and recorded in ``warnings``.
+    Paths that look like shared parent-tree libs may be omitted when
     ``skip_parent_common`` is set (recorded under ``skipped_parent_common``).
     """
     text = decode(vbp_path.read_bytes())
@@ -114,6 +115,7 @@ def parse_vbp(vbp_path: Path, *, skip_parent_common: bool = False) -> dict:
     classes: list[dict] = []
     objects: list[dict] = []
     skipped_parent_common: list[dict] = []
+    warnings: list[dict] = []
     meta: dict[str, str] = {}
 
     def maybe_skip(kind: str, path: str, ident: str = "") -> bool:
@@ -124,12 +126,29 @@ def parse_vbp(vbp_path: Path, *, skip_parent_common: bool = False) -> dict:
             return True
         return False
 
+    def warn_missing_path(kind: str, ident: str, raw: str) -> None:
+        # ``Module=Foo`` / ``Class=Bar`` (no ``; path``) would otherwise yield
+        # file="" and pollute missing_in_extract with an empty path.
+        warnings.append(
+            {
+                "kind": kind,
+                "reason": "missing_path",
+                "ident": ident or None,
+                "raw": raw,
+            }
+        )
+
     for line in text.splitlines():
         line = line.strip()
         if not line or line.startswith("["):
             continue
         if line.startswith("Form="):
             name = line.split("=", 1)[1].strip().strip('"')
+            if not name:
+                warnings.append(
+                    {"kind": "form", "reason": "missing_path", "ident": None, "raw": line}
+                )
+                continue
             if maybe_skip("form", name):
                 continue
             if name not in forms:
@@ -137,12 +156,18 @@ def parse_vbp(vbp_path: Path, *, skip_parent_common: bool = False) -> dict:
         elif line.startswith("Module="):
             ident, _, fname = line.split("=", 1)[1].partition(";")
             ident, fname = ident.strip(), fname.strip().strip('"')
+            if not fname:
+                warn_missing_path("module", ident, line)
+                continue
             if maybe_skip("module", fname, ident):
                 continue
             modules.append({"module": ident, "file": fname})
         elif line.startswith("Class="):
             ident, _, fname = line.split("=", 1)[1].partition(";")
             ident, fname = ident.strip(), fname.strip().strip('"')
+            if not fname:
+                warn_missing_path("class", ident, line)
+                continue
             if maybe_skip("class", fname, ident):
                 continue
             classes.append({"class": ident, "file": fname})
@@ -164,6 +189,7 @@ def parse_vbp(vbp_path: Path, *, skip_parent_common: bool = False) -> dict:
         "classes": classes,
         "objects": objects,
         "skipped_parent_common": skipped_parent_common,
+        "warnings": warnings,
         "meta": meta,
     }
 
@@ -510,6 +536,7 @@ def build_report(
         "missing_in_extract": missing,
         "not_in_vbp": extras,
         "skipped_parent_common": vbp["skipped_parent_common"],
+        "warnings": vbp.get("warnings") or [],
     }
 
 
@@ -542,6 +569,11 @@ def write_markdown(report: dict, out: Path) -> None:
             f"`{s['file']}`" for s in report["skipped_parent_common"]
         )
         L.append(f"- （参考）親共通パスをスキップ: {sk}")
+    if report.get("warnings"):
+        for w in report["warnings"]:
+            L.append(
+                f"- ⚠ VBP 警告 ({w.get('kind')}/{w.get('reason')}): `{w.get('raw')}`"
+            )
     L.append("")
     L.append("## 目次")
     L.append("")
@@ -733,6 +765,10 @@ def write_html(report: dict, out: Path) -> None:
             "親共通パスをスキップ: "
             + ", ".join(e(s["file"]) for s in report["skipped_parent_common"])
         )
+    for w in report.get("warnings") or []:
+        warns.append(
+            f"VBP 警告 ({e(w.get('kind'))}/{e(w.get('reason'))}): {e(w.get('raw'))}"
+        )
     warn_html = "".join(f"<p class='warn'>⚠ {w}</p>" for w in warns)
     ver = ".".join(meta.get(k, "?") for k in ("MajorVer", "MinorVer", "RevisionVer"))
     obj_html = ""
@@ -877,6 +913,7 @@ def main(argv: list[str] | None = None) -> int:
                 "missing_in_extract": report["missing_in_extract"],
                 "not_in_vbp": report["not_in_vbp"],
                 "skipped_parent_common": report.get("skipped_parent_common") or [],
+                "warnings": report.get("warnings") or [],
             },
             ensure_ascii=False,
             indent=2,
