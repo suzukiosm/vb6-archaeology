@@ -1,0 +1,22 @@
+---
+description: プロジェクト拘束とグローバル _core への橋渡し。ワークスペース単位で常時適用。
+alwaysApply: true
+---
+
+# Project rules + Global core
+
+このリポジトリでは **グローバル憲法** `_core.mdc` に従う。
+
+- **パス（Read 用）:** `CURSOR_HOME/rules/_core.mdc`
+- **Windows:** `%USERPROFILE%\.cursor\rules\_core.mdc`
+
+## プロジェクト固有
+
+- **保護ディレクトリは改変禁止**（`archaeology.config.json` の `protected_source_dirs`）
+- 作業成果は **`working/`** · **`tools/`** · **`docs/`** · **`.cursor/`** およびルートの入口/設定（`AGENTS.md` · `archaeology.config.json` 等）
+- VB6 テキストは **CP932**。内容判断は Python ツール経由
+- 調査サイクル: 検証 → 理解 →（任意）実装。詳細は `docs/ai-onboarding.md`
+- セッション開始: `AGENTS.md` → `docs/ai-onboarding.md` → `docs/ai-dev-context.md`
+- 定型作業は `/vb6-extract` `/vb6-inventory` `/frm-deep-read` `/vb6-comprehend` `/vb6-report` `/vb6-verify-reports` `/serve-reports` から入る
+- 正典層: `AGENTS.md` / `docs/flow/_master.md` / `docs/ai-dev-context.md`
+- キット由来資産の利用条件は元リポの `LICENSE` に従う

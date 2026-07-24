@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "_note": "Protects directories listed in archaeology.config.json protected_source_dirs (default: source, アイコー).",
+  "hooks": {
+    "sessionStart": [
+      {
+        "command": "python .cursor/hooks/session_context.py",
+        "timeout": 10
+      }
+    ],
+    "preToolUse": [
+      {
+        "command": "python .cursor/hooks/protect_source.py",
+        "matcher": "Write|StrReplace|Delete|EditNotebook|ApplyPatch",
+        "failClosed": true,
+        "timeout": 15
+      }
+    ],
+    "beforeShellExecution": [
+      {
+        "command": "python .cursor/hooks/guard_shell.py",
+        "timeout": 15
+      }
+    ]
+  }
+}

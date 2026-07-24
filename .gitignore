@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Editor / OS
+.DS_Store
+Thumbs.db
+*.swp
+.idea/
+.vscode/
+
+# Cursor hook auto state (index may be tracked by consumer choice)
+.cursor/hooks/state/continual-learning.json
+.cursor/hooks/state/*.log
+
+# Working outputs (keep directory placeholders)
+working/extracts/**
+!working/extracts/.gitkeep
+working/reports/**
+!working/reports/.gitkeep
+working/skeletons/**
+!working/skeletons/.gitkeep
+working/_*.py
+working/_verify_*.py
+
+# Local secrets
+.env
+.env.*
+*.pem
