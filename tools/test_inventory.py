@@ -63,6 +63,29 @@ class ParseProceduresTests(unittest.TestCase):
         end_count = sum(1 for ln in self.lines if inv.END_RE.match(ln.strip()))
         self.assertEqual(end_count, len(self.procs))
 
+    def test_property_get_let_set_signatures(self) -> None:
+        src = """\
+Attribute VB_Name = "P"
+Public Property Get Value() As Long
+    Value = 1
+End Property
+Public Property Let Value(ByVal v As Long)
+End Property
+Friend Property Set Value(ByRef obj As Object)
+End Property
+"""
+        procs, _ = inv.parse_procedures(src.splitlines())
+        by_kind = {p["kind"]: p for p in procs}
+        self.assertEqual(set(by_kind), {"Property Get", "Property Let", "Property Set"})
+        self.assertEqual(by_kind["Property Get"]["params"], "")
+        self.assertEqual(by_kind["Property Get"]["returns"], "Long")
+        self.assertEqual(by_kind["Property Get"]["visibility"], "Public")
+        self.assertEqual(by_kind["Property Let"]["params"], "ByVal v As Long")
+        self.assertIsNone(by_kind["Property Let"]["returns"])
+        self.assertEqual(by_kind["Property Set"]["params"], "ByRef obj As Object")
+        self.assertEqual(by_kind["Property Set"]["visibility"], "Friend")
+        self.assertIsNone(by_kind["Property Set"]["returns"])
+
 
 DECL_BAS = """\
 Attribute VB_Name = "M"
