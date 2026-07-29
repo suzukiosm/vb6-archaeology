@@ -20,7 +20,7 @@ VB6 を壊さず理解するための汎用 OS（docs / .cursor / tools）を維
 
 ## 3. 次手（キット）
 
-- 消費者向け frm-audit テンプレ（任意・後回し）
+- （採用済）消費者向け frm-audit テンプレ — `docs/templates/frm-audit.md` · `frm-audit-skill.md`（任意レーン。キット必須コマンドにはしない）
 - （採用済）`layout_sub_scores` — 開経路 Sub スコアを config 化。アプリ固有名は消費者 config のみ
 - （採用済）`tools/verify_report_names.py` — inventory 名集合 ↔ レポート言及。`/vb6-verify-reports` の正。End 数は `verify_inventory.py` のまま
 - （採用済・参考）vbSpec 由来の事実層: `Class=` / シグネチャ / `Object=`・Version メタ / 任意 `--skip-parent-common`。コメント仕様書化は非採用

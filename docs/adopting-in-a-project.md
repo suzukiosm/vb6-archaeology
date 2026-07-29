@@ -100,6 +100,19 @@ docs/templates/              # 初回コピー元
 - 汎用（どの VBP でも使う）→ キット側 `tools/` に還元を検討（許諾・還元ルールに従う）
 - 固有（伝票 DAT・特定 Form）→ 消費者 `tools/` に置き、キットを汚さない
 
+## 任意: 再実装があるなら frm-audit テンプレ
+
+キットの必須ゴールは調査 OS のまま。再実装レーンを持つときだけ、.frm 単位の再監査を同じ型で始める:
+
+1. [`templates/frm-audit.md`](templates/frm-audit.md) を  
+   `working/reports/audit/〈name〉_frm_audit.md` にコピーして埋める  
+   （再監査順: 読解誤り → UI 位置〈保留可だが開時座標等は対象〉 → 機能取りこぼし。意図的未移植と取りこぼしを区別）
+2. エージェント手順が必要なら [`templates/frm-audit-skill.md`](templates/frm-audit-skill.md) を  
+   消費者の `.cursor/skills/vb6-frm-audit/SKILL.md` にコピーし、抽出パス等だけ書き換える  
+   （キット commands への必須追加はしない。自リポで任意 command を足してよい）
+
+テンプレ一覧: [`templates/README.md`](templates/README.md)
+
 ## 境界
 
 | キット | 消費者 |
