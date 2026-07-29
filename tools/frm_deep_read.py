@@ -460,6 +460,61 @@ def annotate_offscreen(form_info: dict, controls: list[dict]):
     return controls
 
 
+CONTAINER_KINDS = ("VB.Frame", "VB.PictureBox")
+
+
+def _find_parent(controls: list[dict], child: dict):
+    """Resolve a child's design-time parent control (arrays disambiguated by center)."""
+    pname = (child.get("parent") or "").lower()
+    if not pname:
+        return None
+    hits = [c for c in controls if c["name"].lower() == pname and c is not child]
+    if not hits:
+        return None
+    if len(hits) == 1:
+        return hits[0]
+    cx = child["abs_left"] + (child.get("width") or 0) / 2
+    cy = child["abs_top"] + (child.get("height") or 0) / 2
+    for h in hits:
+        if (
+            h["abs_left"] <= cx <= h["abs_left"] + (h.get("width") or 0)
+            and h["abs_top"] <= cy <= h["abs_top"] + (h.get("height") or 0)
+        ):
+            return h
+    return hits[0]
+
+
+def annotate_hidden_ancestor(controls: list[dict]):
+    """Flag children of a permanently invisible container.
+
+    Only dead containers count: a code-referenced Frame/PictureBox can be
+    switched to Visible=True at runtime, so its children must stay in the
+    skeleton as normally visible. A container with Visible=0 and zero code
+    references can never appear, so its children are unreachable at runtime
+    (``ancestor_hidden`` / ``ancestor_hidden_by``).
+    """
+    for c in controls:
+        if c["kind"] in ("VB.Menu", "VB.Timer"):
+            continue
+        guard = 0
+        node = c
+        while guard < 16:
+            guard += 1
+            parent = _find_parent(controls, node)
+            if parent is None:
+                break
+            if (
+                parent["kind"] in CONTAINER_KINDS
+                and parent.get("visible", True) is False
+                and not parent.get("live", False)
+            ):
+                c["ancestor_hidden"] = True
+                c["ancestor_hidden_by"] = parent["name"]
+                break
+            node = parent
+    return controls
+
+
 # ── Skeleton output ───────────────────────────────────────
 
 CAT_MAP = {
@@ -517,6 +572,14 @@ def write_report(
     md.append(f"Form Caption: `{form_info['caption']}`\n\n")
     md.append(f"> コントロール: {len(controls)} 全体 → **{len(live)} ライブ** / {len(dead)} デッド（コード未参照）\n")
     md.append(f"> イベント: {len(events)} 全体 → **{len(live_events)} ライブ** / {len(dead_events)} デッド\n\n")
+    # 本ツールは .frm 単体解析。他 .frm/.bas からの参照は見えないため、
+    # イベント 0 を「孤立・到達不能」と即断させない注記を必ず出す。
+    md.append(
+        "> **範囲**: 本レポートはこの .frm 単体の解析。他 .frm/.bas からの参照"
+        "（`Show` の呼び元・外部 Sub によるコントロール操作）は対象外。"
+        "イベント数 0 を孤立・到達不能と即断しない"
+        f"{'（イベント 0 でも外部から Load / 操作される場合がある）。' if not live_events else '。'}\n\n"
+    )
 
     if menu_findings:
         md.append("## メニュー警告（Invisible / Disabled / Click 無し）\n\n")
@@ -567,9 +630,27 @@ def write_report(
         if len(offscreen_live) > 20:
             md.append(f"\n他 {len(offscreen_live) - 20} 件省略\n")
 
+    hidden_ancestor = [c for c in controls if c.get("ancestor_hidden")]
+    if hidden_ancestor:
+        md.append(f"\n## 親コンテナ非表示で到達不能（{len(hidden_ancestor)}件）\n\n")
+        md.append(
+            "> 親 Frame/PictureBox が `Visible=0` かつコード未参照＝実行時に表示され得ない。"
+            "skeleton には `ancestor_hidden: true` で含まれる。\n\n"
+        )
+        for c in hidden_ancestor[:20]:
+            idx = f"({c['index']})" if c.get("index") is not None else ""
+            kind = c["kind"].split(".")[-1]
+            md.append(
+                f"- `{c['name']}`{idx} ({kind}) Caption=`{c.get('caption', '')}` "
+                f"L{c['line']} — 親 `{c.get('ancestor_hidden_by', '')}`\n"
+            )
+        if len(hidden_ancestor) > 20:
+            md.append(f"\n他 {len(hidden_ancestor) - 20} 件省略\n")
+
     onscreen_dead = [
         c for c in dead
         if c.get("visible", True) and not c.get("offscreen")
+        and not c.get("ancestor_hidden")
         and c["kind"] not in ("VB.Menu", "VB.Timer")
     ]
     if onscreen_dead:
@@ -604,6 +685,24 @@ def write_report(
 
 # ── main ──────────────────────────────────────────────────
 
+def _resolve_extract(arg: pathlib.Path | None) -> pathlib.Path:
+    if arg is not None:
+        extract = arg if arg.is_absolute() else REPO / arg
+        return extract.resolve()
+    root = extracts_root()
+    if not root.is_dir():
+        raise SystemExit(f"extracts dir missing: {root} (pass --extract)")
+    candidates = sorted(p for p in root.iterdir() if p.is_dir())
+    if len(candidates) == 1:
+        return candidates[0].resolve()
+    if not candidates:
+        raise SystemExit(f"no extracts under {root}; run extract_vbp.py first")
+    names = ", ".join(p.name for p in candidates)
+    raise SystemExit(
+        f"multiple extracts ({names}); pass --extract working/extracts/<stem>"
+    )
+
+
 def main():
     global EXTRACT, REPORTS, SKELETONS
     parser = argparse.ArgumentParser(description="Deep-read a VB6 .frm")
@@ -614,8 +713,8 @@ def main():
     parser.add_argument(
         "--extract",
         type=pathlib.Path,
-        required=True,
-        help="Extracted project dir (e.g. working/extracts/<stem>)",
+        default=None,
+        help="Extracted project dir (default: sole folder under working/extracts/)",
     )
     parser.add_argument(
         "--skeleton",
@@ -629,10 +728,7 @@ def main():
     parser.add_argument("--no-report", action="store_true", help="Skip report output")
     args = parser.parse_args()
 
-    extract = args.extract
-    if not extract.is_absolute():
-        extract = REPO / extract
-    EXTRACT = extract.resolve()
+    EXTRACT = _resolve_extract(args.extract)
     REPORTS = reports_root()
     SKELETONS = skeletons_root()
     REPORTS.mkdir(parents=True, exist_ok=True)
@@ -673,6 +769,7 @@ def main():
         controls, code_text, project_text, events, form_name=form_info.get("name") or "",
     )
     controls = annotate_offscreen(form_info, controls)
+    controls = annotate_hidden_ancestor(controls)
     menu_findings = analyze_menus(controls, events)
     show_map = extract_show_map(events)
 
@@ -680,6 +777,7 @@ def main():
     dead_ctrls = [c for c in controls if not c.get("live")]
     live_events = [e for e in events if e["status"] == "live"]
     dead_events = [e for e in events if e["status"] == "dead"]
+    hidden_n = sum(1 for c in controls if c.get("ancestor_hidden"))
 
     print(f"=== {args.frm} ===")
     print(f"Form: {form_info['name']} / Caption: {form_info['caption']}")
@@ -687,6 +785,8 @@ def main():
     print(f"Controls: {len(controls)} total -> {len(live_ctrls)} live, {len(dead_ctrls)} dead")
     print(f"Events: {len(events)} total -> {len(live_events)} live, {len(dead_events)} dead")
     print(f"Menu warnings: {len(menu_findings)} / Show+PARA map rows: {len(show_map)}")
+    if hidden_n:
+        print(f"Ancestor-hidden controls: {hidden_n}")
 
     for cat, items in data_paths.items():
         if items:

@@ -2,7 +2,7 @@
 """全 .frm/.bas の実行時 Left/Top/Width/Height/Visible 代入をカタログ化する。
 
 設計時座標（Begin..End）とは別。Show / Form_Load 前後で書き換える実行時 Move /
-Visible を証拠つきで抽出し、Next.js 表示時適用用 JSON も出す。
+Visible を証拠つきで抽出し、再実装受け渡し用 JSON も出す。
 
 Usage:
   python tools/runtime_layout.py
@@ -255,9 +255,12 @@ def extract_file(path: pathlib.Path, file_vb: str) -> list[dict]:
         sm = SUB_RE.match(s)
         if sm:
             current_sub = sm.group("name")
+            # Show の文脈は Sub をまたがせない（またぐと隣 Sub の Form へ誤帰属する）
+            recent_shows = []
             continue
         if END_SUB_RE.match(s):
             current_sub = None
+            recent_shows = []
             continue
 
         wm = WITH_RE.match(s)
@@ -311,7 +314,11 @@ def extract_file(path: pathlib.Path, file_vb: str) -> list[dict]:
 
         near_show = [f for ln, f in recent_shows if abs(i - ln) <= 25]
         for j in range(i, min(i + 25, len(lines))):
-            for smatch in SHOW_RE.finditer(strip_comment(lines[j - 1])):
+            ahead = strip_comment(lines[j - 1]).strip()
+            # 前方も同じ Sub 内まで
+            if j > i and (END_SUB_RE.match(ahead) or SUB_RE.match(ahead)):
+                break
+            for smatch in SHOW_RE.finditer(ahead):
                 near_show.append(smatch.group("form"))
         near_show = sorted(set(near_show))
 
@@ -778,10 +785,10 @@ def write_reports(
         encoding="utf-8",
     )
 
-    # slim JSON for Next.js
+    # slim JSON for reimplementation consumers
     slim = {
         "generated_by": "tools/runtime_layout.py",
-        "twipsNote": "VB6 ScaleMode=1 twips; Next uses /15 → px",
+        "twipsNote": "VB6 ScaleMode=1 twips; consumers often map /15 → px",
         "note": "forms=窓位置 · codeControlMoves=Formコード内の Ctrl 座標（Begin プロパティではない）",
         "forms": {
             name: {

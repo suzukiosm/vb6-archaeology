@@ -20,6 +20,7 @@ DEFAULTS: dict = {
     "encoding_fallbacks": ["utf-8-sig", "utf-8"],
     "reports_http_port": 8765,
     "geometry_hints": {},
+    "deep_read_name_map": {},
 }
 
 

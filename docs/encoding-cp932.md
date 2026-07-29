@@ -12,6 +12,9 @@
 2. 化けた文字列をレポートに「原文引用」として載せない
 3. レポート成果物（MD/JSON/HTML）は **UTF-8** で書いてよい
 4. PowerShell の `Set-Content` / `-replace` で `.tsx` や日本語リテラルを含むファイルを書き換えない（破壊例あり）
+5. PowerShell の二重引用符文字列内では `` ` `` がエスケープになる。`` `F ``→FF（`\x0c`）、`` `v ``→VT（`\x0b`）などで Markdown のインラインコードが壊れる。検出: `python tools/scan_control_chars.py`（hits=0）
+
+行番号つきで CP932 ソースを見るときは `python tools/frm_lines.py <file> <start>-<end>`。
 
 ## 設定
 

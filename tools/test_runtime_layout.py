@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import tempfile
 import unittest
+from pathlib import Path
 
-from tools.runtime_layout import build_contextual_form_layout
+from tools.runtime_layout import build_contextual_form_layout, extract_file
 
 
 # VB_Name keys match residual Show-path heuristics in runtime_layout.py;
@@ -184,6 +186,48 @@ class ContextualFormLayoutTests(unittest.TestCase):
                 if placement["form"] == "Form13"
             )
         )
+
+
+class RecentShowsSubBoundaryTests(unittest.TestCase):
+    def test_show_context_does_not_cross_sub(self) -> None:
+        """Sub またぎで隣 Sub の near_show に誤帰属しないこと。"""
+        src = """\
+Attribute VB_Name = "Host"
+Option Explicit
+
+Private Sub SubA_Click()
+    FormX.Show
+End Sub
+
+Private Sub SubB_Click()
+    Me.Left = 100
+End Sub
+"""
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "Host.frm"
+            path.write_text(src, encoding="utf-8")
+            rows = extract_file(path, "Host")
+        left_rows = [r for r in rows if r["prop"] == "Left" and r["sub"] == "SubB_Click"]
+        self.assertEqual(len(left_rows), 1)
+        self.assertNotIn("FormX", left_rows[0]["near_show"])
+
+    def test_show_context_stays_within_same_sub(self) -> None:
+        src = """\
+Attribute VB_Name = "Host"
+Option Explicit
+
+Private Sub OpenChild_Click()
+    FormX.Show
+    Me.Left = 200
+End Sub
+"""
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "Host.frm"
+            path.write_text(src, encoding="utf-8")
+            rows = extract_file(path, "Host")
+        left_rows = [r for r in rows if r["prop"] == "Left"]
+        self.assertEqual(len(left_rows), 1)
+        self.assertIn("FormX", left_rows[0]["near_show"])
 
 
 if __name__ == "__main__":

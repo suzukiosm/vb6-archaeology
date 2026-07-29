@@ -111,9 +111,10 @@ hooks（`.cursor/hooks/`）が書込ツールと破壊的 shell を阻む。
 1. Caption「検索」だけで画面遷移を実装する（メニューが死んでいることがある）
 2. Invisible / 到達不能 Form を必須機能として実装する
 3. 完了宣言を信用して再監査しない
-4. PowerShell `Set-Content` / `-replace` で日本語リテラルを含むファイルを壊す
+4. PowerShell `Set-Content` / `-replace` で日本語リテラルを含むファイルを壊す。二重引用符内のバッククォート（`` `F ``→FF 等）も破壊源 → `python tools/scan_control_chars.py`
 5. 正本パスを「便利だから」書き換えて保存する
 6. 旧 callgraph 自動推定を復活させる
+7. `frm_deep_read` のイベント 0 を孤立と即断する（.frm 単体解析。.frm 外の参照は見えない）
 
 ---
 
@@ -141,6 +142,7 @@ python tools/vb6_inventory.py working\extracts\mini_vbp
 python tools/verify_inventory.py
 python tools/frm_deep_read.py Form1.frm --extract working\extracts\mini_vbp
 python tools/runtime_layout.py --extract working\extracts\mini_vbp
+python tools/scan_control_chars.py
 ```
 
 または `/kit-smoke`。

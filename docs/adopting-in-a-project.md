@@ -47,7 +47,8 @@ docs/templates/              # 初回コピー元
   "extracts_dir": "working/extracts",
   "reports_dir": "working/reports",
   "skeletons_dir": "working/skeletons",
-  "geometry_hints": {}
+  "geometry_hints": {},
+  "deep_read_name_map": {}
 }
 ```
 
@@ -62,12 +63,16 @@ docs/templates/              # 初回コピー元
   "skeletons_dir": "working/web/src/lib",
   "geometry_hints": {
     "MDIForm1": { "left": 0, "top": 0, "height": 13550, "width": 0 }
+  },
+  "deep_read_name_map": {
+    "MDIForm1": "mdi"
   }
 }
 ```
 
 - `skeletons_dir` 既定は `working/skeletons`
 - `geometry_hints` は親フォーム相対の実行時式を数値化するときだけ使う（任意）
+- `deep_read_name_map` は `frm_deep_read_all.py` の出力キー特例（任意。空なら VB_Name 小文字）
 
 ## 初回セットアップ手順（エージェント向け）
 

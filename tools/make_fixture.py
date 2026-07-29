@@ -51,6 +51,23 @@ Begin VB.Form Form1
       Top             =   240
       Width           =   2000
    End
+   Begin VB.Frame FrameDead
+      Caption         =   "隠れた枠"
+      Height          =   975
+      Left            =   240
+      TabIndex        =   2
+      Top             =   1800
+      Visible         =   0   'False
+      Width           =   2000
+      Begin VB.Label LabelHidden
+         Caption         =   "親非表示"
+         Height          =   255
+         Left            =   120
+         TabIndex        =   3
+         Top             =   360
+         Width           =   1500
+      End
+   End
 End
 Attribute VB_Name = "Form1"
 Attribute VB_GlobalNameSpace = False

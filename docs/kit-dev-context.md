@@ -11,16 +11,20 @@ VB6 を壊さず理解するための汎用 OS（docs / .cursor / tools）を維
 ## 2. 現状（事実）
 
 - コアツール: extract / inventory / verify / frm_deep_read / runtime_layout
-- フィクスチャ: `source/mini_vbp/`（`make_fixture.py`・日本語 Caption 含む CP932）
+- 補助: `frm_lines.py` · `scan_control_chars.py` · `frm_deep_read_all.py`（`deep_read_name_map`）
+- `frm_deep_read`: .frm 単体解析注記、`ancestor_hidden`（dead + Visible=0 コンテナ配下）
+- `runtime_layout`: Show 文脈は Sub 境界で `recent_shows` クリア
+- フィクスチャ: `source/mini_vbp/`（`make_fixture.py`・日本語 Caption・隠れた Frame 配下 Label 含む CP932）
 - hooks: 保護ディレクトリへの書込拒否（キット既定名は `source/` のみ。別名は消費者 config）。`make_fixture.py` のみ shell allowlist
 - AI 起動順: `AGENTS.md` → `docs/ai-onboarding.md`
 
 ## 3. 次手（キット）
 
-- `runtime_layout.py` 内の Show 経路ヒューリスティック（特定 Form 名分岐）をさらに設定化
+- `runtime_layout.py` 内の Show 経路ヒューリスティック（特定 Form 名分岐・PREFERRED_SUB）をさらに設定化（Sub 境界クリアは済）
 - inventory ↔ レポート名集合照合の定型ツール化
-- 消費者初回採用フィードバックの反映
+- 消費者向け frm-audit テンプレ（任意・後回し）
 - （採用済・参考）vbSpec 由来の事実層: `Class=` / シグネチャ / `Object=`・Version メタ / 任意 `--skip-parent-common`。コメント仕様書化は非採用
+- （還元済 2026-07-29）消費者からの `ancestor_hidden` · Sub 境界 `recent_shows` · `frm_lines` / `scan_control_chars` / 一般化 `frm_deep_read_all`
 
 ## 4. 触ってよい／いけない
 

@@ -23,6 +23,23 @@ Begin VB.Form Form1
       Top             =   240
       Width           =   2000
    End
+   Begin VB.Frame FrameDead
+      Caption         =   "âBÇÍÇΩòg"
+      Height          =   975
+      Left            =   240
+      TabIndex        =   2
+      Top             =   1800
+      Visible         =   0   'False
+      Width           =   2000
+      Begin VB.Label LabelHidden
+         Caption         =   "êeîÒï\é¶"
+         Height          =   255
+         Left            =   120
+         TabIndex        =   3
+         Top             =   360
+         Width           =   1500
+      End
+   End
 End
 Attribute VB_Name = "Form1"
 Attribute VB_GlobalNameSpace = False
