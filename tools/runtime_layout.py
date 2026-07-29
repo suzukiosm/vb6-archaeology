@@ -99,6 +99,49 @@ KNOWN_FORMS: set[str] = set()
 
 OFFSCREEN_THRESHOLD = -10000
 
+# キット既定の経路スコア（アプリ固有 Sub は載せない）。
+# 消費者は archaeology.config.json の layout_sub_scores で上書き・追加する。
+BUILTIN_LAYOUT_SUB_SCORES: dict[str, int] = {
+    "form_load": 80,
+    "mdiform_load": 80,
+}
+# 未登録の *_click に与える名前非依存加点（form_show 経路）
+GENERIC_CLICK_BONUS = 10
+# codeControlMoves で未登録 *_click の下限
+CODE_MOVE_CLICK_FLOOR = 40
+
+
+def effective_layout_sub_scores(
+    override: dict[str, int] | None = None,
+) -> dict[str, int]:
+    """Builtin scores merged with config (or explicit override). Keys are lowercased."""
+    scores = dict(BUILTIN_LAYOUT_SUB_SCORES)
+    if override is None:
+        raw = load_config().get("layout_sub_scores") or {}
+    else:
+        raw = override
+    if isinstance(raw, dict):
+        for key, val in raw.items():
+            try:
+                scores[str(key).lower()] = int(val)
+            except (TypeError, ValueError):
+                continue
+    return scores
+
+
+def sub_path_score(
+    sub: str | None,
+    scores: dict[str, int],
+    *,
+    click_bonus: int = GENERIC_CLICK_BONUS,
+) -> int:
+    """Score a Sub name for open-path preference."""
+    key = (sub or "").lower()
+    points = scores.get(key, 0)
+    if key.endswith("_click") and key not in scores:
+        points += click_bonus
+    return points
+
 
 def read_cp932(path: pathlib.Path) -> str:
     return decode_vb6_bytes(path.read_bytes())
@@ -189,8 +232,7 @@ def classify(
     if o in ("MDIForm1",) or obj.upper().startswith("MDIFORM"):
         if "Picture1" in obj or obj == "MDIForm1":
             return "mdi_chrome"
-    # MDIForm1.Picture1.Height
-    if "Picture1" in obj or "FG1" in obj or "fg2" in obj.lower():
+    if "Picture1" in obj:
         return "mdi_chrome"
     if re.search(r"[+\-*/]|Index|Cell|SCALE|Ratio|Width|Height|Left|Top", expr):
         if value is None:
@@ -332,9 +374,9 @@ def extract_file(path: pathlib.Path, file_vb: str) -> list[dict]:
             }:
                 continue
 
-            # MDI フォーム内の素の Picture1/fg2 → MDIForm1.Picture1
+            # MDI フォーム内の素の Picture1 → MDIForm1.Picture1
             if file_vb == "MDIForm1" and "." not in obj:
-                if obj.lower() in {"picture1", "fg2", "fg1"}:
+                if obj.lower() == "picture1":
                     obj = f"MDIForm1.{obj}"
 
             expr_clean = clean_assign_expr(expr)
@@ -368,8 +410,13 @@ def extract_file(path: pathlib.Path, file_vb: str) -> list[dict]:
     return rows
 
 
-def build_form_show_layout(assignments: list[dict], forms: dict[str, str]) -> dict:
+def build_form_show_layout(
+    assignments: list[dict],
+    forms: dict[str, str],
+    sub_scores: dict[str, int] | None = None,
+) -> dict:
     """Per form: best-effort show-time Left/Top/Width/Height + mdi Picture1.Height hints."""
+    scores = effective_layout_sub_scores(sub_scores)
     by_form: dict[str, dict] = {}
 
     def ensure(name: str) -> dict:
@@ -390,30 +437,10 @@ def build_form_show_layout(assignments: list[dict], forms: dict[str, str]) -> di
     for name in forms:
         ensure(name)
 
-    # Prefer canonical open paths over secondary reposition (e.g. stet_Click).
-    PREFERRED_SUB = {
-        "form_load": 80,
-        "mdiform_load": 80,
-        # Denpyou stet_Click が Show 直前に Left/Top を確定（Hyouji より優先）
-        "stet_click": 75,
-        "hyouji": 70,
-        "sagyou_click": 65,
-        "juch0_click": 65,
-        "nouhin_click": 65,
-        "command2_click": 60,
-        "check3_click": 58,
-        "ysiosinki": 55,
-        "seisaku_click": 50,
-    }
-
     def score(row: dict, prop: str, form: str) -> int:
-        s = 0
-        sub = (row.get("sub") or "").lower()
-        s += PREFERRED_SUB.get(sub, 0)
+        s = sub_path_score(row.get("sub"), scores)
         if form in row.get("near_show", []):
             s += 15
-        if sub.endswith("_click") and sub not in PREFERRED_SUB:
-            s += 10
         if row["kind"] == "offscreen_hide":
             s -= 200
         if row["kind"] == "form_place":
@@ -438,37 +465,21 @@ def build_form_show_layout(assignments: list[dict], forms: dict[str, str]) -> di
         elif row["object"].lower() == "me" and row["file_vb"] in forms:
             form = row["file_vb"]
         elif target.startswith("MDIForm1.") or target == "MDIForm1":
-            # chrome — attach to MDIForm1
+            # chrome — attach via near_show, else MDIForm1
             if "Picture1" in target and prop == "Height":
-                # context from near_show or sub
-                ctx_forms = row.get("near_show") or []
+                ctx_forms = list(row.get("near_show") or [])
                 if not ctx_forms:
-                    # sagyou/juch0 → Denpyou, seisaku → File1/sikakari, Hyouji → statas
-                    sub = (row.get("sub") or "").lower()
-                    if sub in ("sagyou_click", "juch0_click", "ysiosinki"):
-                        ctx_forms = ["Denpyou"]
-                    elif sub == "nouhin_click":
-                        ctx_forms = ["Form7"]
-                    elif sub == "seisaku_click":
-                        ctx_forms = ["MDIForm1"]
-                    elif sub == "hyouji":
-                        ctx_forms = ["statas"]
-                    elif sub == "mdiform_load":
-                        ctx_forms = ["MDIForm1"]
-                    elif sub == "command2_click" and row["file_vb"] == "Form7":
-                        ctx_forms = ["Denpyou"]
-                    elif sub == "cans_click":
-                        ctx_forms = ["MDIForm1"]
-                for f in ctx_forms or ["MDIForm1"]:
+                    ctx_forms = ["MDIForm1"]
+                for f in ctx_forms:
                     slot = ensure(f)
-                    # keep smallest Picture1 for denpyou-ish, largest for mdi
+                    # MDI 本体は大きい方、子コンテキストは小さい方を採用
                     prev = slot.get("picture1Height")
                     val = int(row["value"])
                     if prev is None:
                         slot["picture1Height"] = val
-                    elif f in ("Denpyou", "Form7", "statas") and val < prev:
-                        slot["picture1Height"] = val
                     elif f == "MDIForm1" and val > prev:
+                        slot["picture1Height"] = val
+                    elif f != "MDIForm1" and val < prev:
                         slot["picture1Height"] = val
                     slot["evidence"].append(
                         {
@@ -627,24 +638,17 @@ def build_contextual_form_layout(
     return placements
 
 
-def build_code_control_moves(assignments: list[dict], forms: dict[str, str]) -> dict:
+def build_code_control_moves(
+    assignments: list[dict],
+    forms: dict[str, str],
+    sub_scores: dict[str, int] | None = None,
+) -> dict:
     """Form コード内のコントロール座標代入（設計時 Begin ではない）。
 
-    Next.js の SkeletonCanvas.runtimeLayout 適用候補。
     キー: vbName → controlName → { left/top/width/height, evidence[] }
-    同一 prop は「開く経路」優先 Sub の最終値を採用。
+    同一 prop は layout_sub_scores 優先 Sub の最終値を採用。
     """
-    PREFERRED = {
-        "label22_click": 90,
-        "label22_mousedown": 85,
-        "command7_click": 80,
-        "command9_click": 80,
-        "command11_click": 80,
-        "command10_click": 75,
-        "text55_click": 70,
-        "form_load": 60,
-        "command2_click": 55,
-    }
+    scores = effective_layout_sub_scores(sub_scores)
     out: dict[str, dict] = {}
 
     def ensure_form(vb: str) -> dict:
@@ -656,7 +660,7 @@ def build_code_control_moves(assignments: list[dict], forms: dict[str, str]) -> 
         # List1(0) → List1 · MDIForm1.Picture1 → Picture1（フォーム内のみ）
         o = obj
         if "." in o and not o.lower().startswith("me"):
-            # 他フォーム参照はスキップ（Denpyou.List1 等は別枠）
+            # 他フォーム参照はスキップ（Qualified.Ctrl は別枠）
             head = o.split(".", 1)[0]
             if head in forms and head != o:
                 return ""
@@ -682,9 +686,9 @@ def build_code_control_moves(assignments: list[dict], forms: dict[str, str]) -> 
             continue
         prop = row["prop"]
         sub = (row.get("sub") or "").lower()
-        sc = PREFERRED.get(sub, 0)
+        sc = scores.get(sub, 0)
         if sub.endswith("_click"):
-            sc = max(sc, 40)
+            sc = max(sc, CODE_MOVE_CLICK_FLOOR)
         if row["value"] is not None:
             sc += 10
         scored.setdefault((vb, ctrl, prop), []).append((sc, row))
@@ -743,12 +747,14 @@ def write_reports(
     code_moves: dict | None = None,
     form_placements: list[dict] | None = None,
     extract_dir: pathlib.Path | None = None,
+    sub_scores: dict[str, int] | None = None,
 ) -> None:
     REPORTS.mkdir(parents=True, exist_ok=True)
     WEB_LIB.mkdir(parents=True, exist_ok=True)
 
     code_moves = code_moves or {}
     form_placements = form_placements or []
+    used_scores = effective_layout_sub_scores(sub_scores)
     if extract_dir is not None:
         try:
             extract_label = str(extract_dir.resolve().relative_to(REPO)).replace("\\", "/")
@@ -767,6 +773,7 @@ def write_reports(
         "form_count": len(forms),
         "assignment_count": len(assignments),
         "by_kind": {},
+        "layout_sub_scores": used_scores,
         "forms": forms,
         "form_show_layout": form_layout,
         "formPlacements": form_placements,
@@ -775,6 +782,7 @@ def write_reports(
         "note": (
             "assignments は Attribute VB_Name 以降のコード部のみ。"
             "設計時 Begin Left/Top は含まない。"
+            "layout_sub_scores は builtin + archaeology.config.json。"
         ),
     }
     for row in assignments:
@@ -818,6 +826,7 @@ def write_reports(
             for vb, ctrls in sorted(code_moves.items())
         },
         "geometry_hints": load_config().get("geometry_hints") or {},
+        "layout_sub_scores": used_scores,
     }
     (WEB_LIB / "runtime-layout.json").write_text(
         json.dumps(slim, ensure_ascii=False, indent=2),
@@ -833,6 +842,15 @@ def write_reports(
         "設計時座標（skeleton / Begin プロパティ）とは別。"
         "**Form コード部**（`Attribute VB_Name` 以降）の "
         "`Left/Top/Width/Height/Visible` 代入。\n\n"
+    )
+    md.append("## layout_sub_scores（使用値）\n\n")
+    md.append("builtin + `archaeology.config.json` のマージ結果。\n\n")
+    md.append("| Sub（小文字） | score |\n|---|---:|\n")
+    for name, sc in sorted(used_scores.items(), key=lambda x: (-x[1], x[0])):
+        md.append(f"| `{name}` | {sc} |\n")
+    md.append(
+        f"\n名前非依存: 未登録 `*_click` は form_show +{GENERIC_CLICK_BONUS} / "
+        f"codeMoves 下限 {CODE_MOVE_CLICK_FLOOR}。\n\n"
     )
     visible_n = sum(
         1 for r in assignments if r["kind"] in ("control_visible", "form_visible")
@@ -919,6 +937,10 @@ def write_reports(
     md.append(
         "- 親相対式の数値化は `archaeology.config.json` の `geometry_hints` を参照する"
         "（未設定なら親トークンは未解決のまま）\n"
+    )
+    md.append(
+        "- 開経路の優先 Sub スコアは同 config の `layout_sub_scores`"
+        "（アプリ固有名は消費者 config に書く。キット既定は form_load / mdiform_load のみ）\n"
     )
     md.append("- セル相対など動的式（`CellLeft` 等）はカタログのみ\n")
     md.append(
@@ -1045,9 +1067,10 @@ def main() -> int:
     except ValueError:
         _EXTRACT_LABEL = str(extract).replace("\\", "/")
 
-    form_layout = build_form_show_layout(assignments, forms)
+    sub_scores = effective_layout_sub_scores()
+    form_layout = build_form_show_layout(assignments, forms, sub_scores)
     form_placements = build_contextual_form_layout(assignments, forms)
-    code_moves = build_code_control_moves(assignments, forms)
+    code_moves = build_code_control_moves(assignments, forms, sub_scores)
     write_reports(
         assignments,
         form_layout,
@@ -1055,11 +1078,13 @@ def main() -> int:
         code_moves,
         form_placements,
         extract_dir=extract,
+        sub_scores=sub_scores,
     )
 
     print(f"forms={len(forms)} assignments={len(assignments)}")
     print(f"formPlacements={len(form_placements)} routes")
     print(f"codeControlMoves={sum(len(v) for v in code_moves.values())} controls")
+    print(f"layout_sub_scores={sub_scores}")
     print(f"→ {REPORTS / 'runtime_layout.md'}")
     print(f"→ {WEB_LIB / 'runtime-layout.json'}")
     kinds = {}

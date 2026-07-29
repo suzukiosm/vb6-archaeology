@@ -4,17 +4,22 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from tools.runtime_layout import build_contextual_form_layout, extract_file
+from tools.runtime_layout import (
+    BUILTIN_LAYOUT_SUB_SCORES,
+    build_contextual_form_layout,
+    build_form_show_layout,
+    effective_layout_sub_scores,
+    extract_file,
+)
 
 
-# VB_Name keys match residual Show-path heuristics in runtime_layout.py;
-# filenames are kit-generic (not a specific customer VBP).
+# Synthetic form names for placement tests (not kit defaults).
 FORMS = {
-    "Denpyou": "Denpyou.frm",
+    "Host": "Host.frm",
     "Form3": "Form3.frm",
     "Form7": "Form7.frm",
     "Form13": "Form13.frm",
-    "statas": "statas.frm",
+    "Child": "Child.frm",
 }
 
 
@@ -31,7 +36,7 @@ def assignment(
 ) -> dict:
     obj = object_name or target
     return {
-        "file": FORMS[file_vb],
+        "file": FORMS.get(file_vb, f"{file_vb}.frm"),
         "file_vb": file_vb,
         "line": line,
         "sub": sub,
@@ -48,8 +53,8 @@ def assignment(
 
 ASSIGNMENTS = [
     assignment(
-        target="statas",
-        file_vb="statas",
+        target="Child",
+        file_vb="Child",
         sub="Form_Load",
         prop="Width",
         value=12000,
@@ -57,7 +62,7 @@ ASSIGNMENTS = [
         object_name="Me",
     ),
     assignment(
-        target="statas",
+        target="Child",
         file_vb="Form7",
         sub="Command2_Click",
         prop="Left",
@@ -65,7 +70,7 @@ ASSIGNMENTS = [
         line=20,
     ),
     assignment(
-        target="statas",
+        target="Child",
         file_vb="Form7",
         sub="Command2_Click",
         prop="Left",
@@ -73,9 +78,9 @@ ASSIGNMENTS = [
         line=21,
     ),
     assignment(
-        target="statas",
-        file_vb="Denpyou",
-        sub="stet_Click",
+        target="Child",
+        file_vb="Host",
+        sub="OpenAlt_Click",
         prop="Left",
         value=1000,
         line=30,
@@ -118,7 +123,7 @@ ASSIGNMENTS = [
     ),
     assignment(
         target="Form13",
-        file_vb="Denpyou",
+        file_vb="Host",
         sub="Check3_Click",
         prop="Left",
         value=-50000,
@@ -127,7 +132,7 @@ ASSIGNMENTS = [
     ),
     assignment(
         target="Form13",
-        file_vb="Denpyou",
+        file_vb="Host",
         sub="Check3_Click",
         prop="Top",
         value=6775,
@@ -147,15 +152,15 @@ def lookup(placements: list[dict], form: str, from_form: str, via: str) -> dict:
 
 
 class ContextualFormLayoutTests(unittest.TestCase):
-    def test_contextual_layout_keeps_distinct_statas_openers(self) -> None:
+    def test_contextual_layout_keeps_distinct_child_openers(self) -> None:
         placements = build_contextual_form_layout(ASSIGNMENTS, FORMS)
 
         self.assertEqual(
-            lookup(placements, "statas", "Form7", "Command2_Click")["left"],
+            lookup(placements, "Child", "Form7", "Command2_Click")["left"],
             4000,
         )
         self.assertEqual(
-            lookup(placements, "statas", "Denpyou", "stet_Click")["left"],
+            lookup(placements, "Child", "Host", "OpenAlt_Click")["left"],
             1000,
         )
 
@@ -186,6 +191,71 @@ class ContextualFormLayoutTests(unittest.TestCase):
                 if placement["form"] == "Form13"
             )
         )
+
+
+class LayoutSubScoresTests(unittest.TestCase):
+    def test_empty_override_keeps_builtin_only(self) -> None:
+        scores = effective_layout_sub_scores({})
+        self.assertEqual(scores, BUILTIN_LAYOUT_SUB_SCORES)
+        self.assertIn("form_load", scores)
+        self.assertNotIn("stet_click", scores)
+
+    def test_high_score_selects_configured_opener(self) -> None:
+        forms = {"Child": "Child.frm", "Parent": "Parent.frm"}
+        rows = [
+            assignment(
+                target="Child",
+                file_vb="Parent",
+                sub="Other_Click",
+                prop="Left",
+                value=1000,
+                line=10,
+            ),
+            assignment(
+                target="Child",
+                file_vb="Parent",
+                sub="OpenSpecial",
+                prop="Left",
+                value=5000,
+                line=20,
+            ),
+        ]
+        # 汎用のみ: Other_Click が *_click 加点で勝つ
+        layout_default = build_form_show_layout(rows, forms, sub_scores={})
+        self.assertEqual(layout_default["Child"]["left"], 1000)
+
+        # 架空 Sub に高スコア → OpenSpecial が選ばれる
+        layout_cfg = build_form_show_layout(
+            rows, forms, sub_scores={"openspecial": 90}
+        )
+        self.assertEqual(layout_cfg["Child"]["left"], 5000)
+        self.assertEqual(
+            layout_cfg["Child"]["evidence"][0]["sub"],
+            "OpenSpecial",
+        )
+
+    def test_form_load_beats_unlisted_click_with_builtins(self) -> None:
+        forms = {"Child": "Child.frm", "Parent": "Parent.frm"}
+        rows = [
+            assignment(
+                target="Child",
+                file_vb="Parent",
+                sub="Form_Load",
+                prop="Left",
+                value=111,
+                line=5,
+            ),
+            assignment(
+                target="Child",
+                file_vb="Parent",
+                sub="Other_Click",
+                prop="Left",
+                value=999,
+                line=15,
+            ),
+        ]
+        layout = build_form_show_layout(rows, forms, sub_scores={})
+        self.assertEqual(layout["Child"]["left"], 111)
 
 
 class RecentShowsSubBoundaryTests(unittest.TestCase):

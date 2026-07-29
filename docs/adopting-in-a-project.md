@@ -48,7 +48,11 @@ docs/templates/              # 初回コピー元
   "reports_dir": "working/reports",
   "skeletons_dir": "working/skeletons",
   "geometry_hints": {},
-  "deep_read_name_map": {}
+  "deep_read_name_map": {},
+  "layout_sub_scores": {
+    "form_load": 80,
+    "mdiform_load": 80
+  }
 }
 ```
 
@@ -66,6 +70,12 @@ docs/templates/              # 初回コピー元
   },
   "deep_read_name_map": {
     "MDIForm1": "mdi"
+  },
+  "layout_sub_scores": {
+    "form_load": 80,
+    "mdiform_load": 80,
+    "stet_click": 75,
+    "hyouji": 70
   }
 }
 ```
@@ -73,6 +83,7 @@ docs/templates/              # 初回コピー元
 - `skeletons_dir` 既定は `working/skeletons`
 - `geometry_hints` は親フォーム相対の実行時式を数値化するときだけ使う（任意）
 - `deep_read_name_map` は `frm_deep_read_all.py` の出力キー特例（任意。空なら VB_Name 小文字）
+- `layout_sub_scores` は `runtime_layout.py` の開経路優先（任意）。**自アプリの開経路 Sub は消費者 config に書く**（キット既定へ戻さない）
 
 ## 初回セットアップ手順（エージェント向け）
 

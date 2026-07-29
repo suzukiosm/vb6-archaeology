@@ -21,6 +21,10 @@ DEFAULTS: dict = {
     "reports_http_port": 8765,
     "geometry_hints": {},
     "deep_read_name_map": {},
+    "layout_sub_scores": {
+        "form_load": 80,
+        "mdiform_load": 80,
+    },
 }
 
 

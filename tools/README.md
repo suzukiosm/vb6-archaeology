@@ -54,6 +54,11 @@ python tools/scan_control_chars.py
 ## 設定メモ
 
 - `archaeology.config.json` の `geometry_hints` で親フォーム相対式を数値化できる（任意）
+- `layout_sub_scores` — `runtime_layout.py` の開経路優先 Sub → int スコア（キーは小文字）
+  - キット既定: `form_load` / `mdiform_load` のみ（builtin とマージ）
+  - 名前非依存: 未登録の `*_click` は form_show で小さな加点、codeMoves では下限スコア
+  - **アプリ固有の開経路 Sub は消費者 config に書く**（キットへ還元しない）
+  - 使用したスコアは `runtime_layout.json` / `runtime-layout.json` / MD に出力
 - `deep_read_name_map` で `frm_deep_read_all.py` の出力キー特例を指定できる（任意）
 - `skeletons_dir` 既定は `working/skeletons`（消費者は web lib 等へ変更可）
 - `--extract` 未指定時は `working/extracts/` 下一意ならそれを使う（複数ならエラー）
