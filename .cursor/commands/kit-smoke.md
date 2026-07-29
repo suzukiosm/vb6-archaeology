@@ -7,6 +7,7 @@ python tools/make_fixture.py
 python tools/extract_vbp.py "source\mini_vbp\mini_vbp.vbp"
 python tools/vb6_inventory.py working\extracts\mini_vbp
 python tools/verify_inventory.py working\reports\mini_vbp_inventory.json
+python tools/verify_report_names.py --inventory working\reports\mini_vbp_inventory.json
 python tools/frm_deep_read.py Form1.frm --extract working\extracts\mini_vbp
 python tools/runtime_layout.py --extract working\extracts\mini_vbp
 ```
@@ -15,6 +16,7 @@ python tools/runtime_layout.py --extract working\extracts\mini_vbp
 
 - extract `missing` が空
 - `count mismatches: none`
+- `name mismatches: none`
 - deep-read / runtime_layout が例外なく終了
 - `working/reports/` と `working/skeletons/` に成果が出る
 

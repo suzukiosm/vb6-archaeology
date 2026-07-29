@@ -102,7 +102,7 @@ hooks（`.cursor/hooks/`）が書込ツールと破壊的 shell を阻む。
 1. 抽出が足りない・誤検知 → **ワンショットを増やさず** `tools/` を直す
 2. 直したら影響レポート / skeleton を再生成する
 3. `tools/README.md` を更新する
-4. 一時検証だけ `working/_verify_*.py` を使ってよい（確認後削除）。定型検証は `tools/verify_inventory.py`
+4. 定型検証は `tools/verify_inventory.py`（End 数）と `tools/verify_report_names.py`（名前集合）。足りなければこれらを改定する（`working/_verify_*.py` を増やさない）
 
 ---
 
@@ -140,6 +140,7 @@ python tools/make_fixture.py
 python tools/extract_vbp.py "source\mini_vbp\mini_vbp.vbp"
 python tools/vb6_inventory.py working\extracts\mini_vbp
 python tools/verify_inventory.py
+python tools/verify_report_names.py --inventory working\reports\mini_vbp_inventory.json
 python tools/frm_deep_read.py Form1.frm --extract working\extracts\mini_vbp
 python tools/runtime_layout.py --extract working\extracts\mini_vbp
 python tools/scan_control_chars.py

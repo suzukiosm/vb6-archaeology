@@ -13,6 +13,7 @@ VB6 テキストは **CP932**（`lib/config.py` / `archaeology.config.json`）�
 | `extract_vbp.py` | VBP 切り出し（`Reference=` スキップ） | `working/extracts/<stem>/` + `_extract_report.json` |
 | `vb6_inventory.py` | 構成事実のみ | `working/reports/<stem>_inventory.{json,md,html}` |
 | `verify_inventory.py` | End 文カウント照合 | stdout JSON + `count mismatches: none` |
+| `verify_report_names.py` | inventory 名集合 ↔ レポート言及照合 | stdout JSON + `name mismatches: none` |
 | `frm_deep_read.py` | .frm 深読み（単体解析。`ancestor_hidden` 付与） | `*_deep_read.md` + `working/skeletons/*-skeleton.json` |
 | `frm_deep_read_all.py` | 抽出内の全 .frm を一括 deep_read | 同上（キーは VB_Name 小文字 / `deep_read_name_map`） |
 | `runtime_layout.py` | コード部の実行時座標 | `runtime_layout.md` / `runtime-layout.json` |
@@ -33,11 +34,15 @@ python tools/make_fixture.py
 python tools/extract_vbp.py "source\mini_vbp\mini_vbp.vbp"
 python tools/vb6_inventory.py working\extracts\mini_vbp
 python tools/verify_inventory.py
+python tools/verify_report_names.py --inventory working\reports\mini_vbp_inventory.json
 python tools/frm_deep_read.py Form1.frm --extract working\extracts\mini_vbp
 python tools/runtime_layout.py --extract working\extracts\mini_vbp
 python tools/frm_lines.py working\extracts\mini_vbp\Form1.frm 1-20
 python tools/scan_control_chars.py
 ```
+
+検証の順: まず `verify_inventory.py`（End 数）→ 次に `verify_report_names.py`（名前集合）。  
+名前照合の足りない抽出は本ツールを改定する（`working/_verify_*.py` を増やさない）。
 
 ## 改定ルール
 
@@ -82,6 +87,7 @@ python -m unittest discover -s tools -p "test_*.py" -v
 
 - `test_runtime_layout.py` — Show 経路の文脈解決・Sub 境界で `recent_shows` クリア（合成データ）
 - `test_frm_deep_read.py` — `ancestor_hidden`（死んだ非表示コンテナ配下）
+- `test_verify_report_names.py` — inventory 名集合照合（偽 Sub で fail / 既知名で pass）
 - `test_vbparse.py` — 行連結畳み込みと物理行番号の保持
 - `test_inventory.py` — proc/Declare/Property シグネチャ、Const/Enum/Type/Event、Class=/Object=/meta、`warnings`、`--skip-parent-common`、End 数不変条件
 - `test_cache.py` — 内容ハッシュキー・保存/読込

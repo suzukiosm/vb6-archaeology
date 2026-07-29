@@ -77,7 +77,7 @@
 | Form 深読み | `/frm-deep-read` |
 | 理解 tick | `/vb6-comprehend` |
 | 報告書 | `/vb6-report` |
-| inventory 照合 | `/vb6-verify-reports` |
+| inventory 照合（End 数 + 名前集合） | `/vb6-verify-reports` → `verify_inventory.py` · `verify_report_names.py` |
 | レポート閲覧 | `/serve-reports` |
 | キット自己点検 | `/kit-smoke` |
 

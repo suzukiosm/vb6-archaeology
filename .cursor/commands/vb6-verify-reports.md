@@ -2,8 +2,14 @@
 
 `working/reports/` の既存レポートが `<stem>_inventory.json` の名前集合と矛盾していないか照合する。
 
-1. inventory から (ファイル名, プロシージャ名) 集合を作る
-2. 対象レポートが言及する名前を抽出し、集合外を列挙
-3. 定型の件数検証は `python tools/verify_inventory.py`
-4. 一時スクリプトが必要なら `working/_verify_*.py` に置き、確認後削除
-5. 矛盾があれば inventory 再生成 → レポート修正 → 参照元同期
+1. End 文カウント（件数）:
+   ```powershell
+   python tools/verify_inventory.py working\reports\<stem>_inventory.json
+   ```
+2. 名前集合（ファイル名・プロシージャ名）:
+   ```powershell
+   python tools/verify_report_names.py --inventory working\reports\<stem>_inventory.json
+   ```
+   省略時は reports 下一意の `*_inventory.json` と `working/reports/**/*.{md,html,json}`（inventory 自身は除外）。
+3. 矛盾があれば inventory 再生成 → レポート修正 → 参照元同期
+4. 一時 `working/_verify_*.py` は作らない。足りなければ `tools/verify_report_names.py` を改定する

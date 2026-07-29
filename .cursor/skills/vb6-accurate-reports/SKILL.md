@@ -32,4 +32,8 @@ description: >-
 1. 一次ソースで再確認
 2. 対象レポートを直す
 3. 参照元（他レポート・AGENTS・flow・消費者 ai-dev-context / キット kit-dev-context）を同時更新
-4. `/vb6-verify-reports` 相当で名前集合を再照合
+4. 名前集合を再照合:
+   ```powershell
+   python tools/verify_report_names.py --inventory working\reports\<stem>_inventory.json
+   ```
+   （End 数は別途 `python tools/verify_inventory.py`。一時 `working/_verify_*.py` は作らない）
