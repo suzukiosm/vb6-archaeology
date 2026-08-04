@@ -143,6 +143,30 @@ def sub_path_score(
     return points
 
 
+def resolve_picture1_form(sub: str | None, file_vb: str | None) -> str | None:
+    """Map Sub (+ optional file VB_Name) → Form that owns Picture1.Height context.
+
+    Config key ``picture1_height_by_sub`` (consumer-only; kit default empty):
+      { \"open_child_click\": \"ChildForm\", \"open_child_click@mdiform1\": \"ChildForm\" }
+    Qualified key ``sub@file_vb`` wins over bare ``sub``.
+    """
+    raw = load_config().get("picture1_height_by_sub") or {}
+    if not isinstance(raw, dict):
+        return None
+    sub_key = (sub or "").lower()
+    file_key = (file_vb or "").lower()
+    if sub_key and file_key:
+        qualified = f"{sub_key}@{file_key}"
+        for k, v in raw.items():
+            if str(k).lower() == qualified and v:
+                return str(v)
+    if sub_key:
+        for k, v in raw.items():
+            if str(k).lower() == sub_key and v:
+                return str(v)
+    return None
+
+
 def read_cp932(path: pathlib.Path) -> str:
     return decode_vb6_bytes(path.read_bytes())
 
@@ -232,7 +256,8 @@ def classify(
     if o in ("MDIForm1",) or obj.upper().startswith("MDIFORM"):
         if "Picture1" in obj or obj == "MDIForm1":
             return "mdi_chrome"
-    if "Picture1" in obj:
+    # MDI chrome aliases (Picture1 / FG1 / fg2)
+    if "Picture1" in obj or "FG1" in obj or "fg2" in obj.lower():
         return "mdi_chrome"
     if re.search(r"[+\-*/]|Index|Cell|SCALE|Ratio|Width|Height|Left|Top", expr):
         if value is None:
@@ -374,9 +399,9 @@ def extract_file(path: pathlib.Path, file_vb: str) -> list[dict]:
             }:
                 continue
 
-            # MDI フォーム内の素の Picture1 → MDIForm1.Picture1
+            # MDI フォーム内の素の Picture1/fg1/fg2 → MDIForm1.<ctrl>
             if file_vb == "MDIForm1" and "." not in obj:
-                if obj.lower() == "picture1":
+                if obj.lower() in {"picture1", "fg2", "fg1"}:
                     obj = f"MDIForm1.{obj}"
 
             expr_clean = clean_assign_expr(expr)
@@ -465,14 +490,19 @@ def build_form_show_layout(
         elif row["object"].lower() == "me" and row["file_vb"] in forms:
             form = row["file_vb"]
         elif target.startswith("MDIForm1.") or target == "MDIForm1":
-            # chrome — attach via near_show, else MDIForm1
+            # chrome — attach via near_show, else picture1_height_by_sub, else MDIForm1
             if "Picture1" in target and prop == "Height":
                 ctx_forms = list(row.get("near_show") or [])
                 if not ctx_forms:
-                    ctx_forms = ["MDIForm1"]
-                for f in ctx_forms:
+                    mapped = resolve_picture1_form(
+                        row.get("sub"), row.get("file_vb")
+                    )
+                    if mapped:
+                        ctx_forms = [mapped]
+                for f in ctx_forms or ["MDIForm1"]:
                     slot = ensure(f)
                     # MDI 本体は大きい方、子コンテキストは小さい方を採用
+                    # （アプリ固有 Form 名のハードコードはしない）
                     prev = slot.get("picture1Height")
                     val = int(row["value"])
                     if prev is None:

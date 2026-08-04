@@ -76,14 +76,20 @@ docs/templates/              # 初回コピー元
     "mdiform_load": 80,
     "stet_click": 75,
     "hyouji": 70
-  }
+  },
+  "picture1_height_by_sub": {
+    "open_child_click": "ChildForm"
+  },
+  "verify_report_allow_files": ["SharedLib.bas"]
 }
 ```
 
 - `skeletons_dir` 既定は `working/skeletons`
 - `geometry_hints` は親フォーム相対の実行時式を数値化するときだけ使う（任意）
-- `deep_read_name_map` は `frm_deep_read_all.py` の出力キー特例（任意。空なら VB_Name 小文字）
+- `deep_read_name_map` は `frm_deep_read.py` / `frm_deep_read_all.py` の出力キー特例（任意。空なら VB_Name 小文字。ファイル stem ではない）
 - `layout_sub_scores` は `runtime_layout.py` の開経路優先（任意）。**自アプリの開経路 Sub は消費者 config に書く**（キット既定へ戻さない）
+- `picture1_height_by_sub` は `near_show` が空のとき Picture1.Height をどの Form に帰属させるか（任意。キーは小文字 Sub、または `sub@file_vb`）
+- `verify_report_allow_files` は inventory 外のモジュール名を名前照合で許可するリスト（任意）
 
 ## 初回セットアップ手順（エージェント向け）
 

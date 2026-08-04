@@ -12,6 +12,7 @@ OUT = REPO / "source" / "mini_vbp"
 VBP = """\
 Type=Exe
 Form=Form1.frm
+Form=BackupDay.frm
 Module=Module1; Module1.bas
 Class=Widget; Widget.cls
 Object={F9043C88-F6F2-101A-A3C9-08002B2F49FB}#1.2#0; ComDlg32.OCX
@@ -23,6 +24,42 @@ MajorVer=1
 MinorVer=0
 RevisionVer=0
 Command32=""
+"""
+
+# Filename stem (BackupDay) ≠ VB_Name (Form12) — deep_read out_key 回帰用
+FRM_ALIAS = """\
+VERSION 5.00
+Begin VB.Form Form12
+   Caption         =   "別名画面"
+   ClientHeight    =   2000
+   ClientWidth     =   3000
+   Height          =   2400
+   Left            =   120
+   Top             =   120
+   Width           =   3120
+   Begin VB.CommandButton Command1
+      Caption         =   "閉じる"
+      Height          =   375
+      Left            =   840
+      TabIndex        =   0
+      Top             =   720
+      Width           =   1215
+   End
+End
+Attribute VB_Name = "Form12"
+Attribute VB_GlobalNameSpace = False
+Attribute VB_Creatable = False
+Attribute VB_PredeclaredId = True
+Attribute VB_Exposed = False
+Option Explicit
+
+Private Sub Form_Load()
+    Me.Left = 100
+End Sub
+
+Private Sub Command1_Click()
+    Unload Me
+End Sub
 """
 
 FRM = """\
@@ -133,6 +170,7 @@ def main() -> int:
     OUT.mkdir(parents=True, exist_ok=True)
     (OUT / "mini_vbp.vbp").write_bytes(VBP.encode("cp932"))
     (OUT / "Form1.frm").write_bytes(FRM.encode("cp932"))
+    (OUT / "BackupDay.frm").write_bytes(FRM_ALIAS.encode("cp932"))
     (OUT / "Module1.bas").write_bytes(BAS.encode("cp932"))
     (OUT / "Widget.cls").write_bytes(CLS.encode("cp932"))
     readme = REPO / "source" / "README.md"

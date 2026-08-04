@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import unittest
+from pathlib import Path
 
-from tools.frm_deep_read import annotate_hidden_ancestor
+from tools.frm_deep_read import annotate_hidden_ancestor, resolve_deep_read_out_key
 
 
 def ctrl(
@@ -31,6 +32,26 @@ def ctrl(
         "caption": "",
         "index": None,
     }
+
+
+class OutKeyTests(unittest.TestCase):
+    def test_uses_vb_name_not_file_stem(self) -> None:
+        key = resolve_deep_read_out_key(
+            "Form12", Path("BackupDay.frm"), mapping={}
+        )
+        self.assertEqual(key, "form12")
+
+    def test_name_map_override(self) -> None:
+        key = resolve_deep_read_out_key(
+            "MDIForm1",
+            Path("MDIForm1.frm"),
+            mapping={"MDIForm1": "mdi"},
+        )
+        self.assertEqual(key, "mdi")
+
+    def test_fallback_to_stem(self) -> None:
+        key = resolve_deep_read_out_key("", Path("Orphan.frm"), mapping={})
+        self.assertEqual(key, "orphan")
 
 
 class AncestorHiddenTests(unittest.TestCase):

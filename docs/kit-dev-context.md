@@ -26,6 +26,7 @@ VB6 を壊さず理解するための汎用 OS（docs / .cursor / tools）を維
 - （採用済）`tools/verify_report_names.py` — inventory 名集合 ↔ レポート言及。`/vb6-verify-reports` の正。End 数は `verify_inventory.py` のまま
 - （採用済・参考）vbSpec 由来の事実層: `Class=` / シグネチャ / `Object=`・Version メタ / 任意 `--skip-parent-common`。コメント仕様書化は非採用
 - （還元済 2026-07-29）消費者からの `ancestor_hidden` · Sub 境界 `recent_shows` · `frm_lines` / `scan_control_chars` / 一般化 `frm_deep_read_all`
+- （還元済 2026-08-04 · VB6_source 監査）`frm_deep_read` 出力キー=VB_Name+`deep_read_name_map` · `verify_report_names`（allowlist/declares/EVENT_SUFFIX）· `picture1_height_by_sub` · fg1/fg2 chrome。伝票・Form7・Next.js 監査は DO NOT PORT
 
 ## 4. 触ってよい／いけない
 

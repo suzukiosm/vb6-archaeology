@@ -7,6 +7,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import verify_report_names as vrn  # noqa: E402
@@ -28,6 +29,7 @@ def sample_inventory() -> dict:
                 "file": "Module1.bas",
                 "vb_name": "Module1",
                 "procedures": [{"name": "AddOne", "kind": "Function"}],
+                "declares": [{"name": "ExtApi", "kind": "Function", "lib": "x.dll"}],
             },
         ],
     }
@@ -42,24 +44,45 @@ class LoadSetsTests(unittest.TestCase):
         self.assertIn("form_load", procs)
         self.assertIn("command1_click", procs)
         self.assertIn("addone", procs)
+        self.assertIn("extapi", procs)
+
+    def test_allow_files_from_config(self) -> None:
+        with patch(
+            "verify_report_names.load_config",
+            return_value={"verify_report_allow_files": ["Other.bas", "Legacy.frm"]},
+        ):
+            files, _procs = vrn.load_inventory_sets(sample_inventory())
+        self.assertIn("other.bas", files)
+        self.assertIn("other", files)
+        self.assertIn("legacy.frm", files)
 
 
 class ExtractTests(unittest.TestCase):
     def test_extracts_file_and_proc_like_backticks(self) -> None:
         text = (
             "See `Form1.frm` and Sub `Form_Load`. "
-            "Also `code_ref` and `ancestor_hidden` must be ignored."
+            "Also `code_ref` and `ancestor_hidden` must be ignored. "
+            "Constants `HWND_TOPMOST` and `SW_SHOW` are not procs. "
+            "Audit file `Newprocesskensaku_frm_audit` is not a proc."
         )
         files, procs = vrn.extract_mentions(text)
         self.assertIn("form1.frm", files)
         self.assertIn("form_load", procs)
         self.assertNotIn("code_ref", procs)
         self.assertNotIn("ancestor_hidden", procs)
+        self.assertNotIn("hwnd_topmost", procs)
+        self.assertNotIn("sw_show", procs)
+        self.assertNotIn("newprocesskensaku_frm_audit", procs)
 
     def test_sub_decl_pattern(self) -> None:
         files, procs = vrn.extract_mentions("Private Sub Ghost_Click()")
         self.assertEqual(files, set())
         self.assertIn("ghost_click", procs)
+
+    def test_exit_sub_and_line_labels_ignored(self) -> None:
+        text = "Exit Sub より後か · see Sub L4626 in notes"
+        _files, procs = vrn.extract_mentions(text)
+        self.assertNotIn("l4626", procs)
 
 
 class VerifyTests(unittest.TestCase):
@@ -105,7 +128,7 @@ class VerifyTests(unittest.TestCase):
                 json.dumps(sample_inventory()), encoding="utf-8"
             )
             bad = root / "bad.md"
-            bad.write_text("`Missing_Sub` here\n", encoding="utf-8")
+            bad.write_text("`Missing_Click` here\n", encoding="utf-8")
             rc = vrn.main(
                 ["--inventory", str(inv_path), "--reports", str(bad)]
             )

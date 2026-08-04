@@ -3,13 +3,16 @@ from __future__ import annotations
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from tools.runtime_layout import (
     BUILTIN_LAYOUT_SUB_SCORES,
     build_contextual_form_layout,
     build_form_show_layout,
+    classify,
     effective_layout_sub_scores,
     extract_file,
+    resolve_picture1_form,
 )
 
 
@@ -256,6 +259,59 @@ class LayoutSubScoresTests(unittest.TestCase):
         ]
         layout = build_form_show_layout(rows, forms, sub_scores={})
         self.assertEqual(layout["Child"]["left"], 111)
+
+
+class Picture1ConfigTests(unittest.TestCase):
+    def test_resolve_picture1_reads_config(self) -> None:
+        with patch(
+            "tools.runtime_layout.load_config",
+            return_value={
+                "picture1_height_by_sub": {
+                    "open_child_click": "Child",
+                    "open_child_click@mdiform1": "Child",
+                }
+            },
+        ):
+            self.assertEqual(
+                resolve_picture1_form("Open_Child_Click", "MDIForm1"), "Child"
+            )
+            self.assertEqual(resolve_picture1_form("Open_Child_Click", None), "Child")
+            self.assertIsNone(resolve_picture1_form("Unknown_Click", "MDIForm1"))
+
+    def test_picture1_height_uses_config_when_near_show_empty(self) -> None:
+        rows = [
+            {
+                "file": "MDIForm1.frm",
+                "file_vb": "MDIForm1",
+                "line": 10,
+                "sub": "Open_Child_Click",
+                "object": "MDIForm1.Picture1",
+                "target": "MDIForm1.Picture1",
+                "prop": "Height",
+                "expr": "3500",
+                "value": 3500,
+                "kind": "mdi_chrome",
+                "near_show": [],
+                "source": "Picture1.Height = 3500",
+            }
+        ]
+        forms = {"Child": "Child.frm", "MDIForm1": "MDIForm1.frm"}
+        with patch(
+            "tools.runtime_layout.load_config",
+            return_value={"picture1_height_by_sub": {"open_child_click": "Child"}},
+        ):
+            layout = build_form_show_layout(rows, forms, sub_scores={})
+        self.assertEqual(layout["Child"]["picture1Height"], 3500)
+
+    def test_fg_aliases_classify_as_mdi_chrome(self) -> None:
+        self.assertEqual(
+            classify("MDIForm1.fg2", "Height", "12000", 12000, "MDIForm1"),
+            "mdi_chrome",
+        )
+        self.assertEqual(
+            classify("FG1", "Width", "100", 100, "MDIForm1"),
+            "mdi_chrome",
+        )
 
 
 class RecentShowsSubBoundaryTests(unittest.TestCase):

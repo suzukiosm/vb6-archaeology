@@ -48,7 +48,7 @@ def run_pipeline() -> None:
         ],
     )
     run_step(
-        "frm_deep_read",
+        "frm_deep_read Form1",
         [
             py,
             str(TOOLS / "frm_deep_read.py"),
@@ -57,6 +57,22 @@ def run_pipeline() -> None:
             str(EXTRACT),
         ],
     )
+    run_step(
+        "frm_deep_read BackupDay (VB_Name≠stem)",
+        [
+            py,
+            str(TOOLS / "frm_deep_read.py"),
+            "BackupDay.frm",
+            "--extract",
+            str(EXTRACT),
+        ],
+    )
+    form12_skel = REPO / "working" / "skeletons" / "form12-skeleton.json"
+    if not form12_skel.is_file():
+        raise SystemExit(
+            "kit_smoke failed: expected form12-skeleton.json "
+            "(VB_Name out_key for BackupDay.frm)"
+        )
     run_step(
         "runtime_layout",
         [

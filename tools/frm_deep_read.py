@@ -5,8 +5,11 @@
 ワンショットを増やさず、本ファイルを改定してから再実行すること。
 
 Outputs:
-  - skeleton JSON (live controls only) -> working/skeletons/<stem>-skeleton.json
-  - deep read report -> working/reports/<stem>_deep_read.md
+  - skeleton JSON (live controls only) -> working/skeletons/<out_key>-skeleton.json
+  - deep read report -> working/reports/<out_key>_deep_read.md
+
+  out_key = deep_read_name_map[VB_Name] or lowercase VB_Name
+  (fallback: file stem when VB_Name is missing)
 
 Usage:
   python tools/frm_deep_read.py <frm_filename> --extract working/extracts/<stem>
@@ -25,6 +28,7 @@ sys.path.insert(0, str(REPO / "tools"))
 from lib.config import (  # noqa: E402
     decode_vb6_bytes,
     extracts_root,
+    load_config,
     reports_root,
     skeletons_root,
 )
@@ -685,6 +689,24 @@ def write_report(
 
 # ── main ──────────────────────────────────────────────────
 
+def resolve_deep_read_out_key(
+    vb_name: str,
+    frm_path: pathlib.Path,
+    mapping: dict | None = None,
+) -> str:
+    """Output basename key: deep_read_name_map[VB_Name] or lowercase VB_Name."""
+    if mapping is None:
+        raw = load_config().get("deep_read_name_map") or {}
+        mapping = raw if isinstance(raw, dict) else {}
+    if vb_name and mapping:
+        for k, v in mapping.items():
+            if str(k).lower() == vb_name.lower():
+                return str(v)
+    if vb_name:
+        return vb_name.lower()
+    return frm_path.stem.lower().replace("　", "").replace(" ", "")
+
+
 def _resolve_extract(arg: pathlib.Path | None) -> pathlib.Path:
     if arg is not None:
         extract = arg if arg.is_absolute() else REPO / arg
@@ -718,11 +740,11 @@ def main():
     )
     parser.add_argument(
         "--skeleton",
-        help="Skeleton JSON path or filename (default: working/skeletons/<stem>-skeleton.json)",
+        help="Skeleton JSON path or filename (default: working/skeletons/<out_key>-skeleton.json)",
     )
     parser.add_argument(
         "--report",
-        help="Report MD path or filename (default: working/reports/<stem>_deep_read.md)",
+        help="Report MD path or filename (default: working/reports/<out_key>_deep_read.md)",
     )
     parser.add_argument("--no-skeleton", action="store_true", help="Skip skeleton output")
     parser.add_argument("--no-report", action="store_true", help="Skip report output")
@@ -740,21 +762,27 @@ def main():
         print(f"ERROR: {frm_path} not found", file=sys.stderr)
         sys.exit(1)
 
-    stem = frm_path.stem.lower().replace("　", "").replace(" ", "")
-    skel_name = args.skeleton or f"{stem}-skeleton.json"
-    report_name = args.report or f"{stem}_deep_read.md"
-
     text = read_cp932(frm_path)
     lines = text.splitlines()
     bas_text = load_bas_text()
     project_text = load_project_code_text()
 
     code_start = 0
+    vb_name = ""
     for i, line in enumerate(lines):
-        if line.strip().startswith("Attribute VB_Name"):
+        s = line.strip()
+        if s.startswith("Attribute VB_Name"):
             code_start = i
+            m = re.search(r'Attribute\s+VB_Name\s*=\s*"([^"]+)"', s, re.IGNORECASE)
+            if m:
+                vb_name = m.group(1)
             break
     code_text = "\n".join(lines[code_start:])
+
+    # 出力キー: VB_Name + deep_read_name_map（frm_deep_read_all と同契約）
+    out_key = resolve_deep_read_out_key(vb_name, frm_path)
+    skel_name = args.skeleton or f"{out_key}-skeleton.json"
+    report_name = args.report or f"{out_key}_deep_read.md"
 
     form_info, controls = extract_controls(lines)
     events = extract_events(lines)

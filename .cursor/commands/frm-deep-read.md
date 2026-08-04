@@ -5,6 +5,7 @@
 手順は skill `vb6-frm-deep-read` を読むこと。
 
 - 引数: `.frm` 名と `--extract`（例: `Form1.frm` + `working/extracts/mini_vbp`）
+- 出力キーは **VB_Name 小文字**（`deep_read_name_map` で上書き可）。ファイル stem ではない
 - 実行例:
   ```powershell
   python tools/frm_deep_read.py Form1.frm --extract working\extracts\<stem>

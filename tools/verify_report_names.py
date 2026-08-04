@@ -33,7 +33,7 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT / "tools"))
-from lib.config import reports_root  # noqa: E402
+from lib.config import load_config, reports_root  # noqa: E402
 
 FILE_TOKEN_RE = re.compile(
     r"\b([A-Za-z_][\w]*\.(?:frm|bas|cls))\b",
@@ -42,6 +42,16 @@ FILE_TOKEN_RE = re.compile(
 BACKTICK_RE = re.compile(r"`([^`\n]{1,120})`")
 # PascalCase-ish with underscore (Form_Load, Command1_Click). snake_case 除外。
 PROC_LIKE_RE = re.compile(r"^[A-Za-z][A-Za-z0-9]*(_[A-Za-z][A-Za-z0-9]*)+$")
+# バッククォートは VB イベント/ハンドラ風サフィックスのみ（定数 HWND_TOPMOST 等を除外）
+EVENT_SUFFIX_RE = re.compile(
+    r"(?i)_("
+    r"Click|DblClick|Load|Unload|Initialize|Terminate|Activate|Deactivate|"
+    r"Resize|Paint|QueryUnload|GotFocus|LostFocus|KeyPress|KeyDown|KeyUp|"
+    r"Change|Scroll|DropDown|CloseUp|Timer|Validate|PathChange|PatternChange|"
+    r"MouseDown|MouseUp|MouseMove|OLEDragDrop|OLECompleteDrag|Error|"
+    r"LinkOpen|LinkClose|LinkExecute|LinkNotify|ItemCheck"
+    r")$"
+)
 SUB_DECL_RE = re.compile(
     r"\b(?:Sub|Function|Property\s+(?:Get|Let|Set))\s+([A-Za-z_][\w]*)\b",
     re.IGNORECASE,
@@ -76,14 +86,28 @@ def load_inventory_sets(data: dict) -> tuple[set[str], set[str]]:
             name = p.get("name") if isinstance(p, dict) else None
             if name:
                 procs.add(norm_proc(name))
+        # Declare Function/Sub（例: QRmodel2）も名前集合に含める
+        for d in entry.get("declares") or []:
+            name = d.get("name") if isinstance(d, dict) else None
+            if name:
+                procs.add(norm_proc(name))
+    # 他 VBP・外部モジュールへの言及を許可（消費者 config）
+    raw = load_config().get("verify_report_allow_files") or []
+    if isinstance(raw, list):
+        for item in raw:
+            base = norm_file(str(item))
+            files.add(base)
+            files.add(Path(base).stem.lower())
     return files, procs
 
 
 def is_proc_like(token: str) -> bool:
+    """Backtick 候補: PascalCase_with_underscore かつ VB イベント風サフィックス。"""
     if not PROC_LIKE_RE.match(token):
         return False
-    # 少なくとも1文字の大文字（VB イベント名）。snake_case JSON キーを落とす。
-    return any(ch.isupper() for ch in token)
+    if not any(ch.isupper() for ch in token):
+        return False
+    return EVENT_SUFFIX_RE.search(token) is not None
 
 
 def extract_mentions(text: str) -> tuple[set[str], set[str]]:
@@ -96,17 +120,30 @@ def extract_mentions(text: str) -> tuple[set[str], set[str]]:
 
     for m in BACKTICK_RE.finditer(text):
         inner = m.group(1).strip()
+        if not inner:
+            continue
         if FILE_TOKEN_RE.fullmatch(inner):
             files.add(norm_file(inner))
             continue
         # strip trailing punctuation / markdown noise
-        token = inner.split()[0] if inner else ""
+        token = inner.split()[0]
         token = token.rstrip(".,;:)")
         if is_proc_like(token):
             procs.add(norm_proc(token))
 
     for m in SUB_DECL_RE.finditer(text):
-        procs.add(norm_proc(m.group(1)))
+        # End Sub / Exit Sub の誤ヒットを避ける
+        start = m.start()
+        prefix = text[max(0, start - 6) : start].lower()
+        if prefix.rstrip().endswith("end") or prefix.rstrip().endswith("exit"):
+            continue
+        name = m.group(1)
+        # 宣言行はイベント風でなくてもよいが、行番号ラベル L123 等は除外
+        if re.fullmatch(r"L\d+", name, flags=re.IGNORECASE):
+            continue
+        if len(name) < 2:
+            continue
+        procs.add(norm_proc(name))
 
     return files, procs
 
@@ -132,16 +169,15 @@ def iter_report_files(
 ) -> list[Path]:
     out: list[Path] = []
     inv_resolved = inventory_path.resolve()
-    inv_stem = inventory_path.name.replace("_inventory.json", "")
 
     def excluded(path: Path) -> bool:
         rel = str(path).replace("\\", "/")
         name = path.name
         if path.resolve() == inv_resolved:
             return True
+        # 任意 stem の inventory 成果物は照合対象外（HTML 内のサンプル宣言を拾わない）
         if INVENTORY_NAME_RE.match(name):
-            if name.lower().startswith(inv_stem.lower() + "_inventory"):
-                return True
+            return True
         for pat in exclude_globs:
             if fnmatch.fnmatch(name, pat) or fnmatch.fnmatch(rel, pat):
                 return True

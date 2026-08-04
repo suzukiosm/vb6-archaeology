@@ -25,6 +25,8 @@ DEFAULTS: dict = {
         "form_load": 80,
         "mdiform_load": 80,
     },
+    "picture1_height_by_sub": {},
+    "verify_report_allow_files": [],
 }
 
 

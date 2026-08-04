@@ -14,7 +14,7 @@ VB6 テキストは **CP932**（`lib/config.py` / `archaeology.config.json`）�
 | `vb6_inventory.py` | 構成事実のみ | `working/reports/<stem>_inventory.{json,md,html}` |
 | `verify_inventory.py` | End 文カウント照合 | stdout JSON + `count mismatches: none` |
 | `verify_report_names.py` | inventory 名集合 ↔ レポート言及照合 | stdout JSON + `name mismatches: none` |
-| `frm_deep_read.py` | .frm 深読み（単体解析。`ancestor_hidden` 付与） | `*_deep_read.md` + `working/skeletons/*-skeleton.json` |
+| `frm_deep_read.py` | .frm 深読み（単体解析。`ancestor_hidden` 付与。出力キーは VB_Name） | `<out_key>_deep_read.md` + `working/skeletons/<out_key>-skeleton.json` |
 | `frm_deep_read_all.py` | 抽出内の全 .frm を一括 deep_read | 同上（キーは VB_Name 小文字 / `deep_read_name_map`） |
 | `runtime_layout.py` | コード部の実行時座標 | `runtime_layout.md` / `runtime-layout.json` |
 | `frm_lines.py` | CP932 ソースの行番号つき表示 | stdout |
@@ -60,7 +60,9 @@ python tools/scan_control_chars.py
   - 名前非依存: 未登録の `*_click` は form_show で小さな加点、codeMoves では下限スコア
   - **アプリ固有の開経路 Sub は消費者 config に書く**（キットへ還元しない）
   - 使用したスコアは `runtime_layout.json` / `runtime-layout.json` / MD に出力
-- `deep_read_name_map` で `frm_deep_read_all.py` の出力キー特例を指定できる（任意）
+- `deep_read_name_map` で `frm_deep_read.py` / `frm_deep_read_all.py` の出力キー特例を指定できる（任意。既定は VB_Name 小文字）
+- `picture1_height_by_sub` — `runtime_layout.py` が `near_show` 空のとき Picture1.Height の帰属 Form を決める（消費者のみ）
+- `verify_report_allow_files` — `verify_report_names.py` が inventory 外ファイル名を許可するリスト（消費者のみ）
 - `skeletons_dir` 既定は `working/skeletons`（消費者は web lib 等へ変更可）
 - `--extract` 未指定時は `working/extracts/` 下一意ならそれを使う（複数ならエラー）
 

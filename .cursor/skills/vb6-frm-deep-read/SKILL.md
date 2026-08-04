@@ -17,12 +17,16 @@ python tools/runtime_layout.py --extract working\extracts\<stem>
 
 ## 出力
 
-- `working/reports/<stem>_deep_read.md`（または指定名）
-- `working/skeletons/<stem>-skeleton.json`
+出力キー `out_key` = `deep_read_name_map[VB_Name]` または **VB_Name の小文字**（ファイル stem ではない）。
+
+- `working/reports/<out_key>_deep_read.md`
+- `working/skeletons/<out_key>-skeleton.json`
+
+例: `BackupDay.frm` で `Attribute VB_Name = "Form12"` → `form12_deep_read.md` / `form12-skeleton.json`。
 
 ## 注意
 
-- `--extract` は必須
+- `--extract` 未指定時は `working/extracts/` 下一意なら自動解決
 - ツール改定後は影響 Form を再生成
 - 設計時座標（Begin）と実行時座標（runtime_layout）は別物
 - 保護ディレクトリには書かない
