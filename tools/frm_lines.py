@@ -34,14 +34,14 @@ def emit(path: Path, lines: list[str], start: int, end: int) -> None:
     print()
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("file")
     ap.add_argument("ranges", nargs="*", help="START-END（1 始まり・両端含む）")
     ap.add_argument("--find", help="正規表現。ヒット行の前後を出す")
     ap.add_argument("--context", type=int, default=8)
     ap.add_argument("--ignore-case", action="store_true")
-    args = ap.parse_args()
+    args = ap.parse_args(argv)
 
     path = Path(args.file)
     if not path.is_file():

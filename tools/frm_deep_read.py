@@ -725,7 +725,7 @@ def _resolve_extract(arg: pathlib.Path | None) -> pathlib.Path:
     )
 
 
-def main():
+def main(argv: list[str] | None = None) -> int:
     global EXTRACT, REPORTS, SKELETONS
     parser = argparse.ArgumentParser(description="Deep-read a VB6 .frm")
     parser.add_argument(
@@ -748,7 +748,7 @@ def main():
     )
     parser.add_argument("--no-skeleton", action="store_true", help="Skip skeleton output")
     parser.add_argument("--no-report", action="store_true", help="Skip report output")
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     EXTRACT = _resolve_extract(args.extract)
     REPORTS = reports_root()
@@ -760,7 +760,7 @@ def main():
     frm_path = frm_arg if frm_arg.is_file() else EXTRACT / frm_arg.name
     if not frm_path.exists():
         print(f"ERROR: {frm_path} not found", file=sys.stderr)
-        sys.exit(1)
+        return 1
 
     text = read_cp932(frm_path)
     lines = text.splitlines()
@@ -875,6 +875,8 @@ def main():
         )
         print(f"Report  -> {report_path}")
 
+    return 0
+
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

@@ -1057,7 +1057,7 @@ def _resolve_extract(arg: pathlib.Path | None) -> pathlib.Path:
     raise SystemExit(f"multiple extracts ({names}); pass --extract working/extracts/<stem>")
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
     global REPORTS, WEB_LIB
     ap = argparse.ArgumentParser(
         description="Catalog runtime Left/Top/Width/Height/Visible assignments"
@@ -1068,7 +1068,7 @@ def main() -> int:
         default=None,
         help="Extracted project dir (default: sole folder under working/extracts/)",
     )
-    args = ap.parse_args()
+    args = ap.parse_args(argv)
     extract = _resolve_extract(args.extract)
     REPORTS = reports_root()
     WEB_LIB = skeletons_root()
@@ -1126,4 +1126,4 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    raise SystemExit(main())

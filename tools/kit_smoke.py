@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import argparse
 import subprocess
 import sys
 import unittest
@@ -15,7 +16,9 @@ EXTRACT = REPO / "working" / "extracts" / "mini_vbp"
 VBP = REPO / "source" / "mini_vbp" / "mini_vbp.vbp"
 
 
-def run_step(label: str, argv: list[str]) -> None:
+def run_step(label: str, args: list[str]) -> None:
+    """Run one CLI subcommand the same way an agent would."""
+    argv = [sys.executable, "-m", "tools", *args]
     print(f"==> {label}")
     print(" ".join(argv))
     proc = subprocess.run(argv, cwd=REPO)
@@ -24,48 +27,18 @@ def run_step(label: str, argv: list[str]) -> None:
 
 
 def run_pipeline() -> None:
-    py = sys.executable
-    run_step("make_fixture", [py, str(TOOLS / "make_fixture.py")])
+    run_step("config-check", ["config-check"])
+    run_step("fixture", ["fixture"])
+    run_step("extract", ["extract", str(VBP)])
+    run_step("inventory", ["inventory", str(EXTRACT)])
+    run_step("verify", ["verify", str(INV_JSON)])
     run_step(
-        "extract_vbp",
-        [py, str(TOOLS / "extract_vbp.py"), str(VBP)],
+        "deep-read Form1",
+        ["deep-read", "Form1.frm", "--extract", str(EXTRACT)],
     )
     run_step(
-        "vb6_inventory",
-        [py, str(TOOLS / "vb6_inventory.py"), str(EXTRACT)],
-    )
-    run_step(
-        "verify_inventory",
-        [py, str(TOOLS / "verify_inventory.py"), str(INV_JSON)],
-    )
-    run_step(
-        "verify_report_names",
-        [
-            py,
-            str(TOOLS / "verify_report_names.py"),
-            "--inventory",
-            str(INV_JSON),
-        ],
-    )
-    run_step(
-        "frm_deep_read Form1",
-        [
-            py,
-            str(TOOLS / "frm_deep_read.py"),
-            "Form1.frm",
-            "--extract",
-            str(EXTRACT),
-        ],
-    )
-    run_step(
-        "frm_deep_read BackupDay (VB_Name≠stem)",
-        [
-            py,
-            str(TOOLS / "frm_deep_read.py"),
-            "BackupDay.frm",
-            "--extract",
-            str(EXTRACT),
-        ],
+        "deep-read BackupDay (VB_Name != stem)",
+        ["deep-read", "BackupDay.frm", "--extract", str(EXTRACT)],
     )
     form12_skel = REPO / "working" / "skeletons" / "form12-skeleton.json"
     if not form12_skel.is_file():
@@ -73,15 +46,26 @@ def run_pipeline() -> None:
             "kit_smoke failed: expected form12-skeleton.json "
             "(VB_Name out_key for BackupDay.frm)"
         )
+    run_step("deep-read-all", ["deep-read-all", "--extract", str(EXTRACT)])
+    run_step("layout", ["layout", "--extract", str(EXTRACT)])
+    run_step("comprehend skeleton", ["comprehend", "--inventory", str(INV_JSON), "--force"])
     run_step(
-        "runtime_layout",
+        "comprehend tick",
         [
-            py,
-            str(TOOLS / "runtime_layout.py"),
-            "--extract",
-            str(EXTRACT),
+            "comprehend",
+            "--inventory",
+            str(INV_JSON),
+            "--add-tick",
+            "Command1_Click@Form1.frm",
+            "--layer",
+            "C",
         ],
     )
+    # Reports are only trustworthy if every name in them exists in the inventory,
+    # so the name check runs after every report has been generated.
+    run_step("verify-names", ["verify-names", "--inventory", str(INV_JSON)])
+    run_step("serve --check", ["serve", "--check"])
+    run_step("scan-chars", ["scan-chars"])
 
 
 def run_unit_tests() -> None:
@@ -97,7 +81,10 @@ def run_unit_tests() -> None:
         raise SystemExit("kit_smoke failed at: unittest")
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
+    argparse.ArgumentParser(
+        description="Kit self-check: fixture pipeline + unit tests"
+    ).parse_args(argv)
     run_pipeline()
     run_unit_tests()
     print("kit_smoke: OK")
@@ -105,4 +92,4 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    raise SystemExit(main())

@@ -62,17 +62,21 @@ def key_for(name: str) -> str:
     return name.lower()
 
 
-def main() -> int:
-    ap = argparse.ArgumentParser(description="全 .frm の deep_read / skeleton 再生成")
+def main(argv: list[str] | None = None) -> int:
+    ap = argparse.ArgumentParser(
+        description="Regenerate deep_read reports / skeletons for every .frm"
+    )
     ap.add_argument(
         "--extract",
         type=Path,
         default=None,
         help="Extracted project dir (default: sole folder under working/extracts/)",
     )
-    ap.add_argument("--only", action="append", default=None, help=".frm 名（複数可）")
+    ap.add_argument(
+        "--only", action="append", default=None, help=".frm filename (repeatable)"
+    )
     ap.add_argument("--dry-run", action="store_true")
-    args = ap.parse_args()
+    args = ap.parse_args(argv)
 
     extract = resolve_extract(args.extract)
     frms = sorted(p for p in extract.glob("*.frm"))
@@ -80,13 +84,13 @@ def main() -> int:
         wanted = {o.lower() for o in args.only}
         frms = [p for p in frms if p.name.lower() in wanted]
     if not frms:
-        raise SystemExit(f"対象 .frm がありません: {extract}")
+        raise SystemExit(f"no .frm found under {extract}")
 
     failed = 0
     for frm in frms:
         name = vb_name(frm)
         if not name:
-            print(f"SKIP {frm.name}: VB_Name が読めません")
+            print(f"SKIP {frm.name}: no Attribute VB_Name found")
             failed += 1
             continue
         key = key_for(name)
@@ -118,7 +122,7 @@ def main() -> int:
             print(proc.stdout)
             print(proc.stderr, file=sys.stderr)
 
-    print(f"\n{len(frms)} .frm · 失敗 {failed}")
+    print(f"\n{len(frms)} .frm processed, {failed} failed")
     return 1 if failed else 0
 
 

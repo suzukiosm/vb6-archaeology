@@ -1,5 +1,5 @@
 {
-  "$schema_comment": "vb6-archaeology kit configuration. Agents: Read AGENTS.md then docs/ai-onboarding.md.",
+  "$schema": "./schema/archaeology.config.schema.json",
   "protected_source_dirs": [
     "source"
   ],
@@ -19,7 +19,8 @@
   "picture1_height_by_sub": {},
   "verify_report_allow_files": [],
   "notes": {
-    "protected": "Directories listed in protected_source_dirs are read-only. Hooks deny Write/StrReplace/Delete into them. Exception: python tools/make_fixture.py may regenerate source/mini_vbp/. Rename via this list if your immutable tree is not called source/.",
+    "agents": "Read AGENTS.md then docs/ai-onboarding.md before using the kit. Validate this file with `python -m tools config-check`.",
+    "protected": "Directories listed in protected_source_dirs are read-only. Hooks deny Write/StrReplace/Delete into them. Exception: `python -m tools fixture` (tools/make_fixture.py) may regenerate source/mini_vbp/. Rename via this list if your immutable tree is not called source/.",
     "geometry_hints": "Optional map of FormName → {left,top,width,height} twips used when evaluating parent-relative runtime expressions.",
     "deep_read_name_map": "Optional map of VB_Name → output key for frm_deep_read.py / frm_deep_read_all.py (e.g. {\"MDIForm1\": \"mdi\"}). Empty = lowercase VB_Name (not file stem).",
     "layout_sub_scores": "Optional map of lowercase Sub name → int score for runtime_layout open-path preference. Kit default is form_load/mdiform_load only. Put app-specific openers (e.g. stet_click) in the consumer config — do not upstream them into the kit.",

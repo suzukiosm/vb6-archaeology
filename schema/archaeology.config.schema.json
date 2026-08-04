@@ -1,0 +1,96 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/suzukiosm/vb6-archaeology/schema/archaeology.config.schema.json",
+  "title": "vb6-archaeology kit configuration",
+  "description": "Protected source trees, output directories and analysis hints. Validate with `python -m tools config-check`.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["protected_source_dirs", "default_source_dir"],
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "Relative path to this schema, for editor validation."
+    },
+    "protected_source_dirs": {
+      "type": "array",
+      "description": "Directory names holding immutable VB6 originals. Hooks deny writes into them.",
+      "minItems": 1,
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "default_source_dir": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Directory searched first when a tool needs the originals."
+    },
+    "extracts_dir": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Where extract writes analysis copies (default working/extracts)."
+    },
+    "reports_dir": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Where reports are written (default working/reports)."
+    },
+    "skeletons_dir": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Where form skeleton JSON is written (consumers may point this at a web lib dir)."
+    },
+    "encoding": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Primary VB6 source encoding (cp932 for Japanese projects)."
+    },
+    "encoding_fallbacks": {
+      "type": "array",
+      "description": "Encodings tried when the primary decode fails.",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "reports_http_port": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 65535,
+      "description": "Loopback port used by `python -m tools serve`."
+    },
+    "geometry_hints": {
+      "type": "object",
+      "description": "FormName -> twips box, used when resolving parent-relative runtime expressions.",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "left": { "type": "integer" },
+          "top": { "type": "integer" },
+          "width": { "type": "integer" },
+          "height": { "type": "integer" }
+        }
+      }
+    },
+    "deep_read_name_map": {
+      "type": "object",
+      "description": "VB_Name -> output key override for deep-read (empty means lowercase VB_Name).",
+      "additionalProperties": { "type": "string", "minLength": 1 }
+    },
+    "layout_sub_scores": {
+      "type": "object",
+      "description": "Lowercase Sub name -> open-path score for layout. Keep app-specific openers in the consumer config.",
+      "additionalProperties": { "type": "integer" }
+    },
+    "picture1_height_by_sub": {
+      "type": "object",
+      "description": "Consumer-only: lowercase Sub -> Form VB_Name for Picture1.Height attribution.",
+      "additionalProperties": { "type": "string", "minLength": 1 }
+    },
+    "verify_report_allow_files": {
+      "type": "array",
+      "description": "Consumer-only: basenames verify-names accepts beyond the inventory.",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "notes": {
+      "type": "object",
+      "description": "Free-form human notes kept next to the settings they explain.",
+      "additionalProperties": { "type": "string" }
+    }
+  }
+}

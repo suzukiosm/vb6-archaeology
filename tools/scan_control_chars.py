@@ -24,7 +24,6 @@ from __future__ import annotations
 import argparse
 import io
 import os
-import sys
 
 DEFAULT_ROOTS = ("docs", "working/reports", "tools", ".cursor")
 DEFAULT_EXT = (".md", ".mdc", ".ts", ".tsx", ".json", ".py", ".css")
@@ -50,11 +49,11 @@ def iter_files(roots: list[str], exts: tuple[str, ...]):
                     yield full
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("roots", nargs="*", default=list(DEFAULT_ROOTS))
     ap.add_argument("--ext", nargs="*", default=list(DEFAULT_EXT))
-    args = ap.parse_args()
+    args = ap.parse_args(argv)
 
     exts = tuple(e.lower() if e.startswith(".") else "." + e.lower() for e in args.ext)
     files = 0
@@ -78,4 +77,4 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    raise SystemExit(main())

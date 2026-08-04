@@ -17,9 +17,13 @@ MUTATING = re.compile(
     r")\b"
 )
 
-# Explicit allowlist: regenerates fixture under source/mini_vbp only
+# Explicit allowlist: regenerates fixture under source/mini_vbp only.
+# Both spellings are the same tool: the script path and the CLI subcommand.
 ALLOWLIST = re.compile(
-    r"(?i)python(\.exe)?\s+([\"']?)(?:\.\\|/)?tools[/\\]make_fixture\.py\2"
+    r"(?i)python(\.exe)?\s+(?:"
+    r"([\"']?)(?:\.\\|/)?tools[/\\]make_fixture\.py\2"
+    r"|-m\s+tools\s+fixture\b"
+    r")"
 )
 
 

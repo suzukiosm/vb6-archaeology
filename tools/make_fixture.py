@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import argparse
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
@@ -166,7 +167,10 @@ End Function
 """
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
+    argparse.ArgumentParser(
+        description="Write the CP932 smoke fixture under source/mini_vbp/"
+    ).parse_args(argv)
     OUT.mkdir(parents=True, exist_ok=True)
     (OUT / "mini_vbp.vbp").write_bytes(VBP.encode("cp932"))
     (OUT / "Form1.frm").write_bytes(FRM.encode("cp932"))
