@@ -1,18 +1,29 @@
 # 標準ワークフロー
 
+すべて `python -m tools <command>` から実行する（一覧は `python -m tools --help`）。
+
 ## 全体図
 
 ```mermaid
 flowchart TD
-  A[正本 source/] -->|extract_vbp| B[working/extracts/stem]
-  B -->|vb6_inventory| C[inventory JSON/MD/HTML]
-  C -->|verify_inventory| D{mismatches?}
+  A[正本 source/] -->|extract| B[working/extracts/stem]
+  B -->|inventory| C[inventory JSON/MD/HTML]
+  C -->|verify| D{mismatches?}
   D -->|yes| E[extract or tool fix]
   E --> B
-  D -->|none| F[frm_deep_read / runtime_layout]
-  F --> G[comprehension ticks]
-  G --> H[reports + optional reimplementation]
+  D -->|none| F[deep-read / layout]
+  F --> G[comprehend ticks]
+  G --> H[verify-names]
+  H --> I[reports + optional reimplementation]
 ```
+
+## Step 0 — 設定を確かめる
+
+```powershell
+python -m tools config-check
+```
+
+`protected_source_dirs` が実際の正本ツリー名と一致しているかをここで潰す。
 
 ## Step 1 — 正本を置く
 
@@ -23,7 +34,7 @@ flowchart TD
 ## Step 2 — 抽出 (`/vb6-extract`)
 
 ```powershell
-python tools/extract_vbp.py "source\<project>\<Name>.vbp"
+python -m tools extract "source\<project>\<Name>.vbp"
 ```
 
 確認:
@@ -34,8 +45,8 @@ python tools/extract_vbp.py "source\<project>\<Name>.vbp"
 ## Step 3 — インベントリ (`/vb6-inventory`)
 
 ```powershell
-python tools/vb6_inventory.py working\extracts\<stem>
-python tools/verify_inventory.py working\reports\<stem>_inventory.json
+python -m tools inventory working\extracts\<stem>
+python -m tools verify working\reports\<stem>_inventory.json
 ```
 
 これが構成把握の正。以降のレポートはここの名前集合に従う。
@@ -49,13 +60,28 @@ python tools/verify_inventory.py working\reports\<stem>_inventory.json
 3. Show される子フォーム
 
 ```powershell
-python tools/frm_deep_read.py <File>.frm --extract working\extracts\<stem>
-python tools/runtime_layout.py --extract working\extracts\<stem>
+python -m tools deep-read <File>.frm --extract working\extracts\<stem>
+python -m tools deep-read-all --extract working\extracts\<stem>
 ```
 
-## Step 5 — 理解 tick (`/vb6-comprehend`)
+## Step 5 — 実行時座標 (`/runtime-layout`)
 
-1 tick = 主要 Sub 1 つの精読 + 証拠つき追記。
+```powershell
+python -m tools layout --extract working\extracts\<stem>
+```
+
+デザイナ値（Step 4）と実行時代入（Step 5）は別レイヤ。**両方見るまで座標を確定しない**。
+
+## Step 6 — 理解 tick (`/vb6-comprehend`)
+
+1 tick = 主要プロシージャ 1 つの精読 + 証拠つき追記。
+
+```powershell
+python -m tools comprehend                                   # 骨格（初回のみ）
+python -m tools comprehend --add-tick <Proc>[@<File>] --layer C
+```
+
+inventory に無い名前は拒否される。拒否されたら名前を疑う（手書きで押し通さない）。
 
 層モデル:
 
@@ -67,11 +93,17 @@ python tools/runtime_layout.py --extract working\extracts\<stem>
 | D | 外部 EXE・COM・ネットワークパス |
 | E | 関連 VBP との境界 |
 
-## Step 6 — 報告書 (`/vb6-report`)
+## Step 7 — 報告書と照合 (`/vb6-report` · `/vb6-verify-reports`)
 
-事実節と推定節を分離。訂正時は参照元をカスケード更新。
+事実節と推定節を分離。訂正時は参照元をカスケード更新。書いたら照合する:
 
-## Step 7 —（任意）再実装
+```powershell
+python -m tools verify-names --inventory working\reports\<stem>_inventory.json
+```
+
+閲覧は `python -m tools serve`（`file://` は使わない）。
+
+## Step 8 —（任意）再実装
 
 消費者リポの作業。本キットは skeleton / runtime-layout JSON を中間成果として渡す。  
 実装に入る前に「確定事実」であることを再検証する。

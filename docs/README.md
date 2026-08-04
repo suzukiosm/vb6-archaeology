@@ -1,6 +1,7 @@
 # docs — 索引
 
-エージェントはまずリポ直下の [`AGENTS.md`](../AGENTS.md) → [`ai-onboarding.md`](ai-onboarding.md) を Read。
+エージェントはまずリポ直下の [`AGENTS.md`](../AGENTS.md) → [`ai-onboarding.md`](ai-onboarding.md) を Read。  
+ツール入口は `python -m tools --help`。
 
 ## 必読・入口
 
@@ -33,6 +34,7 @@
 | [reference/glossary.md](reference/glossary.md) | 用語 |
 | [reference/anti-patterns.md](reference/anti-patterns.md) | やってはいけないこと |
 | [reference/vbp-keys.md](reference/vbp-keys.md) | VBP キー |
+| [../schema/archaeology.config.schema.json](../schema/archaeology.config.schema.json) | 設定の正（`python -m tools config-check`） |
 
 ## キット保守
 

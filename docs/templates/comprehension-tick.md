@@ -1,4 +1,7 @@
-# Tick 〈N〉 — 〈対象 Sub〉
+# Tick 〈N〉 — 〈対象プロシージャ〉
+
+> HTML レポートの枠は `python -m tools comprehend --add-tick <Proc>[@<File>]` が作る。
+> 本ファイルは「何を書けば tick として成立するか」の基準。
 
 - 対象: `working/extracts/<stem>/<file>` / `〈Sub名〉` / 行 〈start〉–〈end〉
 - 層: A 静的 | B データ | C UI | D 実行依存 | E 境界

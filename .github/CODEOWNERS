@@ -1,0 +1,11 @@
+# Agent-facing configuration decides how every AI session behaves in this repo,
+# so changes there always need an owner review.
+
+*                           @suzukiosm
+
+AGENTS.md                   @suzukiosm
+/.cursor/                   @suzukiosm
+/schema/                    @suzukiosm
+archaeology.config.json     @suzukiosm
+/docs/ai-onboarding.md      @suzukiosm
+/docs/flow/                 @suzukiosm

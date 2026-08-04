@@ -7,13 +7,21 @@ on:
 
 jobs:
   kit-smoke:
-    runs-on: ubuntu-latest
+    # CP932 decoding and Windows path handling are load-bearing for this kit,
+    # so the smoke run has to pass on both platforms and on the oldest Python
+    # the README promises.
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python-version: ["3.10", "3.13"]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: ${{ matrix.python-version }}
       - name: Kit smoke (pipeline + unit tests)
         env:
           PYTHONPATH: ${{ github.workspace }}
-        run: python tools/kit_smoke.py
+        run: python -m tools smoke

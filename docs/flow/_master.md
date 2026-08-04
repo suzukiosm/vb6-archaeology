@@ -18,14 +18,16 @@
 
 ## 調査レーン（標準）
 
-1. 環境・キット自己点検（`/kit-smoke`）
-2. 正本配置（`source/`）
-3. VBP 抽出
-4. inventory + verify
-5. Startup / 主要 Form の deep-read
-6. runtime_layout
-7. comprehension ticks（層 A→E）
-8. ギャップ再監査（完了不信）
+1. 環境・キット自己点検（`/kit-smoke` = `python -m tools smoke`）
+2. 設定検証（`python -m tools config-check`）
+3. 正本配置（`source/`）
+4. VBP 抽出
+5. inventory + verify
+6. Startup / 主要 Form の deep-read
+7. runtime layout（`/runtime-layout`）
+8. comprehension ticks（層 A→E。枠は `python -m tools comprehend --add-tick`）
+9. 名前集合の照合（`python -m tools verify-names`）
+10. ギャップ再監査（完了不信）
 
 各アプリの進捗チェックリストは消費者の `docs/ai-dev-context.md` に書く（本ファイルへ長く複製しない）。
 
@@ -34,8 +36,8 @@
 - 保護ディレクトリ（`archaeology.config.json`）は読取専用
 - 抽出は `working/extracts/` のみ
 - 解析成果は `working/reports/` / `docs/`
-- 使い捨て解析の増殖禁止（`tools/` 改定）
-- 推定に証拠必須
+- 使い捨て解析の増殖禁止（`tools/` 改定 + `cli.py` の `COMMANDS` 更新）
+- 推定に証拠必須。inventory に無い名前はレポートに書かない
 
 ## 入口
 

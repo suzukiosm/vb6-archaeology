@@ -18,11 +18,19 @@
 | 4 | 本ファイル |
 | 5 | `.cursor/rules/vb6-analysis.mdc` |
 
+## Setup / Testing
+
+- Python 3.10+（標準ライブラリのみ）
+- ツール入口: `python -m tools <command>`（一覧は `python -m tools --help`）
+- 設定検証: `python -m tools config-check`
+- 自己点検: `python -m tools smoke`
+
 ## 不変条件
 
 - 正本ディレクトリは読取専用（hooks）
 - サイクル: 検証 → 理解 → 実装
 - 事実と推定を分離。証拠なき推定は書かない
+- inventory に無いファイル名・プロシージャ名をレポートに書かない
 
 ## ワークフロー索引
 
@@ -31,5 +39,7 @@
 | 抽出 | `/vb6-extract` |
 | 構成 | `/vb6-inventory` |
 | 深読み | `/frm-deep-read` |
+| 実行時座標 | `/runtime-layout` |
 | 理解 | `/vb6-comprehend` |
 | 報告書 | `/vb6-report` |
+| 照合 | `/vb6-verify-reports` |

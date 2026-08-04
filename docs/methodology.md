@@ -6,7 +6,7 @@
 
 1. **事実（facts）** = ソースから機械的に確定できる情報。  
    例: プロシージャ定義と行範囲、コントロール一覧、VBP 構成、Declare。  
-   → `tools/vb6_inventory.py` の `<stem>_inventory.*` が構成の正。
+   → `python -m tools inventory` の `<stem>_inventory.*` が構成の正。
 2. **推定（inference）** = 読解・解釈（役割ラベル、呼び出し関係、業務フロー）。  
    → 必ず証拠（ファイル名・Sub・行番号・引用）を併記。書けないなら書かない。
 3. 呼び出し関係の正規表現一括推定はしない（誤エッジがノイズになる）。
@@ -14,7 +14,7 @@
 ## 検証を伴わないレポートは出さない
 
 - 機械抽出は独立手段でクロスチェックする  
-  例: プロシージャ数 == 行頭 `End Sub|Function|Property` 数（`tools/verify_inventory.py`）
+  例: プロシージャ数 == 行頭 `End Sub|Function|Property` 数（`python -m tools verify`）
 - 既存レポートを引用する前に inventory と矛盾しないか確認
 - 再利用解析は `tools/` に置き、サイクル中に改定する
 

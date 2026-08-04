@@ -1,0 +1,40 @@
+name: 改善提案
+description: 抽出・検証・レポートの不足や、新しいツール・コマンドの提案
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        本キットのゴールは **正確な理解と再現可能な調査**です。
+        アプリ固有ロジック（特定の伝票形式・特定 Form 等）はキットには入れず、消費者リポの `tools/` に置きます。
+  - type: textarea
+    id: problem
+    attributes:
+      label: 困っていること
+      description: どの調査ステップで、何が足りないか
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: 根拠
+      description: 取りこぼした・誤検知した実例（VB6 の構文パターンなど。正本の業務内容は伏せて構いません）
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: 対象
+      options:
+        - tools（抽出・解析・検証）
+        - .cursor（rules / skills / commands / hooks）
+        - docs（方法論・採用手順）
+        - その他
+    validations:
+      required: true
+  - type: checkboxes
+    id: scope
+    attributes:
+      label: 適用範囲の確認
+      options:
+        - label: これは特定アプリ固有ではなく、どの VB6 プロジェクトでも役立つ

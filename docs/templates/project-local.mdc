@@ -3,20 +3,23 @@ description: 消費者リポ向け雛形。キット本体の .cursor/rules/proj
 alwaysApply: true
 ---
 
-# Project rules + Global core
+# Project rules
 
-このリポジトリでは **グローバル憲法** `_core.mdc` に従う。
+**このキットはグローバルルール無しで成立する。** 正は本リポの `AGENTS.md` →
+`docs/ai-onboarding.md` →（対象アプリがあれば）`docs/ai-dev-context.md`。
+
+グローバル憲法 `_core.mdc` を運用している環境でだけ、次の行を残す（無い環境では削除してよい）:
 
 - **パス（Read 用）:** `CURSOR_HOME/rules/_core.mdc`
 - **Windows:** `%USERPROFILE%\.cursor\rules\_core.mdc`
 
 ## プロジェクト固有（消費者）
 
-- **保護ディレクトリは改変禁止**（`archaeology.config.json` の `protected_source_dirs`。キット既定は `source/`）。書込・移動・改名・削除・整形すべて不可。読取のみ。例外: `python tools/make_fixture.py`（キットフィクスチャ用。消費者正本では使わない）。
+- **保護ディレクトリは改変禁止**（`archaeology.config.json` の `protected_source_dirs`。キット既定は `source/`）。書込・移動・改名・削除・整形すべて不可。読取のみ。例外: `python -m tools fixture`（キットフィクスチャ用。消費者正本では使わない）。
 - 作業成果は **`working/`** · **`tools/`** · **`docs/`** · **`.cursor/`** およびルートの入口/設定（`AGENTS.md` · `README.md` · `LICENSE` · `archaeology.config.json` 等）のみ。
 - VB6 テキストは **CP932**。内容判断は Python（`tools/`）経由。Cursor Read の化けを根拠にしない。
 - サイクル: **検証 → 理解 →（任意）実装**。使い捨て `working/_*.py` を増やさず `tools/` を改定。
 - セッション開始: `AGENTS.md` → `docs/ai-onboarding.md` → `docs/ai-dev-context.md` を Read。
-- 定型作業は `/vb6-extract` `/vb6-inventory` `/frm-deep-read` `/vb6-comprehend` `/vb6-report` `/vb6-verify-reports` `/serve-reports` `/kit-smoke` から入る。
+- 定型作業は `/vb6-extract` `/vb6-inventory` `/frm-deep-read` `/runtime-layout` `/vb6-comprehend` `/vb6-report` `/vb6-verify-reports` `/serve-reports` `/kit-smoke` から入る。ツール入口は `python -m tools <command>`。
 - 正典層: `AGENTS.md` / `docs/flow/_master.md` / `docs/ai-dev-context.md`。キット保守メモが別にある場合は `docs/kit-dev-context.md`。
 - 利用・複製は `LICENSE`（許諾前提）。保護は hooks（`.cursor/hooks.json`）でも強制される。

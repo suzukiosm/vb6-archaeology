@@ -10,8 +10,10 @@ VB6 を壊さず理解するための汎用 OS（docs / .cursor / tools）を維
 
 ## 2. 現状（事実）
 
-- コアツール: extract / inventory / verify_inventory / verify_report_names / frm_deep_read / runtime_layout
-- 自己点検: `kit_smoke.py`（fixture パイプライン + unittest）· CI: `.github/workflows/ci.yml`
+- 単一入口: `python -m tools <command>`（`tools/cli.py` の `COMMANDS` が正。個別 `python tools/<name>.py` も維持）
+- コアツール: extract / inventory / verify_inventory / verify_report_names / frm_deep_read / runtime_layout / comprehension_scaffold
+- 設定検証: `schema/archaeology.config.schema.json` + `lib/config_schema.py`（stdlib のみ）
+- 自己点検: `kit_smoke.py`（config-check → fixture パイプライン → comprehend → verify-names → scan-chars + unittest）· CI: ubuntu/windows × Python 3.10/3.13
 - 補助: `frm_lines.py` · `scan_control_chars.py` · `frm_deep_read_all.py`（`deep_read_name_map`）
 - `frm_deep_read`: .frm 単体解析注記、`ancestor_hidden`（dead + Visible=0 コンテナ配下）
 - `runtime_layout`: Show 文脈は Sub 境界で `recent_shows` クリア。開経路スコアは `layout_sub_scores`（既定 `form_load` / `mdiform_load` のみ）
@@ -32,7 +34,7 @@ VB6 を壊さず理解するための汎用 OS（docs / .cursor / tools）を維
 
 | 領域 | 規則 |
 |---|---|
-| `source/`（フィクスチャ含む） | 読取専用。再生成は `python tools/make_fixture.py` のみ |
+| `source/`（フィクスチャ含む） | 読取専用。再生成は `python -m tools fixture` のみ |
 | `tools/` · `docs/` · `.cursor/` | キット改良の主戦場 |
 | `working/` | スモーク成果。コミットしない（gitignore） |
 
@@ -44,4 +46,6 @@ VB6 を壊さず理解するための汎用 OS（docs / .cursor / tools）を維
 - git は force push を避け、安全手順で進める
 - 著作権者・連絡先: 有限会社アイコー（https://www.aiko1123.com/）。source-available（OSS ではない）
 - GitHub リモート: `https://github.com/suzukiosm/vb6-archaeology`、既定ブランチ `main`（`protect-main` で force-push・削除禁止）
-- 自己点検の正: `python tools/kit_smoke.py`（CI も同入口）
+- 自己点検の正: `python -m tools smoke`（CI も同入口）
+- バージョンの正: `tools/__init__.py` の `__version__`（`CHANGELOG.md` の最新タグと一致させる）
+- 保護 hooks は `tools/test_hooks.py` が回帰を見る。hooks を変えたらここも更新する

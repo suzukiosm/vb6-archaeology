@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 利用・複製の許諾について
+    url: https://www.aiko1123.com/
+    about: 本リポは source-available です。複製・改変・他リポへの組込には事前許諾が必要です。
+  - name: セキュリティ報告
+    url: https://github.com/suzukiosm/vb6-archaeology/blob/main/SECURITY.md
+    about: 脆弱性は公開 Issue ではなく、こちらの窓口へ。
+  - name: エージェント向けの使い方
+    url: https://github.com/suzukiosm/vb6-archaeology/blob/main/docs/ai-onboarding.md
+    about: 起動手順・契約・アンチパターンはこちら。

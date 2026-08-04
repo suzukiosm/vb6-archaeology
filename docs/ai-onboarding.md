@@ -43,8 +43,9 @@ source/                 # 正本（読取専用）— archaeology.config.json �
 working/extracts/<stem>/
 working/reports/
 working/skeletons/
-tools/                  # 解析の正。足りなければここを直す
+tools/                  # 解析の正（python -m tools）。足りなければここを直す
 docs/
+schema/                 # archaeology.config.json の JSON Schema
 .cursor/
 ```
 
@@ -67,14 +68,18 @@ hooks（`.cursor/hooks/`）が書込ツールと破壊的 shell を阻む。
 
 ## 4. 標準パイプライン
 
+すべて `python -m tools <command>`（一覧は `python -m tools --help`）。
+
 ```text
 [正本 .vbp]
-    → extract_vbp.py          → working/extracts/<stem>/
-    → vb6_inventory.py        → working/reports/<stem>_inventory.{json,md,html}
-    → verify_inventory.py     → mismatches: none
-    → frm_deep_read.py        → *_deep_read.md + skeletons
-    → runtime_layout.py       → runtime_layout.md + runtime-layout.json
-    → comprehension ticks     → <stem>_comprehension.html（人手+証拠）
+    → config-check     → 設定の型・未知キーを検証
+    → extract          → working/extracts/<stem>/
+    → inventory        → working/reports/<stem>_inventory.{json,md,html}
+    → verify           → count mismatches: none
+    → deep-read        → *_deep_read.md + skeletons
+    → layout           → runtime_layout.md + runtime-layout.json
+    → comprehend       → <stem>_comprehension.html（骨格・tick 枠はツール、中身は人手+証拠）
+    → verify-names     → name mismatches: none
 ```
 
 各ステップの詳細は `docs/workflow.md`。  
@@ -101,8 +106,8 @@ hooks（`.cursor/hooks/`）が書込ツールと破壊的 shell を阻む。
 
 1. 抽出が足りない・誤検知 → **ワンショットを増やさず** `tools/` を直す
 2. 直したら影響レポート / skeleton を再生成する
-3. `tools/README.md` を更新する
-4. 定型検証は `tools/verify_inventory.py`（End 数）と `tools/verify_report_names.py`（名前集合）。足りなければこれらを改定する（`working/_verify_*.py` を増やさない）
+3. `tools/README.md` と `tools/cli.py` の COMMANDS 表を更新する
+4. 定型検証は `python -m tools verify`（End 数）と `python -m tools verify-names`（名前集合）。足りなければこれらを改定する（`working/_verify_*.py` を増やさない）
 
 ---
 
@@ -111,7 +116,7 @@ hooks（`.cursor/hooks/`）が書込ツールと破壊的 shell を阻む。
 1. Caption「検索」だけで画面遷移を実装する（メニューが死んでいることがある）
 2. Invisible / 到達不能 Form を必須機能として実装する
 3. 完了宣言を信用して再監査しない
-4. PowerShell `Set-Content` / `-replace` で日本語リテラルを含むファイルを壊す。二重引用符内のバッククォート（`` `F ``→FF 等）も破壊源 → `python tools/scan_control_chars.py`
+4. PowerShell `Set-Content` / `-replace` で日本語リテラルを含むファイルを壊す。二重引用符内のバッククォート（`` `F ``→FF 等）も破壊源 → `python -m tools scan-chars`
 5. 正本パスを「便利だから」書き換えて保存する
 6. 旧 callgraph 自動推定を復活させる
 7. `frm_deep_read` のイベント 0 を孤立と即断する（.frm 単体解析。.frm 外の参照は見えない）
@@ -136,7 +141,7 @@ hooks（`.cursor/hooks/`）が書込ツールと破壊的 shell を阻む。
 キットが健全か確認するとき:
 
 ```powershell
-python tools/kit_smoke.py
+python -m tools smoke
 ```
 
 （フィクスチャパイプライン + `unittest discover`。または `/kit-smoke`。）

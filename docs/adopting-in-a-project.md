@@ -11,12 +11,19 @@
 
 `vb6-archaeology` を「調査 OS」として、個別アプリリポに載せる。
 
+## 前提: 外部依存は無い
+
+キットは**グローバル Cursor ルール（`_core.mdc` 等）に依存しない**。
+必要なのは Python 3.10+ と本リポの `AGENTS.md` / `docs/` / `.cursor/` / `tools/` だけ。
+グローバル憲法を運用している環境では併用してよいが、無い環境でも同じ手順が成立する。
+
 ## コピーする最小セット
 
 ```
 archaeology.config.json
+schema/                      # config の JSON Schema（config-check が参照）
 AGENTS.md                    # 消費者向けに短く改稿可（長い現状は書かない）
-tools/                       # 汎用 CLI 一式
+tools/                       # 汎用 CLI 一式（python -m tools）
 .cursor/rules/
 .cursor/skills/
 .cursor/commands/            # アプリ固有 command は追加してよい
@@ -86,8 +93,8 @@ docs/templates/              # 初回コピー元
 
 - `skeletons_dir` 既定は `working/skeletons`
 - `geometry_hints` は親フォーム相対の実行時式を数値化するときだけ使う（任意）
-- `deep_read_name_map` は `frm_deep_read.py` / `frm_deep_read_all.py` の出力キー特例（任意。空なら VB_Name 小文字。ファイル stem ではない）
-- `layout_sub_scores` は `runtime_layout.py` の開経路優先（任意）。**自アプリの開経路 Sub は消費者 config に書く**（キット既定へ戻さない）
+- `deep_read_name_map` は deep-read の出力キー特例（任意。空なら VB_Name 小文字。ファイル stem ではない）
+- `layout_sub_scores` は layout の開経路優先（任意）。**自アプリの開経路 Sub は消費者 config に書く**（キット既定へ戻さない）
 - `picture1_height_by_sub` は `near_show` が空のとき Picture1.Height をどの Form に帰属させるか（任意。キーは小文字 Sub、または `sub@file_vb`）
 - `verify_report_allow_files` は inventory 外のモジュール名を名前照合で許可するリスト（任意）
 
@@ -98,8 +105,9 @@ docs/templates/              # 初回コピー元
 3. `docs/templates/ai-dev-context.md` → `docs/ai-dev-context.md` を作成し、対象 VBP を記入
 4. `docs/templates/project-local.mdc` → `.cursor/rules/project-local.mdc`
 5. 正本を保護ディレクトリへ配置し、`protected_source_dirs` を実名に合わせる
-6. extract → inventory → verify を実 VBP で実行
-7. `AGENTS.md` の入口表を消費者のレポートパスに合わせて更新
+6. `python -m tools config-check` で設定を検証（型・未知キーをここで潰す）
+7. `python -m tools extract` → `inventory` → `verify` を実 VBP で実行
+8. `AGENTS.md` の入口表を消費者のレポートパスに合わせて更新
 
 ## アプリ固有ツールの置き場
 

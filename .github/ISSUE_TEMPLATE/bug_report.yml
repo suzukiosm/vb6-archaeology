@@ -1,0 +1,53 @@
+name: バグ報告
+description: ツール・hooks・レポート出力が期待どおりに動かない
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        セキュリティ上の懸念は Issue に書かず [SECURITY.md](../blob/main/SECURITY.md) の窓口へ。
+        VB6 正本のソースコードは貼らないでください（顧客資産の可能性があります）。
+  - type: input
+    id: version
+    attributes:
+      label: バージョン
+      description: "`python -m tools --version` の出力、またはコミット SHA"
+      placeholder: vb6-archaeology 0.1.0
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: 環境
+      description: OS と Python バージョン（`python -V`）
+      placeholder: Windows 11 / Python 3.11.9
+    validations:
+      required: true
+  - type: textarea
+    id: command
+    attributes:
+      label: 実行したコマンド
+      render: shell
+      placeholder: python -m tools inventory working/extracts/mini_vbp
+    validations:
+      required: true
+  - type: textarea
+    id: expected-actual
+    attributes:
+      label: 期待した結果と実際の結果
+      description: エラー全文があれば貼ってください（正本のパスは伏せて構いません）
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: 再現手順
+      description: できれば `python -m tools fixture` のミニ VBP で再現するかも書いてください
+    validations:
+      required: true
+  - type: checkboxes
+    id: smoke
+    attributes:
+      label: 自己点検
+      options:
+        - label: "`python -m tools smoke` を実行し、結果を上に含めた"

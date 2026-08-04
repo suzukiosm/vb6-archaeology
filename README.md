@@ -17,26 +17,27 @@
 
 ```powershell
 cd <this-repo>
-python tools/make_fixture.py
-python tools/extract_vbp.py "source\mini_vbp\mini_vbp.vbp"
-python tools/vb6_inventory.py working\extracts\mini_vbp
-python tools/verify_inventory.py working\reports\mini_vbp_inventory.json
-python tools/frm_deep_read.py Form1.frm --extract working\extracts\mini_vbp
-python tools/runtime_layout.py --extract working\extracts\mini_vbp
+python -m tools fixture
+python -m tools extract "source\mini_vbp\mini_vbp.vbp"
+python -m tools inventory working\extracts\mini_vbp
+python -m tools verify working\reports\mini_vbp_inventory.json
+python -m tools deep-read Form1.frm --extract working\extracts\mini_vbp
+python -m tools layout --extract working\extracts\mini_vbp
 ```
+
+コマンド一覧は `python -m tools --help`（個々のツールは `python tools/<name>.py` でも動く）。
 
 レポート閲覧:
 
 ```powershell
-Set-Location working\reports
-python -m http.server 8765 --bind 127.0.0.1
+python -m tools serve
 # http://127.0.0.1:8765/mini_vbp_inventory.html
 ```
 
 自己点検（パイプライン + テスト）:
 
 ```powershell
-python tools/kit_smoke.py
+python -m tools smoke
 ```
 
 ## AI エージェントへ
@@ -58,8 +59,9 @@ source/                 # 読取専用 VB6 正本（hooks 保護）
 working/extracts/       # 切り出しコピー
 working/reports/        # 調査成果
 working/skeletons/      # Form skeleton JSON
-tools/                  # 再利用 CLI
+tools/                  # 再利用 CLI（python -m tools）
 docs/                   # 方法論・採用ガイド・テンプレ
+schema/                 # archaeology.config.json の JSON Schema
 .cursor/                # rules / skills / commands / hooks
 archaeology.config.json # 保護ディレクトリ・出力先
 ```
@@ -67,7 +69,8 @@ archaeology.config.json # 保護ディレクトリ・出力先
 ## 他リポへの採用
 
 **事前許諾が必要**（[LICENSE](LICENSE)）。許諾後の手順は `docs/adopting-in-a-project.md`。  
-最小セット: `tools/` + `.cursor/` + `archaeology.config.json` + `AGENTS.md` 雛形。
+最小セット: `tools/` + `.cursor/` + `schema/` + `archaeology.config.json` + `AGENTS.md` 雛形。  
+グローバルな Cursor ルールには依存しない（Python 3.10+ とこのリポだけで完結）。
 
 ## License
 
