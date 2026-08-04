@@ -11,6 +11,7 @@ import io
 import os
 import subprocess
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -71,9 +72,23 @@ class TestJapaneseOutputUnderLegacyCodePage(unittest.TestCase):
             raise unittest.SkipTest("no extracted .frm; run extract first")
 
     def test_deep_read_survives_cp1252_stdout(self):
-        proc = run_cli(
-            ["deep-read", self.frm.name, "--extract", str(self.frm.parent)], "cp1252"
-        )
+        # Write into a temp dir: the repo's reports are investigation history,
+        # and a test must never overwrite them.
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp)
+            proc = run_cli(
+                [
+                    "deep-read",
+                    self.frm.name,
+                    "--extract",
+                    str(self.frm.parent),
+                    "--skeleton",
+                    str(out / "skeleton.json"),
+                    "--report",
+                    str(out / "report.md"),
+                ],
+                "cp1252",
+            )
         self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
         self.assertNotIn("UnicodeEncodeError", proc.stderr)
 
