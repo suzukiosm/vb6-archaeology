@@ -34,6 +34,6 @@ description: >-
 3. 参照元（他レポート・AGENTS・flow・消費者 ai-dev-context / キット kit-dev-context）を同時更新
 4. 名前集合を再照合:
    ```powershell
-   python tools/verify_report_names.py --inventory working\reports\<stem>_inventory.json
+   python -m tools verify-names --inventory working\reports\<stem>_inventory.json
    ```
-   （End 数は別途 `python tools/verify_inventory.py`。一時 `working/_verify_*.py` は作らない）
+   （End 数は別途 `python -m tools verify`。一時 `working/_verify_*.py` は作らない）

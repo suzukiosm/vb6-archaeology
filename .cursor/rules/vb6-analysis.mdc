@@ -15,7 +15,7 @@ alwaysApply: false
 
 ## 検証を伴わないレポートは出さない
 
-- プロシージャ数は `tools/verify_inventory.py` で End 文と照合
+- プロシージャ数は `python -m tools verify` で End 文と照合
 - 再利用解析は `tools/` に置き改定する（ワンショット増殖禁止）
 
 ## 検証→理解→実装

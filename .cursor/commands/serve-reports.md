@@ -1,13 +1,16 @@
+---
+name: serve-reports
+description: Serve working/reports over loopback HTTP so report HTML renders correctly (file:// does not work).
+---
+
 # serve-reports
 
-`working/reports/` の HTML レポートをローカル HTTP で閲覧する。
+レポート HTML をローカル HTTP で閲覧する。`file://` は使わない。
 
-1. ポート 8765 が既に使われていればそれを使う
-2. 無ければ:
+```powershell
+python -m tools serve
+```
 
-   ```powershell
-   Set-Location -LiteralPath "<repo>\working\reports"
-   python -m http.server 8765 --bind 127.0.0.1
-   ```
-
-3. `http://127.0.0.1:8765/<file>.html` を開く。`file://` は使わない。
+- ポートは `archaeology.config.json` の `reports_http_port`（既定 8765）。衝突したら `--port` で変える
+- 事前確認だけしたいときは `python -m tools serve --check`（起動せず URL と対象ディレクトリを表示）
+- 開く URL: `http://127.0.0.1:<port>/<file>.html`

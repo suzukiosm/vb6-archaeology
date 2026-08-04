@@ -1,9 +1,9 @@
 ---
 name: vb6-frm-deep-read
 description: >-
-  Deep-reads a VB6 .frm with tools/frm_deep_read.py to produce live-control
-  skeletons and deep-read reports. Use when analyzing form controls, dead code,
-  offscreen widgets, Show maps, or regenerating skeletons after tool changes.
+  Deep-reads a VB6 .frm to produce live-control skeletons and deep-read
+  reports. Use when analyzing form controls, dead code, offscreen widgets, Show
+  maps, or regenerating skeletons after tool changes.
 ---
 
 # vb6-frm-deep-read
@@ -11,9 +11,11 @@ description: >-
 ## 手順
 
 ```powershell
-python tools/frm_deep_read.py <File>.frm --extract working\extracts\<stem>
-python tools/runtime_layout.py --extract working\extracts\<stem>
+python -m tools deep-read <File>.frm --extract working\extracts\<stem>
+python -m tools deep-read-all --extract working\extracts\<stem>
 ```
+
+実行時座標は別レイヤ。`vb6-runtime-layout` skill（`/runtime-layout`）で扱う。
 
 ## 出力
 
@@ -28,5 +30,6 @@ python tools/runtime_layout.py --extract working\extracts\<stem>
 
 - `--extract` 未指定時は `working/extracts/` 下一意なら自動解決
 - ツール改定後は影響 Form を再生成
-- 設計時座標（Begin）と実行時座標（runtime_layout）は別物
+- 設計時座標（Begin）と実行時座標（`/runtime-layout`）は別物
+- イベント 0 件を孤立と即断しない（`.frm` 単体解析。外部からの参照は見えない）
 - 保護ディレクトリには書かない

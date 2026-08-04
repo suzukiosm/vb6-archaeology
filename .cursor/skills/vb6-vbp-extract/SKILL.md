@@ -20,8 +20,8 @@ description: >-
 2. ツールを実行:
 
    ```powershell
-   python tools/extract_vbp.py "source\<Name>\<Name>.vbp"
-   python tools/extract_vbp.py "source\<Name>\<Name>.vbp" --out "working\extracts\<Name>"
+   python -m tools extract "source\<Name>\<Name>.vbp"
+   python -m tools extract "source\<Name>\<Name>.vbp" --out "working\extracts\<Name>"
    ```
 
 3. 終了コードとレポートを確認:

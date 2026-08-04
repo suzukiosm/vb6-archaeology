@@ -31,11 +31,21 @@ VB6 アプリの「理解」を、証拠つき・段階的に積み上げるワ�
 
 ## tick の進め方
 
-1. 最弱の層・未読の主要 Sub を 1 つ選ぶ（Startup / 保存 / 印刷 / 検索優先）。
-2. CP932 で読み、経路・入出力・分岐を証拠つきでまとめる。
-3. comprehension に「tick N — 対象」を追記（テンプレ: `docs/templates/comprehension-tick.md`）。
-4. スコアを動かすなら根拠を同セクションに書く。
+1. 骨格が無ければ作る: `python -m tools comprehend`
+2. 最弱の層・未読の主要プロシージャを 1 つ選ぶ（Startup / 保存 / 印刷 / 検索優先）。
+3. 枠を追記する:
+
+   ```powershell
+   python -m tools comprehend --add-tick <Proc>[@<File>] --layer <A-E>
+   ```
+
+   inventory に無い名前は**ツールが拒否する**。拒否されたら名前を疑い、手書きで押し通さない。
+   同名が複数ファイルにあるときは `@<File>` で特定する。
+4. CP932 で本文を読み、追記された枠の「事実」「読解（推定）」「入出力」を埋める（テンプレの考え方: `docs/templates/comprehension-tick.md`）。
+5. チェックリストの `data-status` を動かすなら、根拠を同じ tick に書く。
+6. 書いたら名前集合を照合する: `python -m tools verify-names`
 
 ## スコアの規律
 
 - チェックリスト達成率のみ。100% ≠ アプリ完全理解。
+- 達成率はレポート内の `data-status` から自動計算される。数字を手で書き換えない。

@@ -2,9 +2,9 @@
 name: vb6-inventory
 description: >-
   Generates the canonical VBP→file→procedure inventory report for an extracted
-  VB6 project using tools/vb6_inventory.py, then mechanically verifies it. Use
-  when the user asks for a project structure report, a list of subs/functions
-  per file, or when other reports need a facts baseline.
+  VB6 project, then mechanically verifies it. Use when the user asks for a
+  project structure report, a list of subs/functions per file, or when other
+  reports need a facts baseline.
 ---
 
 # vb6-inventory
@@ -22,8 +22,8 @@ description: >-
 1. 実行:
 
    ```powershell
-   python tools/vb6_inventory.py working\extracts\<stem>
-   python tools/verify_inventory.py working\reports\<stem>_inventory.json
+   python -m tools inventory working\extracts\<stem>
+   python -m tools verify working\reports\<stem>_inventory.json
    ```
 
 2. レポート上の次を確認する:
