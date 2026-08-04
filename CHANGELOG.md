@@ -7,6 +7,15 @@ Versions are exposed by `python -m tools --version` (`tools/__init__.py`).
 
 ## [Unreleased]
 
+### Added
+
+- `protected_path_markers` — どこに現れても読取専用にするパス断片。**正本がリポ外にある構成**（共有ドライブ上の VB6 ツリー）を一級市民として扱う。`extract` と両 hooks が同じ設定を読む（`tools/test_config.py`）
+
+### Changed
+
+- `protected_source_dirs` の空配列を正当な設定として扱う（従来は `["source"]` に戻していた）。schema も `minItems` / `default_source_dir` の必須を外した
+- `extract` の正本ルートは `--source-root` 未指定かつリポ内に保護ディレクトリが無いとき `.vbp` の親を使う
+
 ### Fixed
 
 - 非 CP932 コンソール（英語 Windows の cp1252 等）で日本語 Caption を出力すると `UnicodeEncodeError` で停止していた。各 CLI が `lib/console.py` の `enable_utf8_stdio()` で stdout/stderr を UTF-8 に切り替える（回帰: `tools/test_console.py`）。新 CI マトリクスの windows ジョブが検出

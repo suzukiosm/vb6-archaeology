@@ -63,7 +63,26 @@ docs/templates/              # 初回コピー元
 }
 ```
 
-再実装がある場合の例:
+## 正本がリポ外にある場合
+
+共有ドライブ上の VB6 ツリーをそのまま正本にする構成も一級市民として扱う。
+リポ内に置くディレクトリが無いので `protected_source_dirs` は空にし、
+**パス断片**（どこに現れても読取専用にしたい名前）を `protected_path_markers` に書く。
+
+```json
+{
+  "protected_source_dirs": [],
+  "protected_path_markers": ["アイコー"],
+  "default_source_dir": "",
+  "extracts_dir": "working/extracts"
+}
+```
+
+- hooks（`protect_source.py` / `guard_shell.py`）はマーカーもディレクトリ名と同様に扱う
+- `extract` はマーカーを含むパスへの書込を拒否する。正本フォルダは `.vbp` の親を既定とし、必要なら `--source-root` で明示する
+- マーカーは**パス区切りで分割した一致**。`アイコー_notes/` のような部分一致は保護されない
+
+## 設定例（再実装がある場合）
 
 ```json
 {

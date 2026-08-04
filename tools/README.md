@@ -77,6 +77,9 @@ python -m tools scan-chars
 
 設定の正は `schema/archaeology.config.schema.json`（`python -m tools config-check` で検証）。
 
+- `protected_source_dirs` — リポ内の読取専用ディレクトリ名。**空も正当**（正本がリポ外の構成）
+- `protected_path_markers` — どこに現れても読取専用にするパス断片（共有ドライブ上の正本など）。hooks と `extract` が参照する
+
 - `geometry_hints` で親フォーム相対式を数値化できる（任意）
 - `layout_sub_scores` — `layout` の開経路優先 Sub → int スコア（キーは小文字）
   - キット既定: `form_load` / `mdiform_load` のみ（builtin とマージ）
@@ -128,6 +131,7 @@ python -m unittest discover -s tools -p "test_*.py" -v
 
 - `test_cli.py` — 全コマンドの `main` 実在・`--help`・未知コマンドの終了コード
 - `test_config_schema.py` — 同梱 config の妥当性、型不一致・未知キー・範囲外ポートの検出
+- `test_config.py` — 正本がリポ外の構成（`protected_source_dirs: []` + マーカー）の解決
 - `test_comprehension_scaffold.py` — 骨格の冪等性、人手記述の保全、inventory 外の名前を拒否
 - `test_hooks.py` — 保護 hooks の deny / ask / allowlist / 偽陽性（`resources` を `source` と誤認しない）
 - `test_console.py` — cp1252 コンソール（英語 Windows 相当）でも日本語 Caption を出力して落ちない

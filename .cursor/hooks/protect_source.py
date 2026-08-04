@@ -22,15 +22,20 @@ def repo_root() -> Path:
 
 
 def protected_names() -> list[str]:
+    """In-repo dir names plus markers for originals kept outside the repo."""
     cfg_path = repo_root() / "archaeology.config.json"
-    names = ["source"]
+    names: list[str] = ["source"]
+    markers: list[str] = []
     if cfg_path.is_file():
         try:
             data = json.loads(cfg_path.read_text(encoding="utf-8"))
-            names = list(data.get("protected_source_dirs") or names)
+            configured = data.get("protected_source_dirs")
+            if configured is not None:
+                names = list(configured)
+            markers = list(data.get("protected_path_markers") or [])
         except Exception:
             pass
-    return [str(n) for n in names]
+    return [str(n) for n in [*names, *markers]]
 
 
 def collect_paths(node, out):

@@ -12,6 +12,7 @@ CONFIG_NAME = "archaeology.config.json"
 
 DEFAULTS: dict = {
     "protected_source_dirs": ["source"],
+    "protected_path_markers": [],
     "default_source_dir": "source",
     "extracts_dir": "working/extracts",
     "reports_dir": "working/reports",
@@ -45,25 +46,57 @@ def load_config(repo_root: Path | None = None) -> dict:
 
 
 def protected_dir_names(repo_root: Path | None = None) -> list[str]:
+    """In-repo directory names that must stay read-only.
+
+    An empty list is a valid answer: consumers whose VB6 originals live outside
+    the repo protect them with protected_path_markers instead.
+    """
     cfg = load_config(repo_root)
-    names = cfg.get("protected_source_dirs") or DEFAULTS["protected_source_dirs"]
+    names = cfg.get("protected_source_dirs")
+    if names is None:
+        names = DEFAULTS["protected_source_dirs"]
     return [str(n) for n in names]
 
 
-def default_source_root(repo_root: Path | None = None) -> Path:
+def protected_path_markers(repo_root: Path | None = None) -> list[str]:
+    """Path segments that are read-only wherever they appear, in or out of repo."""
+    cfg = load_config(repo_root)
+    markers = cfg.get("protected_path_markers")
+    if markers is None:
+        markers = DEFAULTS["protected_path_markers"]
+    return [str(m) for m in markers]
+
+
+def path_hits_protected_marker(path, repo_root: Path | None = None) -> str | None:
+    """Return the marker a path contains as a segment, or None."""
+    parts = [p for p in str(path).replace("\\", "/").split("/") if p]
+    for marker in protected_path_markers(repo_root):
+        if marker in parts:
+            return marker
+    return None
+
+
+def default_source_root(
+    repo_root: Path | None = None, fallback: Path | None = None
+) -> Path:
     cfg = load_config(repo_root)
     root = Path(cfg["_repo_root"])
-    name = cfg.get("default_source_dir") or "source"
-    candidate = root / name
-    if candidate.is_dir():
-        return candidate
+    name = cfg.get("default_source_dir") or ""
+    if name:
+        candidate = root / name
+        if candidate.is_dir():
+            return candidate
     for alt in protected_dir_names(root):
         p = root / alt
         if p.is_dir():
             return p
+    if fallback is not None:
+        return fallback.resolve()
     raise SystemExit(
         f"No protected source directory found under {root}. "
-        f"Create '{name}/' (or set default_source_dir in {CONFIG_NAME})."
+        f"Create '{name or 'source'}/' and set default_source_dir in {CONFIG_NAME}, "
+        "or — when the originals live outside the repo — list their path segment "
+        "in protected_path_markers and pass --source-root."
     )
 
 

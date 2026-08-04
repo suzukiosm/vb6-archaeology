@@ -17,10 +17,8 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT / "tools"))
 
+from lib.config import extracts_root  # noqa: E402
 from lib.console import enable_utf8_stdio  # noqa: E402
-
-FIXTURE_VBP = REPO_ROOT / "source" / "mini_vbp" / "mini_vbp.vbp"
-EXTRACT = REPO_ROOT / "working" / "extracts" / "mini_vbp"
 
 
 def run_cli(args: list[str], encoding: str) -> subprocess.CompletedProcess:
@@ -34,6 +32,18 @@ def run_cli(args: list[str], encoding: str) -> subprocess.CompletedProcess:
         encoding="utf-8",
         errors="replace",
     )
+
+
+def find_extracted_frm() -> Path | None:
+    """Any extracted .frm; the kit fixture and consumer projects both qualify."""
+    root = extracts_root()
+    if not root.is_dir():
+        return None
+    for extract in sorted(p for p in root.iterdir() if p.is_dir()):
+        frms = sorted(extract.glob("*.frm"))
+        if frms:
+            return frms[0]
+    return None
 
 
 class TestEnableUtf8Stdio(unittest.TestCase):
@@ -56,21 +66,19 @@ class TestJapaneseOutputUnderLegacyCodePage(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        if not EXTRACT.is_dir():
-            run_cli(["fixture"], "utf-8")
-            run_cli(["extract", str(FIXTURE_VBP)], "utf-8")
+        cls.frm = find_extracted_frm()
+        if cls.frm is None:
+            raise unittest.SkipTest("no extracted .frm; run extract first")
 
     def test_deep_read_survives_cp1252_stdout(self):
         proc = run_cli(
-            ["deep-read", "Form1.frm", "--extract", str(EXTRACT)], "cp1252"
+            ["deep-read", self.frm.name, "--extract", str(self.frm.parent)], "cp1252"
         )
         self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
         self.assertNotIn("UnicodeEncodeError", proc.stderr)
 
     def test_lines_survives_cp1252_stdout(self):
-        proc = run_cli(
-            ["lines", str(EXTRACT / "Form1.frm"), "1-20"], "cp1252"
-        )
+        proc = run_cli(["lines", str(self.frm), "1-20"], "cp1252")
         self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
         self.assertNotIn("UnicodeEncodeError", proc.stderr)
 

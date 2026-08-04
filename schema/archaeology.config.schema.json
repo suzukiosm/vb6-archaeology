@@ -5,7 +5,7 @@
   "description": "Protected source trees, output directories and analysis hints. Validate with `python -m tools config-check`.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["protected_source_dirs", "default_source_dir"],
+  "required": ["protected_source_dirs"],
   "properties": {
     "$schema": {
       "type": "string",
@@ -13,14 +13,17 @@
     },
     "protected_source_dirs": {
       "type": "array",
-      "description": "Directory names holding immutable VB6 originals. Hooks deny writes into them.",
-      "minItems": 1,
+      "description": "In-repo directory names holding immutable VB6 originals. Hooks deny writes into them. Empty is valid when the originals live outside the repo (use protected_path_markers).",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "protected_path_markers": {
+      "type": "array",
+      "description": "Path segments that are read-only wherever they appear, including outside the repo (e.g. an originals folder on a share).",
       "items": { "type": "string", "minLength": 1 }
     },
     "default_source_dir": {
       "type": "string",
-      "minLength": 1,
-      "description": "Directory searched first when a tool needs the originals."
+      "description": "In-repo directory searched first when a tool needs the originals. Empty when the originals live outside the repo."
     },
     "extracts_dir": {
       "type": "string",

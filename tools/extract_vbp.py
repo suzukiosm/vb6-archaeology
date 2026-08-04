@@ -20,7 +20,9 @@ from lib.config import (  # noqa: E402
     decode_vb6_bytes,
     default_source_root,
     extracts_root,
+    path_hits_protected_marker,
     protected_dir_names,
+    protected_path_markers,
 )
 from lib.console import enable_utf8_stdio  # noqa: E402
 
@@ -98,6 +100,13 @@ def ensure_not_writing_source(dest: Path, source_root: Path) -> None:
             f"refusing to write under source tree: {dest_resolved} "
             f"(source={source_resolved})"
         )
+    # Originals often live outside the repo; those trees are named by marker.
+    marker = path_hits_protected_marker(dest_resolved)
+    if marker:
+        raise SystemExit(
+            f"refusing to write under protected path marker '{marker}': "
+            f"{dest_resolved}"
+        )
 
 
 def extract(vbp_path: Path, out_dir: Path, source_root: Path) -> dict:
@@ -154,11 +163,11 @@ def extract(vbp_path: Path, out_dir: Path, source_root: Path) -> dict:
 
 def main(argv: list[str] | None = None) -> int:
     enable_utf8_stdio()
-    protected = ", ".join(protected_dir_names())
+    protected = ", ".join(protected_dir_names() + protected_path_markers()) or "none"
     parser = argparse.ArgumentParser(
         description=(
             "Extract a VB6 .vbp and referenced files "
-            f"(read-only on protected dirs: {protected})."
+            f"(read-only on protected paths: {protected})."
         )
     )
     parser.add_argument(
@@ -180,12 +189,16 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
 
-    source_root = (args.source_root or default_source_root()).resolve()
     vbp_path = args.vbp
     if not vbp_path.is_absolute():
         vbp_path = (REPO_ROOT / vbp_path).resolve()
     else:
         vbp_path = vbp_path.resolve()
+
+    # With no in-repo protected dir the .vbp's own folder is the tree to protect.
+    source_root = (
+        args.source_root or default_source_root(fallback=vbp_path.parent)
+    ).resolve()
 
     out_dir = args.out
     if out_dir is None:

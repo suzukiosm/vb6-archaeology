@@ -19,6 +19,7 @@ SCHEMA = json.loads(
 VALID = {
     "$schema": "./schema/archaeology.config.schema.json",
     "protected_source_dirs": ["vb6_originals"],
+    "protected_path_markers": [],
     "default_source_dir": "vb6_originals",
     "extracts_dir": "working/extracts",
     "reports_dir": "working/reports",
@@ -63,9 +64,20 @@ class TestConfigSchema(unittest.TestCase):
         found = validate(data, SCHEMA)
         self.assertTrue(any("protected_source_dirs" in p for p in found))
 
-    def test_empty_protected_list_is_rejected(self):
-        found = problems({"protected_source_dirs": []})
-        self.assertTrue(any("at least 1 item" in p for p in found))
+    def test_originals_outside_the_repo_are_valid(self):
+        """delivery_slip shape: nothing protected in-repo, markers instead."""
+        found = problems(
+            {
+                "protected_source_dirs": [],
+                "default_source_dir": "",
+                "protected_path_markers": ["アイコー"],
+            }
+        )
+        self.assertEqual(found, [])
+
+    def test_marker_list_rejects_empty_strings(self):
+        found = problems({"protected_path_markers": [""]})
+        self.assertTrue(any("protected_path_markers[0]" in p for p in found))
 
     def test_port_out_of_range_is_rejected(self):
         found = problems({"reports_http_port": 70000})
