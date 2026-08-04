@@ -29,6 +29,7 @@ from lib.config import (  # noqa: E402
     decode_vb6_bytes,
     extracts_root,
     load_config,
+    preferred_extract,
     reports_root,
     skeletons_root,
 )
@@ -712,6 +713,9 @@ def _resolve_extract(arg: pathlib.Path | None) -> pathlib.Path:
     if arg is not None:
         extract = arg if arg.is_absolute() else REPO / arg
         return extract.resolve()
+    preferred = preferred_extract()
+    if preferred is not None:
+        return preferred
     root = extracts_root()
     if not root.is_dir():
         raise SystemExit(f"extracts dir missing: {root} (pass --extract)")
@@ -719,10 +723,11 @@ def _resolve_extract(arg: pathlib.Path | None) -> pathlib.Path:
     if len(candidates) == 1:
         return candidates[0].resolve()
     if not candidates:
-        raise SystemExit(f"no extracts under {root}; run extract_vbp.py first")
+        raise SystemExit(f"no extracts under {root}; run extract first")
     names = ", ".join(p.name for p in candidates)
     raise SystemExit(
-        f"multiple extracts ({names}); pass --extract working/extracts/<stem>"
+        f"multiple extracts ({names}); pass --extract working/extracts/<stem> "
+        "or set default_extract in archaeology.config.json"
     )
 
 

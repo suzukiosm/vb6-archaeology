@@ -15,12 +15,16 @@ DEFAULTS: dict = {
     "protected_path_markers": [],
     "default_source_dir": "source",
     "extracts_dir": "working/extracts",
+    "default_extract": "",
     "reports_dir": "working/reports",
     "skeletons_dir": "working/skeletons",
     "encoding": "cp932",
     "encoding_fallbacks": ["utf-8-sig", "utf-8"],
     "reports_http_port": 8765,
+    "scan_roots": ["docs", "working/reports", "tools", ".cursor"],
+    "scan_skip_dirs": ["node_modules", ".next", ".git", "_archive", "__pycache__"],
     "geometry_hints": {},
+    "mdi_defaults": {},
     "deep_read_name_map": {},
     "layout_sub_scores": {
         "form_load": 80,
@@ -103,6 +107,45 @@ def default_source_root(
 def extracts_root(repo_root: Path | None = None) -> Path:
     cfg = load_config(repo_root)
     return Path(cfg["_repo_root"]) / cfg["extracts_dir"]
+
+
+def preferred_extract(repo_root: Path | None = None) -> Path | None:
+    """The extract to use when --extract is omitted and several exist.
+
+    Repos that investigate one project among many name it in default_extract
+    rather than hardcoding the folder in each tool.
+    """
+    cfg = load_config(repo_root)
+    name = cfg.get("default_extract") or ""
+    if not name:
+        return None
+    candidate = extracts_root(repo_root) / str(name)
+    return candidate.resolve() if candidate.is_dir() else None
+
+
+def scan_roots(repo_root: Path | None = None) -> list[str]:
+    cfg = load_config(repo_root)
+    roots = cfg.get("scan_roots")
+    if roots is None:
+        roots = DEFAULTS["scan_roots"]
+    return [str(r) for r in roots]
+
+
+def scan_skip_dirs(repo_root: Path | None = None) -> list[str]:
+    """Directories the text scanners stay out of.
+
+    Protected trees are added automatically: they hold CP932 originals that are
+    none of the scanner's business, and they must never be reported as ours.
+    """
+    cfg = load_config(repo_root)
+    skip = cfg.get("scan_skip_dirs")
+    if skip is None:
+        skip = DEFAULTS["scan_skip_dirs"]
+    names = [str(s) for s in skip]
+    for protected in protected_dir_names(repo_root) + protected_path_markers(repo_root):
+        if protected not in names:
+            names.append(protected)
+    return names
 
 
 def reports_root(repo_root: Path | None = None) -> Path:

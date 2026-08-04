@@ -23,6 +23,7 @@ from lib.config import (  # noqa: E402
     decode_vb6_bytes,
     extracts_root,
     load_config,
+    preferred_extract,
     reports_root,
     skeletons_root,
 )
@@ -32,6 +33,7 @@ DEFAULT_EXTRACT = None  # require --extract unless a single extract exists
 REPORTS = reports_root()
 WEB_LIB = skeletons_root()
 _EXTRACT_LABEL = ""
+GAP_STATUS_UNREVIEWED = "未精査（消費者リポで到達可否を証拠つき記載）"
 
 
 def _geometry_hint_replacements() -> list[tuple[str, str]]:
@@ -771,6 +773,52 @@ def build_code_control_moves(
     return out
 
 
+def build_mdi_defaults(form_layout: dict) -> dict | None:
+    """Consumer `mdi_defaults` → slim JSON `mdiDefaults`（キット既定は空＝出力しない）。
+
+    left/height は config 優先、未指定なら form_layout の MDIForm1 窓座標へフォールバック。
+    Picture1 展開/縮退高さはアプリ固有のため config 必須。
+    """
+    cfg = load_config().get("mdi_defaults")
+    if not isinstance(cfg, dict) or not cfg:
+        return None
+    expanded = cfg.get("picture1HeightExpanded")
+    collapsed = cfg.get("picture1HeightCollapsed")
+    if expanded is None or collapsed is None:
+        return None
+    mdi = form_layout.get("MDIForm1") or {}
+    return {
+        "left": cfg.get("left", mdi.get("left")),
+        "height": cfg.get("height", mdi.get("height")),
+        "picture1HeightExpanded": int(expanded),
+        "picture1HeightCollapsed": int(collapsed),
+    }
+
+
+def existing_gap_status() -> dict[str, str]:
+    """既存 form_layout_gap.md の「着手」列を保持する。
+
+    このレポートは再生成される一方、着手メモは人が書く。生成のたびに消すと
+    調査の履歴が失われるので、Form 名をキーに引き継ぐ。
+    """
+    path = REPORTS / "form_layout_gap.md"
+    if not path.is_file():
+        return {}
+    out: dict[str, str] = {}
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if not line.startswith("|"):
+            continue
+        parts = [p.strip() for p in line.strip().strip("|").split("|")]
+        if len(parts) < 7:
+            continue
+        form_name, status = parts[0], parts[6]
+        if form_name in ("Form", "") or form_name.startswith("---"):
+            continue
+        if status and status != GAP_STATUS_UNREVIEWED:
+            out[form_name] = status
+    return out
+
+
 def write_reports(
     assignments: list[dict],
     form_layout: dict,
@@ -859,6 +907,9 @@ def write_reports(
         "geometry_hints": load_config().get("geometry_hints") or {},
         "layout_sub_scores": used_scores,
     }
+    mdi_defaults = build_mdi_defaults(form_layout)
+    if mdi_defaults is not None:
+        slim["mdiDefaults"] = mdi_defaults
     (WEB_LIB / "runtime-layout.json").write_text(
         json.dumps(slim, ensure_ascii=False, indent=2),
         encoding="utf-8",
@@ -963,7 +1014,7 @@ def write_reports(
     md.append("## 再実装への受け渡し\n\n")
     md.append(
         f"- JSON: `{skeletons_label}/runtime-layout.json`"
-        "（`forms` + `formPlacements` + `codeControlMoves`）\n"
+        "（`forms` + `formPlacements` + `codeControlMoves` + 任意 `mdiDefaults`）\n"
     )
     md.append(
         "- 親相対式の数値化は `archaeology.config.json` の `geometry_hints` を参照する"
@@ -996,12 +1047,15 @@ def write_form_layout_gap(
         if vb in by_vb:
             by_vb[vb].append(row)
 
+    kept = existing_gap_status()
+
     lines: list[str] = []
     lines.append("# Form 別レイアウト・Visible ギャップ（コード部）\n\n")
     lines.append("生成: `tools/runtime_layout.py` → `write_form_layout_gap`\n")
     lines.append(
         "設計時 Begin は skeleton。ここに載るのは **コード部代入のみ**。"
-        "消費者リポで Form 単位に適用し、行の「着手」を更新する。\n\n"
+        "消費者リポで Form 単位に適用し、行の「着手」を更新する。"
+        "再生成時は既存の着手メモを保持する。\n\n"
     )
     lines.append(
         "| Form | file | geom | Visible | codeMoves | 主な対象 | 着手 |\n"
@@ -1027,7 +1081,7 @@ def write_form_layout_gap(
                     ctrls.append(base)
             if len(ctrls) >= 6:
                 break
-        status = "未精査（消費者リポで到達可否を証拠つき記載）"
+        status = kept.get(vb, GAP_STATUS_UNREVIEWED)
         lines.append(
             f"| {vb} | `{fname}` | {geom} | {vis} | {moves} | "
             f"{', '.join(ctrls) or '—'} | {status} |\n"
@@ -1046,6 +1100,9 @@ def _resolve_extract(arg: pathlib.Path | None) -> pathlib.Path:
     if arg is not None:
         extract = arg if arg.is_absolute() else REPO / arg
         return extract.resolve()
+    preferred = preferred_extract()
+    if preferred is not None:
+        return preferred
     root = extracts_root()
     if not root.is_dir():
         raise SystemExit(f"extracts dir missing: {root} (pass --extract)")
@@ -1053,9 +1110,12 @@ def _resolve_extract(arg: pathlib.Path | None) -> pathlib.Path:
     if len(candidates) == 1:
         return candidates[0].resolve()
     if not candidates:
-        raise SystemExit(f"no extracts under {root}; run extract_vbp.py first")
+        raise SystemExit(f"no extracts under {root}; run extract first")
     names = ", ".join(p.name for p in candidates)
-    raise SystemExit(f"multiple extracts ({names}); pass --extract working/extracts/<stem>")
+    raise SystemExit(
+        f"multiple extracts ({names}); pass --extract working/extracts/<stem> "
+        "or set default_extract in archaeology.config.json"
+    )
 
 
 def main(argv: list[str] | None = None) -> int:

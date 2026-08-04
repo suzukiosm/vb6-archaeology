@@ -19,7 +19,12 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO / "tools"))
-from lib.config import decode_vb6_bytes, extracts_root, load_config  # noqa: E402
+from lib.config import (  # noqa: E402
+    decode_vb6_bytes,
+    extracts_root,
+    load_config,
+    preferred_extract,
+)
 from lib.console import enable_utf8_stdio  # noqa: E402
 
 DEEP_READ = REPO / "tools" / "frm_deep_read.py"
@@ -30,6 +35,9 @@ def resolve_extract(arg: Path | None) -> Path:
     if arg is not None:
         extract = arg if arg.is_absolute() else REPO / arg
         return extract.resolve()
+    preferred = preferred_extract()
+    if preferred is not None:
+        return preferred
     root = extracts_root()
     if not root.is_dir():
         raise SystemExit(f"extracts dir missing: {root} (pass --extract)")
@@ -37,10 +45,11 @@ def resolve_extract(arg: Path | None) -> Path:
     if len(candidates) == 1:
         return candidates[0].resolve()
     if not candidates:
-        raise SystemExit(f"no extracts under {root}; run extract_vbp.py first")
+        raise SystemExit(f"no extracts under {root}; run extract first")
     names = ", ".join(p.name for p in candidates)
     raise SystemExit(
-        f"multiple extracts ({names}); pass --extract working/extracts/<stem>"
+        f"multiple extracts ({names}); pass --extract working/extracts/<stem> "
+        "or set default_extract in archaeology.config.json"
     )
 
 

@@ -79,5 +79,46 @@ class TestOffRepoOriginals(unittest.TestCase):
             self.assertIn("protected_path_markers", str(ctx.exception))
 
 
+class TestPreferredExtract(unittest.TestCase):
+    """Repos investigating one project among many name it in config."""
+
+    def test_none_when_unset(self):
+        with TempRepo({"extracts_dir": "working/extracts"}) as root:
+            self.assertIsNone(config.preferred_extract(root))
+
+    def test_resolves_the_named_extract(self):
+        with TempRepo(
+            {"extracts_dir": "working/extracts", "default_extract": "作業指示書"}
+        ) as root:
+            wanted = root / "working" / "extracts" / "作業指示書"
+            wanted.mkdir(parents=True)
+            self.assertEqual(config.preferred_extract(root), wanted.resolve())
+
+    def test_none_when_the_named_extract_is_absent(self):
+        with TempRepo(
+            {"extracts_dir": "working/extracts", "default_extract": "missing"}
+        ) as root:
+            self.assertIsNone(config.preferred_extract(root))
+
+
+class TestScanTargets(unittest.TestCase):
+    def test_defaults_when_unset(self):
+        with TempRepo({}) as root:
+            self.assertIn("docs", config.scan_roots(root))
+            self.assertIn("node_modules", config.scan_skip_dirs(root))
+
+    def test_protected_dirs_are_skipped_without_being_listed(self):
+        with TempRepo({"protected_source_dirs": ["アイコー"]}) as root:
+            self.assertIn("アイコー", config.scan_skip_dirs(root))
+
+    def test_markers_are_skipped_too(self):
+        with TempRepo(OFF_REPO) as root:
+            self.assertIn("アイコー", config.scan_skip_dirs(root))
+
+    def test_configured_roots_replace_the_defaults(self):
+        with TempRepo({"scan_roots": ["docs", "working/web/src"]}) as root:
+            self.assertEqual(config.scan_roots(root), ["docs", "working/web/src"])
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -7,10 +7,13 @@ from unittest.mock import patch
 
 from tools.runtime_layout import (
     BUILTIN_LAYOUT_SUB_SCORES,
+    GAP_STATUS_UNREVIEWED,
     build_contextual_form_layout,
     build_form_show_layout,
+    build_mdi_defaults,
     classify,
     effective_layout_sub_scores,
+    existing_gap_status,
     extract_file,
     resolve_picture1_form,
 )
@@ -259,6 +262,70 @@ class LayoutSubScoresTests(unittest.TestCase):
         ]
         layout = build_form_show_layout(rows, forms, sub_scores={})
         self.assertEqual(layout["Child"]["left"], 111)
+
+
+class MdiDefaultsConfigTests(unittest.TestCase):
+    def test_build_mdi_defaults_from_config(self) -> None:
+        form_layout = {
+            "MDIForm1": {"left": 0, "height": 13550, "top": 0, "width": None}
+        }
+        with patch(
+            "tools.runtime_layout.load_config",
+            return_value={
+                "mdi_defaults": {
+                    "picture1HeightExpanded": 13000,
+                    "picture1HeightCollapsed": 4095,
+                }
+            },
+        ):
+            got = build_mdi_defaults(form_layout)
+        self.assertEqual(
+            got,
+            {
+                "left": 0,
+                "height": 13550,
+                "picture1HeightExpanded": 13000,
+                "picture1HeightCollapsed": 4095,
+            },
+        )
+
+    def test_build_mdi_defaults_none_without_config(self) -> None:
+        with patch("tools.runtime_layout.load_config", return_value={}):
+            self.assertIsNone(build_mdi_defaults({"MDIForm1": {"left": 0}}))
+
+    def test_build_mdi_defaults_none_without_picture1_heights(self) -> None:
+        with patch(
+            "tools.runtime_layout.load_config",
+            return_value={"mdi_defaults": {"left": 0}},
+        ):
+            self.assertIsNone(build_mdi_defaults({}))
+
+
+class GapStatusTests(unittest.TestCase):
+    """Regenerating form_layout_gap.md must not erase the human 着手 column."""
+
+    def _write_gap(self, reports: Path, status: str) -> None:
+        reports.mkdir(parents=True, exist_ok=True)
+        (reports / "form_layout_gap.md").write_text(
+            "| Form | file | geom | Visible | codeMoves | 主な対象 | 着手 |\n"
+            "|---|---|---:|---:|---:|---|---|\n"
+            f"| Form7 | `form7.frm` | 3 | 1 | 2 | Text1 | {status} |\n"
+            f"| Form8 | `form8.frm` | 0 | 0 | 0 | — | {GAP_STATUS_UNREVIEWED} |\n",
+            encoding="utf-8",
+        )
+
+    def test_written_status_is_kept(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            reports = Path(tmp) / "reports"
+            self._write_gap(reports, "2026-08-05 配線済み")
+            with patch("tools.runtime_layout.REPORTS", reports):
+                kept = existing_gap_status()
+        self.assertEqual(kept, {"Form7": "2026-08-05 配線済み"})
+
+    def test_missing_report_yields_nothing(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            with patch("tools.runtime_layout.REPORTS", Path(tmp)):
+                self.assertEqual(existing_gap_status(), {})
 
 
 class Picture1ConfigTests(unittest.TestCase):

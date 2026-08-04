@@ -10,6 +10,11 @@ Versions are exposed by `python -m tools --version` (`tools/__init__.py`).
 ### Added
 
 - `protected_path_markers` — どこに現れても読取専用にするパス断片。**正本がリポ外にある構成**（共有ドライブ上の VB6 ツリー）を一級市民として扱う。`extract` と両 hooks が同じ設定を読む（`tools/test_config.py`）
+- `default_extract` — `--extract` 省略時に使う extract 名。複数プロジェクトを抱える消費者が、ツール 3 本にフォルダ名をハードコードせずに済む
+- `scan_roots` / `scan_skip_dirs` — scan-chars の走査対象を config 化。**保護ディレクトリとマーカーは自動 skip**（`source` のハードコードを解消）
+- `mdi_defaults` — 消費者専用キー。設定時のみ `runtime-layout.json` に `mdiDefaults` を出す
+- `form_layout_gap.md` の「着手」列を再生成時に保持（生成物の中の人手記述を壊さない原則を layout にも適用）
+- 寛容な dispatch — `python -m tools <cmd>` が `main(argv)` と旧来の `main()` の両方を受ける。旧シグネチャのツールを多数抱える消費者が、CLI 導入のためだけに全ツールを書き換えずに済む
 
 ### Changed
 

@@ -79,6 +79,9 @@ python -m tools scan-chars
 
 - `protected_source_dirs` — リポ内の読取専用ディレクトリ名。**空も正当**（正本がリポ外の構成）
 - `protected_path_markers` — どこに現れても読取専用にするパス断片（共有ドライブ上の正本など）。hooks と `extract` が参照する
+- `default_extract` — `--extract` 省略時に使う extract 名（複数 extract を持つ消費者向け）
+- `scan_roots` / `scan_skip_dirs` — `scan-chars` の走査対象。保護ディレクトリとマーカーは自動で除外される
+- `mdi_defaults` — 消費者専用。設定時のみ `runtime-layout.json` に `mdiDefaults` を出す
 
 - `geometry_hints` で親フォーム相対式を数値化できる（任意）
 - `layout_sub_scores` — `layout` の開経路優先 Sub → int スコア（キーは小文字）

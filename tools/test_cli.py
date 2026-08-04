@@ -12,7 +12,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from tools import __version__  # noqa: E402
-from tools.cli import COMMANDS, main  # noqa: E402
+from tools.cli import COMMANDS, dispatch, main  # noqa: E402
 
 
 def run(argv: list[str]) -> tuple[int, str, str]:
@@ -60,6 +60,46 @@ class TestCli(unittest.TestCase):
         self.assertEqual(code, 2)
         self.assertIn("unknown command", err)
         self.assertIn("inventory", err)
+
+
+class TestLegacyMainSignature(unittest.TestCase):
+    """Consumer repos carry tools written before this CLI; both shapes dispatch."""
+
+    def test_main_without_argv_receives_sys_argv(self):
+        seen: dict[str, list[str]] = {}
+
+        class Legacy:
+            @staticmethod
+            def main() -> int:
+                seen["argv"] = list(sys.argv)
+                return 0
+
+        code = dispatch("legacy", Legacy, ["--flag", "value"])
+        self.assertEqual(code, 0)
+        self.assertEqual(seen["argv"], ["python -m tools legacy", "--flag", "value"])
+
+    def test_main_with_argv_receives_the_arguments(self):
+        seen: dict[str, list[str]] = {}
+
+        class Modern:
+            @staticmethod
+            def main(argv=None) -> int:
+                seen["argv"] = list(argv or [])
+                return 0
+
+        self.assertEqual(dispatch("modern", Modern, ["a", "b"]), 0)
+        self.assertEqual(seen["argv"], ["a", "b"])
+
+    def test_sys_argv_is_restored(self):
+        before = list(sys.argv)
+
+        class Legacy:
+            @staticmethod
+            def main() -> int:
+                return 0
+
+        dispatch("legacy", Legacy, [])
+        self.assertEqual(sys.argv, before)
 
 
 if __name__ == "__main__":

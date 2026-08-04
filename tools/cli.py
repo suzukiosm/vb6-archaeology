@@ -12,6 +12,7 @@ Each command delegates to the matching module's ``main(argv)``; the underlying
 from __future__ import annotations
 
 import difflib
+import inspect
 import sys
 from importlib import import_module
 from pathlib import Path
@@ -132,15 +133,27 @@ def main(argv: list[str] | None = None) -> int:
     if command is None:
         return unknown_command(name)
 
-    module = import_module(command.module)
-    argv0 = sys.argv[0]
+    return dispatch(name, import_module(command.module), args[1:])
+
+
+def dispatch(name: str, module, args: list[str]) -> int:
+    """Call a tool's main, accepting either main(argv) or a legacy main().
+
+    Consumer repos carry dozens of app-specific tools written before this CLI
+    existed; tolerating the older signature means adopting the kit does not
+    require rewriting every one of them.
+    """
+    entry = module.main
+    saved = sys.argv
     # argparse derives usage strings from sys.argv[0]; without this every
     # delegated command would advertise itself as `__main__.py`.
-    sys.argv[0] = f"python -m tools {name}"
+    sys.argv = [f"python -m tools {name}", *args]
     try:
-        return int(module.main(args[1:]) or 0)
+        if inspect.signature(entry).parameters:
+            return int(entry(args) or 0)
+        return int(entry() or 0)
     finally:
-        sys.argv[0] = argv0
+        sys.argv = saved
 
 
 if __name__ == "__main__":

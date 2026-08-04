@@ -30,6 +30,10 @@
       "minLength": 1,
       "description": "Where extract writes analysis copies (default working/extracts)."
     },
+    "default_extract": {
+      "type": "string",
+      "description": "Extract folder name used when --extract is omitted and several exist. Empty means require an explicit choice."
+    },
     "reports_dir": {
       "type": "string",
       "minLength": 1,
@@ -55,6 +59,27 @@
       "minimum": 1,
       "maximum": 65535,
       "description": "Loopback port used by `python -m tools serve`."
+    },
+    "scan_roots": {
+      "type": "array",
+      "description": "Directories scan-chars walks by default.",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "scan_skip_dirs": {
+      "type": "array",
+      "description": "Directory names scan-chars never descends into. Protected dirs and markers are skipped automatically on top of this list.",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "mdi_defaults": {
+      "type": "object",
+      "description": "Consumer-only: MDI window and Picture1 heights emitted as mdiDefaults in runtime-layout.json. Empty means the key is left out.",
+      "additionalProperties": false,
+      "properties": {
+        "left": { "type": "integer" },
+        "height": { "type": "integer" },
+        "picture1HeightExpanded": { "type": "integer" },
+        "picture1HeightCollapsed": { "type": "integer" }
+      }
     },
     "geometry_hints": {
       "type": "object",

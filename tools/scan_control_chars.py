@@ -11,10 +11,13 @@ PS 経由で書くと以下のように潰れる:
 
 TAB / LF / CR 以外の C0 制御文字と DEL を「不正」とみなす。
 
+走査ルートと除外ディレクトリは `archaeology.config.json` の `scan_roots` /
+`scan_skip_dirs`。保護ディレクトリとパスマーカーは自動で除外する。
+
 使い方:
-    python tools/scan_control_chars.py                    # 既定のルートを走査
-    python tools/scan_control_chars.py docs tools         # ルート指定
-    python tools/scan_control_chars.py --ext .md .py
+    python -m tools scan-chars                    # config の既定ルートを走査
+    python -m tools scan-chars docs tools         # ルート指定
+    python -m tools scan-chars --ext .md .py
 
 終了コード: 検出 0 件で 0、1 件以上で 1（CI / フックで使える）。
 """
@@ -29,23 +32,22 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+from lib.config import scan_roots, scan_skip_dirs  # noqa: E402
 from lib.console import enable_utf8_stdio  # noqa: E402
 
-DEFAULT_ROOTS = ("docs", "working/reports", "tools", ".cursor")
 DEFAULT_EXT = (".md", ".mdc", ".ts", ".tsx", ".json", ".py", ".css")
-# source/ は保護正本（CP932 バイナリ含む）なので既定走査から外す
-SKIP_DIRS = {"node_modules", ".next", ".git", "_archive", "__pycache__", "source"}
 BAD_CHARS = ({chr(c) for c in range(0x20)} | {"\x7f"}) - {"\t", "\n", "\r"}
 
 
 def iter_files(roots: list[str], exts: tuple[str, ...]):
+    skip = set(scan_skip_dirs())
     seen: set[str] = set()
     for root in roots:
         if os.path.isfile(root):
             yield os.path.normpath(root)
             continue
         for dirpath, dirnames, filenames in os.walk(root):
-            dirnames[:] = [d for d in dirnames if d not in SKIP_DIRS]
+            dirnames[:] = [d for d in dirnames if d not in skip]
             for name in filenames:
                 if os.path.splitext(name)[1].lower() not in exts:
                     continue
@@ -58,14 +60,14 @@ def iter_files(roots: list[str], exts: tuple[str, ...]):
 def main(argv: list[str] | None = None) -> int:
     enable_utf8_stdio()
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("roots", nargs="*", default=list(DEFAULT_ROOTS))
+    ap.add_argument("roots", nargs="*", default=None)
     ap.add_argument("--ext", nargs="*", default=list(DEFAULT_EXT))
     args = ap.parse_args(argv)
 
     exts = tuple(e.lower() if e.startswith(".") else "." + e.lower() for e in args.ext)
     files = 0
     hits = 0
-    for path in iter_files(args.roots or list(DEFAULT_ROOTS), exts):
+    for path in iter_files(args.roots or scan_roots(), exts):
         try:
             text = io.open(path, encoding="utf-8").read()
         except (UnicodeDecodeError, OSError):
