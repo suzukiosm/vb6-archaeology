@@ -1,5 +1,5 @@
 ---
-description: プロジェクト拘束とグローバル _core への橋渡し。ワークスペース単位で常時適用。
+description: 消費者リポ向け雛形。キット本体の .cursor/rules/project-local.mdc とは別（こちらは ai-dev-context を起動に含む）。
 alwaysApply: true
 ---
 
@@ -10,13 +10,13 @@ alwaysApply: true
 - **パス（Read 用）:** `CURSOR_HOME/rules/_core.mdc`
 - **Windows:** `%USERPROFILE%\.cursor\rules\_core.mdc`
 
-## プロジェクト固有
+## プロジェクト固有（消費者）
 
-- **保護ディレクトリは改変禁止**（`archaeology.config.json` の `protected_source_dirs`）
-- 作業成果は **`working/`** · **`tools/`** · **`docs/`** · **`.cursor/`** およびルートの入口/設定（`AGENTS.md` · `archaeology.config.json` 等）
-- VB6 テキストは **CP932**。内容判断は Python ツール経由
-- 調査サイクル: 検証 → 理解 →（任意）実装。詳細は `docs/ai-onboarding.md`
-- セッション開始: `AGENTS.md` → `docs/ai-onboarding.md` → `docs/ai-dev-context.md`
-- 定型作業は `/vb6-extract` `/vb6-inventory` `/frm-deep-read` `/vb6-comprehend` `/vb6-report` `/vb6-verify-reports` `/serve-reports` から入る
-- 正典層: `AGENTS.md` / `docs/flow/_master.md` / `docs/ai-dev-context.md`
-- キット由来資産の利用条件は元リポの `LICENSE` に従う
+- **保護ディレクトリは改変禁止**（`archaeology.config.json` の `protected_source_dirs`。キット既定は `source/`）。書込・移動・改名・削除・整形すべて不可。読取のみ。例外: `python tools/make_fixture.py`（キットフィクスチャ用。消費者正本では使わない）。
+- 作業成果は **`working/`** · **`tools/`** · **`docs/`** · **`.cursor/`** およびルートの入口/設定（`AGENTS.md` · `README.md` · `LICENSE` · `archaeology.config.json` 等）のみ。
+- VB6 テキストは **CP932**。内容判断は Python（`tools/`）経由。Cursor Read の化けを根拠にしない。
+- サイクル: **検証 → 理解 →（任意）実装**。使い捨て `working/_*.py` を増やさず `tools/` を改定。
+- セッション開始: `AGENTS.md` → `docs/ai-onboarding.md` → `docs/ai-dev-context.md` を Read。
+- 定型作業は `/vb6-extract` `/vb6-inventory` `/frm-deep-read` `/vb6-comprehend` `/vb6-report` `/vb6-verify-reports` `/serve-reports` `/kit-smoke` から入る。
+- 正典層: `AGENTS.md` / `docs/flow/_master.md` / `docs/ai-dev-context.md`。キット保守メモが別にある場合は `docs/kit-dev-context.md`。
+- 利用・複製は `LICENSE`（許諾前提）。保護は hooks（`.cursor/hooks.json`）でも強制される。

@@ -20,6 +20,7 @@ VB6 テキストは **CP932**（`lib/config.py` / `archaeology.config.json`）�
 | `frm_lines.py` | CP932 ソースの行番号つき表示 | stdout |
 | `scan_control_chars.py` | PS バッククォート由来の制御文字検出 | stdout（hits=0 で exit 0） |
 | `make_fixture.py` | スモーク用ミニ VBP（CP932） | `source/mini_vbp/` |
+| `kit_smoke.py` | キット自己点検（fixture パイプライン + unittest） | stdout（失敗時非ゼロ） |
 
 ## 共有ライブラリ
 
@@ -86,7 +87,16 @@ python tools/scan_control_chars.py
 
 ## テスト
 
+キット全体の自己点検（推奨）:
+
 ```powershell
+python tools/kit_smoke.py
+```
+
+unittest のみ（リポ根で。`tools.*` import 用に `PYTHONPATH` を根へ）:
+
+```powershell
+$env:PYTHONPATH = (Get-Location).Path
 python -m unittest discover -s tools -p "test_*.py" -v
 ```
 

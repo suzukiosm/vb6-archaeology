@@ -11,6 +11,7 @@ VB6 を壊さず理解するための汎用 OS（docs / .cursor / tools）を維
 ## 2. 現状（事実）
 
 - コアツール: extract / inventory / verify_inventory / verify_report_names / frm_deep_read / runtime_layout
+- 自己点検: `kit_smoke.py`（fixture パイプライン + unittest）· CI: `.github/workflows/ci.yml`
 - 補助: `frm_lines.py` · `scan_control_chars.py` · `frm_deep_read_all.py`（`deep_read_name_map`）
 - `frm_deep_read`: .frm 単体解析注記、`ancestor_hidden`（dead + Visible=0 コンテナ配下）
 - `runtime_layout`: Show 文脈は Sub 境界で `recent_shows` クリア。開経路スコアは `layout_sub_scores`（既定 `form_load` / `mdiform_load` のみ）
@@ -33,3 +34,13 @@ VB6 を壊さず理解するための汎用 OS（docs / .cursor / tools）を維
 | `source/`（フィクスチャ含む） | 読取専用。再生成は `python tools/make_fixture.py` のみ |
 | `tools/` · `docs/` · `.cursor/` | キット改良の主戦場 |
 | `working/` | スモーク成果。コミットしない（gitignore） |
+
+## 5. 公開・運用方針（キット保守）
+
+- 公開ドキュメント（README・LICENSE）に個人名を出さない。著作権表記は会社名義「有限会社アイコー」のみ
+- README の License 節は `See [LICENSE](LICENSE).` に留め、詳細は LICENSE 側
+- ハードコードの絶対パスを残さない。手順はプレースホルダ（`<this-repo>` 等）
+- git は force push を避け、安全手順で進める
+- 著作権者・連絡先: 有限会社アイコー（https://www.aiko1123.com/）。source-available（OSS ではない）
+- GitHub リモート: `https://github.com/suzukiosm/vb6-archaeology`、既定ブランチ `main`（`protect-main` で force-push・削除禁止）
+- 自己点検の正: `python tools/kit_smoke.py`（CI も同入口）

@@ -79,21 +79,20 @@
 | 報告書 | `/vb6-report` |
 | inventory 照合（End 数 + 名前集合） | `/vb6-verify-reports` → `verify_inventory.py` · `verify_report_names.py` |
 | レポート閲覧 | `/serve-reports` |
-| キット自己点検 | `/kit-smoke` |
+| キット自己点検 | `/kit-smoke` → `python tools/kit_smoke.py` |
+
+## Testing
+
+キット変更後は次を緑にする（ローカル・CI 共通）:
+
+```powershell
+python tools/kit_smoke.py
+```
+
+フィクスチャパイプライン + `tools/` 配下の unittest。詳細は `CONTRIBUTING.md` · `tools/README.md`。
 
 ## 由来
 
 方法論とコアツールは `VB6_source`（作業指示書再実装リポ）で培ったものを汎用化。  
-アプリ固有ツール（伝票 DAT・Form7 条件等）は本キットに含めない。
-
-## Learned User Preferences
-
-- 公開ドキュメント（README・LICENSE）に個人名を出さない。著作権表記は会社名義「有限会社アイコー」のみに統一する。
-- README・LICENSE は GitHub 慣習に寄せる。README は `## License` 見出し＋ `See [LICENSE](LICENSE).` に留め、利用条件の詳細は LICENSE 側に置く。
-- 公開リポにハードコードの絶対パス（例 `H:\_APRI\...`）を残さない。手順はプレースホルダ（`<this-repo>` 等）で書く。
-- git は force push を避け、安全手順（未関連履歴はマージで統合等）で進める。
-
-## Learned Workspace Facts
-
-- 著作権者・連絡先: 有限会社アイコー（https://www.aiko1123.com/）。source-available で OSS ではなく、利用・複製・改変・再配布・組込は事前許諾が必要（有料の場合あり）。
-- GitHub リモート: `https://github.com/suzukiosm/vb6-archaeology`、既定ブランチ `main`（`protect-main` ルールセットで force-push・削除禁止）。
+アプリ固有ツール（伝票 DAT・Form7 条件等）は本キットに含めない。  
+キット保守・公開方針のメモは [`docs/kit-dev-context.md`](docs/kit-dev-context.md)。

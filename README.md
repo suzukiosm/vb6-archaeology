@@ -1,11 +1,17 @@
 # vb6-archaeology
 
+[![CI](https://github.com/suzukiosm/vb6-archaeology/actions/workflows/ci.yml/badge.svg)](https://github.com/suzukiosm/vb6-archaeology/actions/workflows/ci.yml)
+
 **VB6 を壊さず理解するオペレーティングシステム** — 読取専用正本のまま、抽出・棚卸し・深読み・証拠つき理解までを再現可能にするキット。
 
 ## 誰向けか
 
 - レガシー VB6（`.vbp` / `.frm` / `.bas` / `.cls`）を調査する人・AI エージェント
 - 将来の再実装（Next.js 等）の前に「事実の土台」を固めたいチーム
+
+## 要件
+
+- **Python 3.10+**（標準ライブラリのみ）
 
 ## 5 分で動かす
 
@@ -27,12 +33,23 @@ python -m http.server 8765 --bind 127.0.0.1
 # http://127.0.0.1:8765/mini_vbp_inventory.html
 ```
 
+自己点検（パイプライン + テスト）:
+
+```powershell
+python tools/kit_smoke.py
+```
+
 ## AI エージェントへ
 
 1. この README の次に **`AGENTS.md`** を Read
 2. 続けて **`docs/ai-onboarding.md`** を Read（必須）
 3. 作業は commands（`/vb6-extract` 等）または対応 skill から入る
 4. 正本 `source/`（および設定された保護ディレクトリ）には書かない
+
+## ドキュメント
+
+索引: [`docs/README.md`](docs/README.md)  
+採用: [`docs/adopting-in-a-project.md`](docs/adopting-in-a-project.md) · 貢献: [`CONTRIBUTING.md`](CONTRIBUTING.md)
 
 ## レイアウト
 
@@ -54,7 +71,4 @@ archaeology.config.json # 保護ディレクトリ・出力先
 
 ## License
 
-Copyright (c) 2026 [有限会社アイコー](https://www.aiko1123.com/). See [LICENSE](LICENSE).
-
-source-available（OSS ではない）。閲覧・学習は歓迎。利用・複製・改変・組込は許諾が必要です。  
-コア手順は VB6 資産調査の実務から抽出。アプリ固有ロジックは含みません。
+See [LICENSE](LICENSE).

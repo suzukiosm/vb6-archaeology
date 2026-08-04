@@ -136,17 +136,10 @@ hooks（`.cursor/hooks/`）が書込ツールと破壊的 shell を阻む。
 キットが健全か確認するとき:
 
 ```powershell
-python tools/make_fixture.py
-python tools/extract_vbp.py "source\mini_vbp\mini_vbp.vbp"
-python tools/vb6_inventory.py working\extracts\mini_vbp
-python tools/verify_inventory.py
-python tools/verify_report_names.py --inventory working\reports\mini_vbp_inventory.json
-python tools/frm_deep_read.py Form1.frm --extract working\extracts\mini_vbp
-python tools/runtime_layout.py --extract working\extracts\mini_vbp
-python tools/scan_control_chars.py
+python tools/kit_smoke.py
 ```
 
-または `/kit-smoke`。
+（フィクスチャパイプライン + `unittest discover`。または `/kit-smoke`。）
 
 ---
 
