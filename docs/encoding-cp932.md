@@ -16,6 +16,14 @@
 
 行番号つきで CP932 ソースを見るときは `python -m tools lines <file> <start>-<end>`。
 
+## 出力側（コンソール）
+
+読み込みだけでなく **出力** も落とし穴になる。日本語 Caption を英語ロケールの Windows
+コンソール（cp1252）へ print すると `UnicodeEncodeError` で停止する — 解析が成功した後に、
+表示だけで失敗する。各ツールは `main()` 冒頭で `lib/console.py` の `enable_utf8_stdio()` を
+呼び、stdout/stderr を UTF-8 に切り替える。ツールを追加するときも同じ 1 行を入れる
+（回帰は `tools/test_console.py` が `PYTHONIOENCODING=cp1252` で見る）。
+
 ## 設定
 
 `archaeology.config.json`:

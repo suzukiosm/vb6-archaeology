@@ -7,6 +7,10 @@ Versions are exposed by `python -m tools --version` (`tools/__init__.py`).
 
 ## [Unreleased]
 
+### Fixed
+
+- 非 CP932 コンソール（英語 Windows の cp1252 等）で日本語 Caption を出力すると `UnicodeEncodeError` で停止していた。各 CLI が `lib/console.py` の `enable_utf8_stdio()` で stdout/stderr を UTF-8 に切り替える（回帰: `tools/test_console.py`）。新 CI マトリクスの windows ジョブが検出
+
 ## [0.1.0] - 2026-08-05
 
 最初のタグ付きリリース。調査サイクルの入口を単一 CLI に統一し、設定・保護機構・理解レポートを機械検証の対象にした。

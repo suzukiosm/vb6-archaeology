@@ -24,6 +24,12 @@ from __future__ import annotations
 import argparse
 import io
 import os
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from lib.console import enable_utf8_stdio  # noqa: E402
 
 DEFAULT_ROOTS = ("docs", "working/reports", "tools", ".cursor")
 DEFAULT_EXT = (".md", ".mdc", ".ts", ".tsx", ".json", ".py", ".css")
@@ -50,6 +56,7 @@ def iter_files(roots: list[str], exts: tuple[str, ...]):
 
 
 def main(argv: list[str] | None = None) -> int:
+    enable_utf8_stdio()
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("roots", nargs="*", default=list(DEFAULT_ROOTS))
     ap.add_argument("--ext", nargs="*", default=list(DEFAULT_EXT))

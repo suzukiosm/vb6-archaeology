@@ -27,6 +27,7 @@ from lib.cache import content_key  # noqa: E402
 from lib.cache import load as cache_load  # noqa: E402
 from lib.cache import store as cache_store  # noqa: E402
 from lib.config import decode_vb6_bytes, reports_root  # noqa: E402
+from lib.console import enable_utf8_stdio  # noqa: E402
 from lib.vbparse import iter_logical_lines  # noqa: E402
 
 # Bump when parse_* output shape or semantics change (invalidates the cache).
@@ -849,6 +850,7 @@ Name: <code>{e(meta.get('Name', '?'))}</code> ／ Version: <code>{e(ver)}</code>
 
 
 def main(argv: list[str] | None = None) -> int:
+    enable_utf8_stdio()
     parser = argparse.ArgumentParser(description="VB6 project inventory (facts only)")
     parser.add_argument("extract_dir", type=Path)
     parser.add_argument("--vbp", type=Path, default=None, help="default: sole *.vbp in extract_dir")

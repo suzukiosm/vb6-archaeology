@@ -27,6 +27,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT / "tools"))
 
 from lib.config import reports_root  # noqa: E402
+from lib.console import enable_utf8_stdio  # noqa: E402
 
 TICKS_BEGIN = "<!-- TICKS -->"
 TICKS_END = "<!-- TICKS:END -->"
@@ -269,6 +270,7 @@ def insert_tick(text: str, tick_html: str, report: Path) -> str:
 
 
 def main(argv: list[str] | None = None) -> int:
+    enable_utf8_stdio()
     ap = argparse.ArgumentParser(
         description="Scaffold the comprehension report and append evidence ticks"
     )

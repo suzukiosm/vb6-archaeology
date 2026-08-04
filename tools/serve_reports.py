@@ -20,9 +20,11 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from lib.config import load_config, reports_root  # noqa: E402
+from lib.console import enable_utf8_stdio  # noqa: E402
 
 
 def main(argv: list[str] | None = None) -> int:
+    enable_utf8_stdio()
     cfg = load_config()
     ap = argparse.ArgumentParser(description="Serve working/reports over local HTTP")
     ap.add_argument("--port", type=int, default=int(cfg.get("reports_http_port") or 8765))

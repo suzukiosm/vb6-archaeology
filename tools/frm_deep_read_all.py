@@ -20,6 +20,7 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO / "tools"))
 from lib.config import decode_vb6_bytes, extracts_root, load_config  # noqa: E402
+from lib.console import enable_utf8_stdio  # noqa: E402
 
 DEEP_READ = REPO / "tools" / "frm_deep_read.py"
 VB_NAME_RE = re.compile(r'^\s*Attribute\s+VB_Name\s*=\s*"([^"]+)"', re.IGNORECASE)
@@ -63,6 +64,7 @@ def key_for(name: str) -> str:
 
 
 def main(argv: list[str] | None = None) -> int:
+    enable_utf8_stdio()
     ap = argparse.ArgumentParser(
         description="Regenerate deep_read reports / skeletons for every .frm"
     )

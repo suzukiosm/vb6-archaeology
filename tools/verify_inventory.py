@@ -12,6 +12,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT / "tools"))
 from lib.config import decode_vb6_bytes, reports_root  # noqa: E402
+from lib.console import enable_utf8_stdio  # noqa: E402
 
 END_RE = re.compile(r"^End\s+(Sub|Function|Property)\b", re.IGNORECASE)
 
@@ -22,6 +23,7 @@ def count_ends(path: Path) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
+    enable_utf8_stdio()
     parser = argparse.ArgumentParser(description="Verify inventory End-count consistency")
     parser.add_argument(
         "inventory_json",

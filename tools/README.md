@@ -43,6 +43,7 @@ python -m tools --version
 |---|---|
 | `lib/config.py` | `archaeology.config.json` 読込、保護 dir、デコード |
 | `lib/config_schema.py` | `schema/archaeology.config.schema.json` による設定検証（stdlib のみ） |
+| `lib/console.py` | stdout/stderr を UTF-8 化（各 `main()` 冒頭で呼ぶ。日本語 Caption を非 CP932 コンソールへ出せるように） |
 | `lib/vbparse.py` | `_` 行連結の畳み込み（物理行番号を保持する logical line） |
 | `lib/cache.py` | 内容アドレス指定の解析キャッシュ（`working/.cache/`） |
 
@@ -129,6 +130,7 @@ python -m unittest discover -s tools -p "test_*.py" -v
 - `test_config_schema.py` — 同梱 config の妥当性、型不一致・未知キー・範囲外ポートの検出
 - `test_comprehension_scaffold.py` — 骨格の冪等性、人手記述の保全、inventory 外の名前を拒否
 - `test_hooks.py` — 保護 hooks の deny / ask / allowlist / 偽陽性（`resources` を `source` と誤認しない）
+- `test_console.py` — cp1252 コンソール（英語 Windows 相当）でも日本語 Caption を出力して落ちない
 - `test_runtime_layout.py` — Show 経路の文脈解決・Sub 境界で `recent_shows` クリア（合成データ）
 - `test_frm_deep_read.py` — `ancestor_hidden`（死んだ非表示コンテナ配下）
 - `test_verify_report_names.py` — inventory 名集合照合（偽 Sub で fail / 既知名で pass）

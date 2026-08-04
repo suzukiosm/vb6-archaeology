@@ -26,6 +26,7 @@ from lib.config import (  # noqa: E402
     reports_root,
     skeletons_root,
 )
+from lib.console import enable_utf8_stdio  # noqa: E402
 
 DEFAULT_EXTRACT = None  # require --extract unless a single extract exists
 REPORTS = reports_root()
@@ -1058,6 +1059,7 @@ def _resolve_extract(arg: pathlib.Path | None) -> pathlib.Path:
 
 
 def main(argv: list[str] | None = None) -> int:
+    enable_utf8_stdio()
     global REPORTS, WEB_LIB
     ap = argparse.ArgumentParser(
         description="Catalog runtime Left/Top/Width/Height/Visible assignments"

@@ -23,6 +23,7 @@ for _p in (str(REPO), str(REPO / "tools")):
         sys.path.insert(0, _p)
 
 from tools import __version__  # noqa: E402
+from tools.lib.console import enable_utf8_stdio  # noqa: E402
 
 
 class Command(NamedTuple):
@@ -117,6 +118,7 @@ def unknown_command(name: str) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
+    enable_utf8_stdio()
     args = list(sys.argv[1:] if argv is None else argv)
     if not args or args[0] in ("-h", "--help", "help"):
         print(format_help())

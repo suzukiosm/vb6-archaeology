@@ -32,6 +32,7 @@ from lib.config import (  # noqa: E402
     reports_root,
     skeletons_root,
 )
+from lib.console import enable_utf8_stdio  # noqa: E402
 
 EXTRACT = extracts_root()  # overridden in main() via --extract
 SKELETONS = skeletons_root()
@@ -726,6 +727,7 @@ def _resolve_extract(arg: pathlib.Path | None) -> pathlib.Path:
 
 
 def main(argv: list[str] | None = None) -> int:
+    enable_utf8_stdio()
     global EXTRACT, REPORTS, SKELETONS
     parser = argparse.ArgumentParser(description="Deep-read a VB6 .frm")
     parser.add_argument(

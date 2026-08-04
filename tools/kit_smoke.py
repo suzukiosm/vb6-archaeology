@@ -11,6 +11,11 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
 TOOLS = REPO / "tools"
+sys.path.insert(0, str(TOOLS))
+
+from lib.console import enable_utf8_stdio  # noqa: E402
+
+
 INV_JSON = REPO / "working" / "reports" / "mini_vbp_inventory.json"
 EXTRACT = REPO / "working" / "extracts" / "mini_vbp"
 VBP = REPO / "source" / "mini_vbp" / "mini_vbp.vbp"
@@ -82,6 +87,7 @@ def run_unit_tests() -> None:
 
 
 def main(argv: list[str] | None = None) -> int:
+    enable_utf8_stdio()
     argparse.ArgumentParser(
         description="Kit self-check: fixture pipeline + unit tests"
     ).parse_args(argv)

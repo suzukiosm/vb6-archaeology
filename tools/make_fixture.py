@@ -4,9 +4,14 @@
 from __future__ import annotations
 
 import argparse
+import sys
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(REPO / "tools"))
+
+from lib.console import enable_utf8_stdio  # noqa: E402
+
 OUT = REPO / "source" / "mini_vbp"
 
 
@@ -168,6 +173,7 @@ End Function
 
 
 def main(argv: list[str] | None = None) -> int:
+    enable_utf8_stdio()
     argparse.ArgumentParser(
         description="Write the CP932 smoke fixture under source/mini_vbp/"
     ).parse_args(argv)

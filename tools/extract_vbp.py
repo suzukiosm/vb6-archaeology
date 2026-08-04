@@ -22,6 +22,7 @@ from lib.config import (  # noqa: E402
     extracts_root,
     protected_dir_names,
 )
+from lib.console import enable_utf8_stdio  # noqa: E402
 
 # Keys that name project-relative source files in a .vbp
 FILE_KEYS = (
@@ -152,6 +153,7 @@ def extract(vbp_path: Path, out_dir: Path, source_root: Path) -> dict:
 
 
 def main(argv: list[str] | None = None) -> int:
+    enable_utf8_stdio()
     protected = ", ".join(protected_dir_names())
     parser = argparse.ArgumentParser(
         description=(

@@ -19,6 +19,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from lib.config import decode_vb6_bytes  # noqa: E402
+from lib.console import enable_utf8_stdio  # noqa: E402
 
 
 def read_lines(path: Path) -> list[str]:
@@ -35,6 +36,7 @@ def emit(path: Path, lines: list[str], start: int, end: int) -> None:
 
 
 def main(argv: list[str] | None = None) -> int:
+    enable_utf8_stdio()
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("file")
     ap.add_argument("ranges", nargs="*", help="START-END（1 始まり・両端含む）")

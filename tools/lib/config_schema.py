@@ -18,6 +18,8 @@ import json
 import sys
 from pathlib import Path
 
+from .console import enable_utf8_stdio
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 CONFIG_NAME = "archaeology.config.json"
 SCHEMA_PATH = REPO_ROOT / "schema" / "archaeology.config.schema.json"
@@ -108,6 +110,7 @@ def check_config(config_path: Path, schema_path: Path = SCHEMA_PATH) -> list[str
 
 
 def main(argv: list[str] | None = None) -> int:
+    enable_utf8_stdio()
     ap = argparse.ArgumentParser(description="Validate archaeology.config.json")
     ap.add_argument(
         "--config",

@@ -34,6 +34,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT / "tools"))
 from lib.config import load_config, reports_root  # noqa: E402
+from lib.console import enable_utf8_stdio  # noqa: E402
 
 FILE_TOKEN_RE = re.compile(
     r"\b([A-Za-z_][\w]*\.(?:frm|bas|cls))\b",
@@ -255,6 +256,7 @@ def verify(
 
 
 def main(argv: list[str] | None = None) -> int:
+    enable_utf8_stdio()
     ap = argparse.ArgumentParser(
         description="Verify report name mentions against inventory name sets"
     )
