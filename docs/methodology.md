@@ -42,6 +42,7 @@
 - `frm_deep_read.py` は **対象 .frm 単体**の解析。他 .frm/.bas からの参照（`Show` 呼び元・外部操作）は見えない
 - イベント数 0 を「孤立・到達不能」と即断しない
 - 親が `VB.Frame` / `VB.PictureBox` で設計時 `Visible=0` かつコード非参照（dead container）のとき、子孫に `ancestor_hidden` / `ancestor_hidden_by` が付く（実行時非表示相当）
+- 同一 Sub 内で前方 `GoTo` が `Open … As #` を飛び越す場合、deep-read が到達不能候補として出す（静的近似。ソース順＝実行順と読まない）
 
 ## 再実装消費者向け（任意・1段落）
 

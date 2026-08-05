@@ -9,6 +9,7 @@ Versions are exposed by `python -m tools --version` (`tools/__init__.py`).
 
 ### Added
 
+- `frm_deep_read` — 同一 Sub 内で前方 `GoTo <Label>` が後方の `Open … As #…` を飛び越すとき、その Open を **到達不能候補**として MD 節「GoTo で飛び越えられる Open（候補）」に出す（静的近似。条件付き GoTo は断定しない。`On Error GoTo` / GoSub は未対応）。回帰: `tools/test_frm_deep_read.py`
 - `protected_path_markers` — どこに現れても読取専用にするパス断片。**正本がリポ外にある構成**（共有ドライブ上の VB6 ツリー）を一級市民として扱う。`extract` と両 hooks が同じ設定を読む（`tools/test_config.py`）
 - `default_extract` — `--extract` 省略時に使う extract 名。複数プロジェクトを抱える消費者が、ツール 3 本にフォルダ名をハードコードせずに済む
 - `scan_roots` / `scan_skip_dirs` — scan-chars の走査対象を config 化。**保護ディレクトリとマーカーは自動 skip**（`source` のハードコードを解消）

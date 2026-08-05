@@ -32,4 +32,5 @@ python -m tools deep-read-all --extract working\extracts\<stem>
 - ツール改定後は影響 Form を再生成
 - 設計時座標（Begin）と実行時座標（`/runtime-layout`）は別物
 - イベント 0 件を孤立と即断しない（`.frm` 単体解析。外部からの参照は見えない）
+- Open 列挙をソース順＝実行順と読まない（「GoTo で飛び越えられる Open（候補）」節）
 - 保護ディレクトリには書かない

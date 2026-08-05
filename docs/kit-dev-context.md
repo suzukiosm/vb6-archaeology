@@ -15,7 +15,7 @@ VB6 を壊さず理解するための汎用 OS（docs / .cursor / tools）を維
 - 設定検証: `schema/archaeology.config.schema.json` + `lib/config_schema.py`（stdlib のみ）
 - 自己点検: `kit_smoke.py`（config-check → fixture パイプライン → comprehend → verify-names → scan-chars + unittest）· CI: ubuntu/windows × Python 3.10/3.13
 - 補助: `frm_lines.py` · `scan_control_chars.py` · `frm_deep_read_all.py`（`deep_read_name_map`）
-- `frm_deep_read`: .frm 単体解析注記、`ancestor_hidden`（dead + Visible=0 コンテナ配下）
+- `frm_deep_read`: .frm 単体解析注記、`ancestor_hidden`（dead + Visible=0 コンテナ配下）、同一 Sub 内の前方 GoTo が飛び越える `Open … As #` を到達不能候補として MD に出す（静的近似・条件付きは断定しない）
 - `runtime_layout`: Show 文脈は Sub 境界で `recent_shows` クリア。開経路スコアは `layout_sub_scores`（既定 `form_load` / `mdiform_load` のみ）
 - フィクスチャ: `source/mini_vbp/`（`make_fixture.py`・日本語 Caption・隠れた Frame 配下 Label 含む CP932）
 - hooks: 保護ディレクトリへの書込拒否（キット既定名は `source/` のみ。別名は消費者 config）。`make_fixture.py` のみ shell allowlist
@@ -29,6 +29,7 @@ VB6 を壊さず理解するための汎用 OS（docs / .cursor / tools）を維
 - （採用済・参考）vbSpec 由来の事実層: `Class=` / シグネチャ / `Object=`・Version メタ / 任意 `--skip-parent-common`。コメント仕様書化は非採用
 - （還元済 2026-07-29）消費者からの `ancestor_hidden` · Sub 境界 `recent_shows` · `frm_lines` / `scan_control_chars` / 一般化 `frm_deep_read_all`
 - （還元済 2026-08-04 · VB6_source 監査）`frm_deep_read` 出力キー=VB_Name+`deep_read_name_map` · `verify_report_names`（allowlist/declares/EVENT_SUFFIX）· `picture1_height_by_sub` · fg1/fg2 chrome。伝票・Form7・Next.js 監査は DO NOT PORT
+- （還元済 2026-08-05）`frm_deep_read` — 同一 Sub の前方 GoTo が飛び越える `Open … As #` を到達不能**候補**として出す（`find_goto_skipped_opens`。静的近似。消費者固有名は埋め込まない。動機は読解誤りの再発緩和でありキットの責任転嫁ではない）
 
 ## 4. 触ってよい／いけない
 

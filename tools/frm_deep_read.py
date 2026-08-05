@@ -443,6 +443,128 @@ def extract_para(lines: list[str]):
     return hits
 
 
+# VB6 line labels that collide with block syntax (not GoTo targets we care about).
+_GOTO_RESERVED_LABELS = frozenset({"else", "case"})
+_OPEN_AS_RE = re.compile(r".*\bOpen\b.*\bAs\s*#\s*\w+", re.IGNORECASE)
+_LABEL_RE = re.compile(r"^(\w+)\s*:\s*('.*)?$", re.IGNORECASE)
+# Bare / trailing-comment GoTo (not On Error GoTo, not Then/Else GoTo).
+_UNCOND_GOTO_RE = re.compile(r"^GoTo\s+(\w+)\s*('.*)?$", re.IGNORECASE)
+_COND_GOTO_RE = re.compile(
+    r"\b(?:Then|Else)\s+GoTo\s+(\w+)\b", re.IGNORECASE
+)
+_ON_ERROR_GOTO_RE = re.compile(r"\bOn\s+Error\s+GoTo\b", re.IGNORECASE)
+
+
+def _open_path_fragment(text: str) -> str:
+    """Best-effort path snippet from an Open statement (quoted literals preferred)."""
+    quotes = re.findall(r'"([^"]*)"', text)
+    if quotes:
+        # Prefer the fragment that looks like a file/path.
+        for q in reversed(quotes):
+            if re.search(r"\.\w{1,8}\b|\\|/", q):
+                return q[:120]
+        return quotes[-1][:120]
+    return text[:120]
+
+
+def find_goto_skipped_opens(
+    lines: list[str], events: list[dict] | None = None,
+) -> list[dict]:
+    """Mark Opens skipped by a forward GoTo within the same Sub (static approx).
+
+    When ``GoTo L`` appears before ``L:`` in one procedure and an
+    ``Open ... As #…`` lies strictly between them, that Open is a
+    **到達不能候補** (unreachable candidate):
+
+    - unconditional ``GoTo L`` — fall-through never reaches the Open
+    - ``If … Then GoTo L`` / ``Else GoTo L`` — Open is skipped on that branch
+      (still reported as a candidate; not asserted as dead)
+
+    Not modeled (see report caveats): GoSub/Return, jump *into* the span,
+    Resume, multi-label graphs. ``On Error GoTo`` is ignored (handler setup,
+    not an immediate jump).
+    """
+    if events is None:
+        events = extract_events(lines)
+
+    findings: list[dict] = []
+    seen: set[tuple[str, int, int, int]] = set()
+
+    for ev in events:
+        start = ev.get("start_line")
+        end = ev.get("end_line")
+        if not start or not end or end < start:
+            continue
+        # 1-based inclusive → slice of body lines after Sub header through End
+        body = lines[start:end]  # start_line is Sub decl; scan from next line
+        # Map local index → absolute 1-based line number
+        # body[0] is lines[start] = line start+1 (first line after Sub header)
+
+        labels: dict[str, int] = {}  # lower name -> 1-based line
+        gotos: list[tuple[int, str, str]] = []  # (line, label, kind)
+
+        for offset, raw in enumerate(body):
+            ln = start + 1 + offset
+            s = raw.strip()
+            if not s or s.startswith("'"):
+                continue
+            if _ON_ERROR_GOTO_RE.search(s):
+                continue
+
+            lm = _LABEL_RE.match(s)
+            if lm:
+                name = lm.group(1)
+                if name.lower() not in _GOTO_RESERVED_LABELS:
+                    # First definition wins (VB6 duplicate labels are rare/illegal)
+                    labels.setdefault(name.lower(), ln)
+                continue
+
+            um = _UNCOND_GOTO_RE.match(s)
+            if um:
+                gotos.append((ln, um.group(1), "unconditional"))
+                continue
+
+            # Avoid matching "GoTo" inside strings poorly — strip comments lightly
+            code_only = s.split("'")[0]
+            if _ON_ERROR_GOTO_RE.search(code_only):
+                continue
+            cm = _COND_GOTO_RE.search(code_only)
+            if cm:
+                gotos.append((ln, cm.group(1), "conditional"))
+
+        for goto_line, label_name, kind in gotos:
+            label_line = labels.get(label_name.lower())
+            if label_line is None or label_line <= goto_line:
+                continue  # backward / missing — not a forward skip
+
+            for offset, raw in enumerate(body):
+                ln = start + 1 + offset
+                if not (goto_line < ln < label_line):
+                    continue
+                s = raw.strip()
+                if not s or s.startswith("'"):
+                    continue
+                if not _OPEN_AS_RE.match(s):
+                    continue
+                key = (ev["name"], goto_line, label_line, ln)
+                if key in seen:
+                    continue
+                seen.add(key)
+                findings.append({
+                    "sub": ev["name"],
+                    "goto_line": goto_line,
+                    "label": label_name,
+                    "label_line": label_line,
+                    "open_line": ln,
+                    "open_text": s[:200],
+                    "path_fragment": _open_path_fragment(s),
+                    "goto_kind": kind,
+                })
+
+    findings.sort(key=lambda f: (f["open_line"], f["goto_line"]))
+    return findings
+
+
 def annotate_offscreen(form_info: dict, controls: list[dict]):
     """Flag controls placed outside the form client area (design-time).
 
@@ -563,6 +685,7 @@ def build_skeleton(form_info, controls):
 def write_report(
     report_path, frm_filename, form_info, controls, events, data_paths, para_hits,
     total_lines, menu_findings, show_map, source_label=None,
+    goto_skipped_opens=None,
 ):
     live = [c for c in controls if c.get("live")]
     dead = [c for c in controls if not c.get("live")]
@@ -681,6 +804,33 @@ def write_report(
             if len(items) > 10:
                 md.append(f"\n他 {len(items) - 10} 件省略\n")
 
+    skipped = goto_skipped_opens or []
+    if skipped:
+        md.append(f"\n## GoTo で飛び越えられる Open（候補）（{len(skipped)}件）\n\n")
+        md.append(
+            "> **静的近似・候補**（イベント数 0 の孤立注記と同型）。**到達不能と断定しない。**"
+            " 同一 Sub 内で前方の `GoTo <Label>` と後方の `Label:` の間にある"
+            " `Open … As #…` を列挙する。**ソース順＝実行順と読まないこと。**\n"
+            ">\n"
+            "> - **unconditional**: 素の `GoTo` — フォールスルーでは Open に届かない候補\n"
+            "> - **conditional**: `If … Then GoTo` / `Else GoTo` — その分岐では Open を飛ばす。"
+            "別分岐では到達しうるため保守的に候補扱い\n"
+            "> - **未対応 / 近似外**: `GoSub`/`Return`、スパン内への別ラベル入口、`Resume`、"
+            "複数入口の証明。`On Error GoTo` はハンドラ設定のため対象外\n\n"
+        )
+        md.append(
+            "| Sub | GoTo | 種別 | Label | Open | パス断片 |\n"
+            "|---|---|---|---|---|---|\n"
+        )
+        for f in skipped[:30]:
+            frag = (f.get("path_fragment") or "").replace("|", "\\|")
+            md.append(
+                f"| `{f['sub']}` | L{f['goto_line']} | {f['goto_kind']} | "
+                f"`{f['label']}:` L{f['label_line']} | L{f['open_line']} | `{frag}` |\n"
+            )
+        if len(skipped) > 30:
+            md.append(f"\n他 {len(skipped) - 30} 件省略\n")
+
     if para_hits:
         md.append(f"\n## PARA（{len(para_hits)}箇所）\n\n")
         for h in para_hits[:15]:
@@ -796,6 +946,7 @@ def main(argv: list[str] | None = None) -> int:
     api_names = extract_declared_apis(code_text, bas_text)
     data_paths = extract_data_paths(lines, api_names)
     para_hits = extract_para(lines)
+    goto_skipped_opens = find_goto_skipped_opens(lines, events)
 
     events = classify_events(
         events, code_text, bas_text, controls, form_name=form_info.get("name") or "",
@@ -828,6 +979,14 @@ def main(argv: list[str] | None = None) -> int:
             print(f"Data {cat}: {len(items)} hits")
     if para_hits:
         print(f"PARA: {len(para_hits)} hits")
+    if goto_skipped_opens:
+        print(f"GoTo-skipped Open candidates: {len(goto_skipped_opens)}")
+        for f in goto_skipped_opens[:8]:
+            print(
+                f"  {f['sub']}  GoTo L{f['goto_line']} ({f['goto_kind']}) -> "
+                f"{f['label']}: L{f['label_line']}  skips Open L{f['open_line']}  "
+                f"{f.get('path_fragment', '')[:60]}"
+            )
 
     if menu_findings:
         print("Menu warnings:")
@@ -879,6 +1038,7 @@ def main(argv: list[str] | None = None) -> int:
         write_report(
             report_path, frm_path.name, form_info, controls, events, data_paths, para_hits,
             len(lines), menu_findings, show_map, source_label=source_label,
+            goto_skipped_opens=goto_skipped_opens,
         )
         print(f"Report  -> {report_path}")
 
