@@ -18,6 +18,7 @@
 |---|---|
 | [methodology.md](methodology.md) | 事実 vs 推定・証拠ルール |
 | [adopting-in-a-project.md](adopting-in-a-project.md) | 他リポへの採用手順 |
+| [reimplementation-handoff.md](reimplementation-handoff.md) | 調査完了→製品 UI のチェックリスト · Show パターン |
 | [directory-layout.md](directory-layout.md) | ディレクトリ契約 |
 | [encoding-cp932.md](encoding-cp932.md) | CP932 前提 |
 
@@ -25,7 +26,7 @@
 
 | パス | 用途 |
 |---|---|
-| [templates/](templates/) | 消費者向け雛形（ai-dev-context · AGENTS.consumer · frm-audit · comprehension-tick · project-local.mdc） |
+| [templates/](templates/) | 消費者雛形（ai-dev-context · CURRENT · frm-audit · comprehension-tick · data-guards · project-local） |
 
 ## リファレンス
 

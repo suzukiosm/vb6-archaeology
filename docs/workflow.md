@@ -14,7 +14,8 @@ flowchart TD
   D -->|none| F[deep-read / layout]
   F --> G[comprehend ticks]
   G --> H[verify-names]
-  H --> I[reports + optional reimplementation]
+  H --> J[excerpt]
+  J --> I[optional reimplementation / handoff]
 ```
 
 ## Step 0 — 設定を確かめる
@@ -70,7 +71,8 @@ python -m tools deep-read-all --extract working\extracts\<stem>
 python -m tools layout --extract working\extracts\<stem>
 ```
 
-デザイナ値（Step 4）と実行時代入（Step 5）は別レイヤ。**両方見るまで座標を確定しない**。
+デザイナ値（Step 4）と実行時代入（Step 5）は別レイヤ。**両方見るまで座標を確定しない**。  
+MDI シェル名・chrome コントロールは消費者 config の `mdi_chrome`（キット既定は空）。
 
 ## Step 6 — 理解 tick (`/vb6-comprehend`)
 
@@ -101,15 +103,30 @@ inventory に無い名前は拒否される。拒否されたら名前を疑う�
 python -m tools verify-names --inventory working\reports\<stem>_inventory.json
 ```
 
-閲覧は `python -m tools serve`（`file://` は使わない）。
+閲覧は `python -m tools serve`（`file://` は使わない）。  
+再実装向けの短い抜粋（Form · Show · 未 tick）:
+
+```powershell
+python -m tools excerpt --inventory working\reports\<stem>_inventory.json
+# または serve 起動後 http://127.0.0.1:8765/excerpt
+```
 
 ## Step 8 —（任意）再実装
 
 消費者リポの作業。本キットは skeleton / runtime-layout JSON を中間成果として渡す。  
 実装に入る前に「確定事実」であることを再検証する。
 
+**調査完了 ≠ 製品 UI 完了。** 配線・出荷前に必ず:
+
+1. [`reimplementation-handoff.md`](reimplementation-handoff.md) の製品面チェックリスト
+2. Form ごとの `show_style`（`mdi_child` / `modal_overlay` / `navigate`）
+3. tick の任意欄 `product_ui_notes`（隠す・言い換えるもの）
+
+長セッションの手渡し正本テンプレ: [`templates/CURRENT.md`](templates/CURRENT.md)。
+
 ## 停止条件
 
-- 合意したチェックリスト達成
+- 合意したチェックリスト達成（**調査** Stop）
 - ユーザーが「止め」と明示
 - 正本や外部データの不足で証拠が取れない（その時点で報告して待つ）
+- （再実装時）製品面チェックリスト達成は **製品 UI** Stop — 調査 Stop と混同しない

@@ -15,8 +15,16 @@ from tools.runtime_layout import (
     effective_layout_sub_scores,
     existing_gap_status,
     extract_file,
+    is_mdi_chrome_target,
+    mdi_chrome_settings,
     resolve_picture1_form,
 )
+
+# Common consumer-shaped chrome (not kit defaults — tests patch load_config).
+CONSUMER_MDI_CHROME = {
+    "shell_forms": ["MDIForm1"],
+    "control_names": ["Picture1", "FG1", "fg2"],
+}
 
 
 # Synthetic form names for placement tests (not kit defaults).
@@ -275,7 +283,8 @@ class MdiDefaultsConfigTests(unittest.TestCase):
                 "mdi_defaults": {
                     "picture1HeightExpanded": 13000,
                     "picture1HeightCollapsed": 4095,
-                }
+                },
+                "mdi_chrome": CONSUMER_MDI_CHROME,
             },
         ):
             got = build_mdi_defaults(form_layout)
@@ -288,6 +297,27 @@ class MdiDefaultsConfigTests(unittest.TestCase):
                 "picture1HeightCollapsed": 4095,
             },
         )
+
+    def test_build_mdi_defaults_uses_configured_shell(self) -> None:
+        form_layout = {
+            "MainShell": {"left": 10, "height": 9000, "top": 0, "width": None}
+        }
+        with patch(
+            "tools.runtime_layout.load_config",
+            return_value={
+                "mdi_defaults": {
+                    "picture1HeightExpanded": 8000,
+                    "picture1HeightCollapsed": 2000,
+                },
+                "mdi_chrome": {
+                    "shell_forms": ["MainShell"],
+                    "control_names": ["Picture1"],
+                },
+            },
+        ):
+            got = build_mdi_defaults(form_layout)
+        self.assertEqual(got["left"], 10)
+        self.assertEqual(got["height"], 9000)
 
     def test_build_mdi_defaults_none_without_config(self) -> None:
         with patch("tools.runtime_layout.load_config", return_value={}):
@@ -365,20 +395,79 @@ class Picture1ConfigTests(unittest.TestCase):
         forms = {"Child": "Child.frm", "MDIForm1": "MDIForm1.frm"}
         with patch(
             "tools.runtime_layout.load_config",
-            return_value={"picture1_height_by_sub": {"open_child_click": "Child"}},
+            return_value={
+                "picture1_height_by_sub": {"open_child_click": "Child"},
+                "mdi_chrome": CONSUMER_MDI_CHROME,
+            },
         ):
             layout = build_form_show_layout(rows, forms, sub_scores={})
         self.assertEqual(layout["Child"]["picture1Height"], 3500)
 
     def test_fg_aliases_classify_as_mdi_chrome(self) -> None:
-        self.assertEqual(
-            classify("MDIForm1.fg2", "Height", "12000", 12000, "MDIForm1"),
-            "mdi_chrome",
-        )
-        self.assertEqual(
-            classify("FG1", "Width", "100", 100, "MDIForm1"),
-            "mdi_chrome",
-        )
+        with patch(
+            "tools.runtime_layout.load_config",
+            return_value={"mdi_chrome": CONSUMER_MDI_CHROME},
+        ):
+            self.assertEqual(
+                classify("MDIForm1.fg2", "Height", "12000", 12000, "MDIForm1"),
+                "mdi_chrome",
+            )
+            self.assertEqual(
+                classify("FG1", "Width", "100", 100, "MDIForm1"),
+                "mdi_chrome",
+            )
+
+    def test_empty_mdi_chrome_does_not_treat_picture1_as_chrome(self) -> None:
+        with patch(
+            "tools.runtime_layout.load_config",
+            return_value={"mdi_chrome": {"shell_forms": [], "control_names": []}},
+        ):
+            self.assertEqual(
+                classify("Picture1", "Height", "100", 100, "Host"),
+                "control_move",
+            )
+            self.assertFalse(is_mdi_chrome_target("MDIForm1.Picture1"))
+
+    def test_custom_shell_name_qualifies_bare_chrome_control(self) -> None:
+        src = """\
+Attribute VB_Name = "MainShell"
+Option Explicit
+
+Private Sub Form_Load()
+    Banner.Height = 4095
+End Sub
+"""
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "MainShell.frm"
+            path.write_text(src, encoding="utf-8")
+            with patch(
+                "tools.runtime_layout.load_config",
+                return_value={
+                    "mdi_chrome": {
+                        "shell_forms": ["MainShell"],
+                        "control_names": ["Banner"],
+                    }
+                },
+            ):
+                rows = extract_file(path, "MainShell")
+        chrome = [r for r in rows if r["kind"] == "mdi_chrome"]
+        self.assertEqual(len(chrome), 1)
+        self.assertEqual(chrome[0]["object"], "MainShell.Banner")
+        self.assertEqual(chrome[0]["target"], "MainShell.Banner")
+
+    def test_mdi_chrome_settings_reads_config(self) -> None:
+        with patch(
+            "tools.runtime_layout.load_config",
+            return_value={
+                "mdi_chrome": {
+                    "shell_forms": ["ShellA", ""],
+                    "control_names": ["Pic", "  "],
+                }
+            },
+        ):
+            shells, controls = mdi_chrome_settings()
+        self.assertEqual(shells, ["ShellA"])
+        self.assertEqual(controls, ["Pic"])
 
 
 class RecentShowsSubBoundaryTests(unittest.TestCase):

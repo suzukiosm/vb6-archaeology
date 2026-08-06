@@ -21,6 +21,7 @@ VBP を切り出し・棚卸し・深読み・証拠つき理解まで進める�
 | 実行時座標 | `python -m tools layout --extract <dir>` | `/runtime-layout` |
 | 理解 tick | `python -m tools comprehend --add-tick <Proc>` | `/vb6-comprehend` |
 | 報告書 | （skill `vb6-accurate-reports`） | `/vb6-report` |
+| 再実装抜粋 | `python -m tools excerpt` · serve /excerpt | — |
 | レポート閲覧 | `python -m tools serve` | `/serve-reports` |
 | 設定検証 | `python -m tools config-check` | — |
 | 自己点検 | `python -m tools smoke` | `/kit-smoke` |
@@ -31,10 +32,14 @@ VBP を切り出し・棚卸し・深読み・証拠つき理解まで進める�
 
 ```powershell
 python -m tools smoke
+# 消費者リポで業務テストを後段追加しているとき、キット層だけ:
+python -m tools smoke --kit-only
 ```
 
 フィクスチャパイプライン（config-check → extract → inventory → verify → deep-read →
-layout → comprehend → scan-chars）＋ `tools/` 配下の unittest。詳細は `CONTRIBUTING.md` · `tools/README.md`。
+layout → comprehend → excerpt → verify-names → scan-chars）＋ `tools/` 配下の unittest。
+詳細は `CONTRIBUTING.md` · `tools/README.md`。
+再実装の製品面チェック: `docs/reimplementation-handoff.md`。
 
 ## DO NOT
 
@@ -78,7 +83,7 @@ layout → comprehend → scan-chars）＋ `tools/` 配下の unittest。詳細�
 | `docs/` | 方法論・採用手順・テンプレ |
 | `schema/` | `archaeology.config.json` の JSON Schema |
 | `.cursor/` | rules / skills / commands / hooks |
-| `archaeology.config.json` | 保護ディレクトリ名・出力先・`geometry_hints` |
+| `archaeology.config.json` | 保護ディレクトリ名・出力先・`geometry_hints` / `mdi_chrome` / `layout_sub_scores` 等 |
 
 ## 標準サイクル
 
@@ -88,8 +93,8 @@ layout → comprehend → scan-chars）＋ `tools/` 配下の unittest。詳細�
 2. `/vb6-inventory` — 事実のみの構成正
 3. `/frm-deep-read` · `/runtime-layout` — Form 深読み・実行時座標
 4. `/vb6-comprehend` — 証拠つき tick 理解
-5. `/vb6-report` — 報告書の作成・訂正
-6. （任意）消費者リポで再実装。確定事実のみ反映
+5. `/vb6-report` — 報告書の作成・訂正（`excerpt` · `/vb6-verify-reports`）
+6. （任意）消費者リポで再実装。確定事実のみ反映（製品面は `docs/reimplementation-handoff.md`）
 
 詳細: `docs/workflow.md` · ツール索引: `tools/README.md`
 

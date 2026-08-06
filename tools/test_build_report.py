@@ -117,6 +117,25 @@ class BuildReportTests(unittest.TestCase):
         self.assertIn('tr.tocrow[data-for="\'+s.id+\'"]', doc)
         self.assertIn("s.textContent", doc)
         self.assertNotIn("s.innerText", doc)
+        self.assertIn("show_style", doc)
+
+    def test_form_show_fields_on_report(self) -> None:
+        frm = """\
+VERSION 5.00
+Begin VB.Form Form1
+   Caption = "F"
+   MDIChild = -1  'True
+End
+Attribute VB_Name = "Form1"
+Private Sub Command1_Click()
+    Other.Show vbModal
+End Sub
+"""
+        (self.d / "Form1.frm").write_bytes(frm.encode("cp932"))
+        rep = inv.build_report(self.d, self.vbp, use_cache=False, jobs=1)
+        form = next(f for f in rep["files"] if f["file"] == "Form1.frm")
+        self.assertEqual(form["show_style"]["show_style"], "mdi_child")
+        self.assertEqual(form["show_calls"][0]["show_style"], "modal_overlay")
 
 
 if __name__ == "__main__":

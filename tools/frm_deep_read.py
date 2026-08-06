@@ -34,6 +34,7 @@ from lib.config import (  # noqa: E402
     skeletons_root,
 )
 from lib.console import enable_utf8_stdio  # noqa: E402
+from lib.show_style import parse_show_calls_in_line, self_show_style  # noqa: E402
 
 EXTRACT = extracts_root()  # overridden in main() via --extract
 SKELETONS = skeletons_root()
@@ -83,11 +84,14 @@ def extract_controls(lines: list[str]):
     BeginProperty/EndProperty are ignored (not Begin <kind> <name>).
     Nested Left/Top are parent-relative; abs_left/abs_top are form-client absolute.
     Form size prefers ClientWidth/ClientHeight over outer Width/Height.
+    Form-level ``MDIChild`` is copied into ``form_info`` for show_style heuristics.
     """
     form_info = {
         "name": "", "caption": "",
         "width": None, "height": None,
         "clientWidth": None, "clientHeight": None,
+        "kind": "",
+        "mdi_child": None,
     }
     controls = []
     stack: list[dict] = []
@@ -108,6 +112,7 @@ def extract_controls(lines: list[str]):
                 "parent": parent["name"] if parent else None,
                 "abs_left": 0, "abs_top": 0,
                 "index": None, "visible": True, "enabled": True,
+                "mdi_child": None,
             })
             continue
 
@@ -135,6 +140,8 @@ def extract_controls(lines: list[str]):
                     "height": ch if ch is not None else ctrl["height"],
                     "clientWidth": cw,
                     "clientHeight": ch,
+                    "kind": ctrl["kind"],
+                    "mdi_child": ctrl.get("mdi_child"),
                 }
             else:
                 controls.append(ctrl)
@@ -166,6 +173,10 @@ def extract_controls(lines: list[str]):
             em = re.match(r"Enabled\s*=\s*(-?\d+)", s)
             if em:
                 cur["enabled"] = em.group(1) != "0"
+            # Form / control MDIChild (typically on the Form root)
+            mm = re.match(r"MDIChild\s*=\s*(-?\d+)", s, re.IGNORECASE)
+            if mm:
+                cur["mdi_child"] = mm.group(1) != "0"
 
     return form_info, controls
 
@@ -217,8 +228,9 @@ def extract_events(lines: list[str]):
             continue
 
         if current and s and not s.startswith("'"):
-            for sm in re.finditer(r"\b([A-Za-z_][\w]*)\.Show\b", s):
-                current.setdefault("shows", []).append(sm.group(1))
+            for call in parse_show_calls_in_line(line, i + 1):
+                current.setdefault("shows", []).append(call["target"])
+                current.setdefault("show_calls", []).append(call)
             pm = re.search(r'PARA\s*=\s*"([^"]+)"', s)
             if pm:
                 current.setdefault("para_sets", []).append(pm.group(1))
@@ -231,6 +243,7 @@ def extract_events(lines: list[str]):
     for ev in events:
         ev.setdefault("shows", [])
         ev.setdefault("para_sets", [])
+        ev.setdefault("show_calls", [])
         # dedupe preserving order
         ev["shows"] = list(dict.fromkeys(ev["shows"]))
         ev["para_sets"] = list(dict.fromkeys(ev["para_sets"]))
@@ -239,7 +252,7 @@ def extract_events(lines: list[str]):
 
 
 def analyze_menus(controls: list[dict], events: list[dict]):
-    """Flag menus that are invisible/disabled or lack *_Click (kensaku-class traps).
+    """Flag menus that are invisible/disabled or lack *_Click (Caption-only traps).
 
     VB6 identifiers are case-insensitive: menu ``SAG`` ↔ handler ``sag_Click``.
     """
@@ -273,15 +286,26 @@ def extract_show_map(events: list[dict]):
     for e in events:
         if e.get("status") == "dead":
             continue
-        if not e.get("shows") and not e.get("para_sets"):
+        if not e.get("shows") and not e.get("para_sets") and not e.get("show_calls"):
             continue
         rows.append({
             "sub": e["name"],
             "line": e["start_line"],
             "shows": e.get("shows", []),
             "para_sets": e.get("para_sets", []),
+            "calls": e.get("show_calls", []),
         })
     return rows
+
+
+def form_show_style_block(form_info: dict) -> dict:
+    """Attach self show_style candidate to the form being deep-read."""
+    block = self_show_style(
+        mdi_child=form_info.get("mdi_child"),
+        form_kind=form_info.get("kind") or "",
+    )
+    block["form"] = form_info.get("name") or ""
+    return block
 
 
 # ── Dead code ─────────────────────────────────────────────
@@ -454,6 +478,43 @@ _COND_GOTO_RE = re.compile(
 )
 _ON_ERROR_GOTO_RE = re.compile(r"\bOn\s+Error\s+GoTo\b", re.IGNORECASE)
 
+# Statements worth flagging when skipped by a forward GoTo (I/O · Call · Load).
+# Assignments / Dim are omitted to avoid flooding; tick still reads the span.
+_SKIP_STMT_RULES: list[tuple[str, re.Pattern[str]]] = [
+    ("open", _OPEN_AS_RE),
+    ("line_input", re.compile(r"\bLine\s+Input\s+#", re.IGNORECASE)),
+    ("input_file", re.compile(r"\bInput\s+#", re.IGNORECASE)),
+    ("print_file", re.compile(r"\bPrint\s+#", re.IGNORECASE)),
+    ("write_file", re.compile(r"\bWrite\s+#", re.IGNORECASE)),
+    ("get_file", re.compile(r"\bGet\s+#", re.IGNORECASE)),
+    ("put_file", re.compile(r"\bPut\s+#", re.IGNORECASE)),
+    ("close", re.compile(r"\bClose\s+#", re.IGNORECASE)),
+    ("kill", re.compile(r"\bKill\b", re.IGNORECASE)),
+    ("shell", re.compile(r"\bShell\b", re.IGNORECASE)),
+    ("call", re.compile(r"^(?:Call\s+)\w+", re.IGNORECASE)),
+    ("unload", re.compile(r"\bUnload\b", re.IGNORECASE)),
+    ("load", re.compile(r"^Load\s+\w+", re.IGNORECASE)),
+    ("msgbox", re.compile(r"\bMsgBox\b", re.IGNORECASE)),
+]
+
+
+def classify_goto_skip_stmt(text: str) -> str | None:
+    """Return stmt_kind if the line is interesting when GoTo-skipped, else None."""
+    s = text.strip()
+    if not s or s.startswith("'"):
+        return None
+    code = s.split("'")[0].strip()
+    if not code:
+        return None
+    if _UNCOND_GOTO_RE.match(code) or _ON_ERROR_GOTO_RE.search(code):
+        return None
+    if _LABEL_RE.match(code):
+        return None
+    for kind, pattern in _SKIP_STMT_RULES:
+        if pattern.search(code):
+            return kind
+    return None
+
 
 def _open_path_fragment(text: str) -> str:
     """Best-effort path snippet from an Open statement (quoted literals preferred)."""
@@ -467,22 +528,83 @@ def _open_path_fragment(text: str) -> str:
     return text[:120]
 
 
-def find_goto_skipped_opens(
+def _scan_sub_gotos_and_labels(
+    lines: list[str], start: int, end: int,
+) -> tuple[dict[str, int], list[tuple[int, str, str]]]:
+    """Return (labels lower→line, gotos) for body lines after Sub header."""
+    body = lines[start:end]
+    labels: dict[str, int] = {}
+    gotos: list[tuple[int, str, str]] = []
+    for offset, raw in enumerate(body):
+        ln = start + 1 + offset
+        s = raw.strip()
+        if not s or s.startswith("'"):
+            continue
+        if _ON_ERROR_GOTO_RE.search(s):
+            continue
+        lm = _LABEL_RE.match(s)
+        if lm:
+            name = lm.group(1)
+            if name.lower() not in _GOTO_RESERVED_LABELS:
+                labels.setdefault(name.lower(), ln)
+            continue
+        um = _UNCOND_GOTO_RE.match(s)
+        if um:
+            gotos.append((ln, um.group(1), "unconditional"))
+            continue
+        code_only = s.split("'")[0]
+        if _ON_ERROR_GOTO_RE.search(code_only):
+            continue
+        cm = _COND_GOTO_RE.search(code_only)
+        if cm:
+            gotos.append((ln, cm.group(1), "conditional"))
+    return labels, gotos
+
+
+def collect_goto_label_maps(
     lines: list[str], events: list[dict] | None = None,
 ) -> list[dict]:
-    """Mark Opens skipped by a forward GoTo within the same Sub (static approx).
+    """Per-Sub GoTo / label inventory (facts only; no reachability proof)."""
+    if events is None:
+        events = extract_events(lines)
+    maps: list[dict] = []
+    for ev in events:
+        start, end = ev.get("start_line"), ev.get("end_line")
+        if not start or not end or end < start:
+            continue
+        labels, gotos = _scan_sub_gotos_and_labels(lines, start, end)
+        if not labels and not gotos:
+            continue
+        maps.append({
+            "sub": ev["name"],
+            "status": ev.get("status") or "",
+            "labels": [
+                {"name": name, "line": ln}
+                for name, ln in sorted(labels.items(), key=lambda x: x[1])
+            ],
+            "gotos": [
+                {"line": ln, "target": tgt, "kind": kind}
+                for ln, tgt, kind in gotos
+            ],
+        })
+    return maps
 
-    When ``GoTo L`` appears before ``L:`` in one procedure and an
-    ``Open ... As #…`` lies strictly between them, that Open is a
-    **到達不能候補** (unreachable candidate):
 
-    - unconditional ``GoTo L`` — fall-through never reaches the Open
-    - ``If … Then GoTo L`` / ``Else GoTo L`` — Open is skipped on that branch
-      (still reported as a candidate; not asserted as dead)
+def find_goto_skipped_stmts(
+    lines: list[str], events: list[dict] | None = None,
+) -> list[dict]:
+    """Mark interesting stmts skipped by a forward GoTo in the same Sub.
 
-    Not modeled (see report caveats): GoSub/Return, jump *into* the span,
-    Resume, multi-label graphs. ``On Error GoTo`` is ignored (handler setup,
-    not an immediate jump).
+    Static approx → **到達不能候補** only (never asserted dead):
+
+    - unconditional ``GoTo L`` — fall-through never reaches the stmt
+    - ``If … Then GoTo L`` / ``Else GoTo L`` — skipped on that branch
+
+    Interesting kinds: file I/O (Open/Close/Kill/Print#/…), Call, Shell,
+    Load/Unload, MsgBox. Dim/assignments are omitted.
+
+    Not modeled: GoSub/Return, jump *into* the span, Resume, multi-label
+    graphs, backward GoTo. ``On Error GoTo`` is ignored.
     """
     if events is None:
         events = extract_events(lines)
@@ -495,74 +617,56 @@ def find_goto_skipped_opens(
         end = ev.get("end_line")
         if not start or not end or end < start:
             continue
-        # 1-based inclusive → slice of body lines after Sub header through End
-        body = lines[start:end]  # start_line is Sub decl; scan from next line
-        # Map local index → absolute 1-based line number
-        # body[0] is lines[start] = line start+1 (first line after Sub header)
-
-        labels: dict[str, int] = {}  # lower name -> 1-based line
-        gotos: list[tuple[int, str, str]] = []  # (line, label, kind)
-
-        for offset, raw in enumerate(body):
-            ln = start + 1 + offset
-            s = raw.strip()
-            if not s or s.startswith("'"):
-                continue
-            if _ON_ERROR_GOTO_RE.search(s):
-                continue
-
-            lm = _LABEL_RE.match(s)
-            if lm:
-                name = lm.group(1)
-                if name.lower() not in _GOTO_RESERVED_LABELS:
-                    # First definition wins (VB6 duplicate labels are rare/illegal)
-                    labels.setdefault(name.lower(), ln)
-                continue
-
-            um = _UNCOND_GOTO_RE.match(s)
-            if um:
-                gotos.append((ln, um.group(1), "unconditional"))
-                continue
-
-            # Avoid matching "GoTo" inside strings poorly — strip comments lightly
-            code_only = s.split("'")[0]
-            if _ON_ERROR_GOTO_RE.search(code_only):
-                continue
-            cm = _COND_GOTO_RE.search(code_only)
-            if cm:
-                gotos.append((ln, cm.group(1), "conditional"))
+        body = lines[start:end]
+        labels, gotos = _scan_sub_gotos_and_labels(lines, start, end)
 
         for goto_line, label_name, kind in gotos:
             label_line = labels.get(label_name.lower())
             if label_line is None or label_line <= goto_line:
-                continue  # backward / missing — not a forward skip
+                continue
 
             for offset, raw in enumerate(body):
                 ln = start + 1 + offset
                 if not (goto_line < ln < label_line):
                     continue
                 s = raw.strip()
-                if not s or s.startswith("'"):
-                    continue
-                if not _OPEN_AS_RE.match(s):
+                stmt_kind = classify_goto_skip_stmt(s)
+                if not stmt_kind:
                     continue
                 key = (ev["name"], goto_line, label_line, ln)
                 if key in seen:
                     continue
                 seen.add(key)
-                findings.append({
+                entry = {
                     "sub": ev["name"],
                     "goto_line": goto_line,
                     "label": label_name,
                     "label_line": label_line,
+                    "stmt_line": ln,
+                    "stmt_text": s[:200],
+                    "stmt_kind": stmt_kind,
+                    "goto_kind": kind,
+                    "path_fragment": (
+                        _open_path_fragment(s) if stmt_kind == "open" else ""
+                    ),
+                    # Compat aliases used by older report/tests
                     "open_line": ln,
                     "open_text": s[:200],
-                    "path_fragment": _open_path_fragment(s),
-                    "goto_kind": kind,
-                })
+                }
+                findings.append(entry)
 
-    findings.sort(key=lambda f: (f["open_line"], f["goto_line"]))
+    findings.sort(key=lambda f: (f["stmt_line"], f["goto_line"]))
     return findings
+
+
+def find_goto_skipped_opens(
+    lines: list[str], events: list[dict] | None = None,
+) -> list[dict]:
+    """Open-only subset of :func:`find_goto_skipped_stmts` (compat wrapper)."""
+    return [
+        f for f in find_goto_skipped_stmts(lines, events)
+        if f.get("stmt_kind") == "open"
+    ]
 
 
 def annotate_offscreen(form_info: dict, controls: list[dict]):
@@ -686,6 +790,9 @@ def write_report(
     report_path, frm_filename, form_info, controls, events, data_paths, para_hits,
     total_lines, menu_findings, show_map, source_label=None,
     goto_skipped_opens=None,
+    show_style=None,
+    goto_skipped_stmts=None,
+    goto_label_maps=None,
 ):
     live = [c for c in controls if c.get("live")]
     dead = [c for c in controls if not c.get("live")]
@@ -693,6 +800,9 @@ def write_report(
     dead_events = [e for e in events if e["status"] == "dead"]
     events_sorted = sorted(live_events, key=lambda e: e["size"], reverse=True)
     src = source_label or frm_filename
+    style = show_style or form_show_style_block(form_info)
+    skipped = list(goto_skipped_stmts or goto_skipped_opens or [])
+    goto_maps = list(goto_label_maps or [])
 
     md = []
     md.append(f"# {form_info['name']}（{frm_filename}）深読みレポート\n\n")
@@ -710,9 +820,33 @@ def write_report(
         f"{'（イベント 0 でも外部から Load / 操作される場合がある）。' if not live_events else '。'}\n\n"
     )
 
+    md.append("## show_style（候補・ヒューリスティック）\n\n")
+    md.append(
+        "> 再実装の見せ方候補。断定しない。規約: "
+        "`docs/reimplementation-handoff.md`。"
+        " `vbModal`→`modal_overlay` / `MDIChild`→`mdi_child` / それ以外は `unknown`。\n\n"
+    )
+    md.append(
+        f"- **この Form 自身**: `{style.get('show_style', 'unknown')}`"
+        f" （confidence={style.get('confidence', 'none')}）"
+    )
+    if style.get("evidence"):
+        md.append(f" — 証拠: `{style['evidence']}`")
+    if style.get("note"):
+        md.append(f" — {style['note']}")
+    md.append("\n")
+    if form_info.get("mdi_child") is not None:
+        md.append(
+            f"- デザイナ `MDIChild`: "
+            f"{'True' if form_info.get('mdi_child') else 'False'}\n"
+        )
+    if form_info.get("kind"):
+        md.append(f"- `Begin` kind: `{form_info['kind']}`\n")
+    md.append("\n")
+
     if menu_findings:
         md.append("## メニュー警告（Invisible / Disabled / Click 無し）\n\n")
-        md.append("> Caption だけ見て遷移を付けないこと。`kensaku` 誤配線の再発防止。\n\n")
+        md.append("> Caption だけ見て遷移を付けないこと（Caption-only navigation trap）。\n\n")
         md.append("| name | Caption | Vis | En | Click | L |\n|---|---|---|---|---|---|\n")
         for f in menu_findings:
             md.append(
@@ -723,11 +857,27 @@ def write_report(
 
     if show_map:
         md.append("\n## Form.Show / PARA= マップ（ライブ Sub）\n\n")
-        md.append("| Sub | L | .Show | PARA= |\n|---|---|---|---|\n")
+        md.append("| Sub | L | target | arg | show_style | PARA= |\n|---|---|---|---|---|---|\n")
         for r in show_map[:40]:
-            shows = ", ".join(f"`{s}`" for s in r["shows"]) or "—"
             paras = ", ".join(f'`"{p}"`' for p in r["para_sets"]) or "—"
-            md.append(f"| `{r['sub']}` | {r['line']} | {shows} | {paras} |\n")
+            calls = r.get("calls") or []
+            if calls:
+                for c in calls:
+                    md.append(
+                        f"| `{r['sub']}` | {c.get('line', r['line'])} | "
+                        f"`{c['target']}` | {c.get('arg') or '—'} | "
+                        f"`{c.get('show_style', 'unknown')}` | {paras} |\n"
+                    )
+            elif r.get("shows"):
+                shows = ", ".join(f"`{s}`" for s in r["shows"])
+                md.append(
+                    f"| `{r['sub']}` | {r['line']} | {shows} | — | "
+                    f"`unknown` | {paras} |\n"
+                )
+            else:
+                md.append(
+                    f"| `{r['sub']}` | {r['line']} | — | — | — | {paras} |\n"
+                )
         if len(show_map) > 40:
             md.append(f"\n他 {len(show_map) - 40} 件省略\n")
 
@@ -804,32 +954,58 @@ def write_report(
             if len(items) > 10:
                 md.append(f"\n他 {len(items) - 10} 件省略\n")
 
-    skipped = goto_skipped_opens or []
+    if goto_maps:
+        with_goto = [g for g in goto_maps if g.get("gotos")]
+        md.append(f"\n## GoTo / ラベル地図（{len(with_goto)} Sub）\n\n")
+        md.append(
+            "> 事実のみ（行と名前）。到達可能性の証明ではない。"
+            " tick 精読前に「この Sub に飛びはあるか」を確認する入口。\n\n"
+        )
+        for g in with_goto[:20]:
+            labels = ", ".join(
+                f"`{x['name']}:` L{x['line']}" for x in (g.get("labels") or [])[:12]
+            ) or "—"
+            jumps = ", ".join(
+                f"L{x['line']}→`{x['target']}` ({x['kind']})"
+                for x in (g.get("gotos") or [])[:12]
+            ) or "—"
+            md.append(
+                f"- `{g['sub']}`"
+                f"{' · ' + g['status'] if g.get('status') else ''}"
+                f" — GoTo: {jumps} — Labels: {labels}\n"
+            )
+        if len(with_goto) > 20:
+            md.append(f"\n他 {len(with_goto) - 20} Sub 省略\n")
+
     if skipped:
-        md.append(f"\n## GoTo で飛び越えられる Open（候補）（{len(skipped)}件）\n\n")
+        md.append(f"\n## GoTo で飛び越えられる文（候補）（{len(skipped)}件）\n\n")
         md.append(
-            "> **静的近似・候補**（イベント数 0 の孤立注記と同型）。**到達不能と断定しない。**"
+            "> **静的近似・候補**。**到達不能と断定しない。**"
             " 同一 Sub 内で前方の `GoTo <Label>` と後方の `Label:` の間にある"
-            " `Open … As #…` を列挙する。**ソース順＝実行順と読まないこと。**\n"
+            " 注目文（ファイル I/O · `Call` · `Shell` · `Load`/`Unload` · `MsgBox`）を列挙。"
+            " Dim / 代入はノイズ回避のため出さない。**ソース順＝実行順と読まないこと。**\n"
             ">\n"
-            "> - **unconditional**: 素の `GoTo` — フォールスルーでは Open に届かない候補\n"
-            "> - **conditional**: `If … Then GoTo` / `Else GoTo` — その分岐では Open を飛ばす。"
-            "別分岐では到達しうるため保守的に候補扱い\n"
-            "> - **未対応 / 近似外**: `GoSub`/`Return`、スパン内への別ラベル入口、`Resume`、"
-            "複数入口の証明。`On Error GoTo` はハンドラ設定のため対象外\n\n"
+            "> - **unconditional**: 素の `GoTo` — フォールスルーではその文に届かない候補\n"
+            "> - **conditional**: `If … Then GoTo` / `Else GoTo` — その分岐では飛ばす。"
+            "別分岐では到達しうるため候補扱い\n"
+            "> - **未対応**: `GoSub`/`Return`、スパン内への別ラベル入口、`Resume`、"
+            "後方 GoTo、複数入口の証明。`On Error GoTo` は対象外\n\n"
         )
         md.append(
-            "| Sub | GoTo | 種別 | Label | Open | パス断片 |\n"
-            "|---|---|---|---|---|---|\n"
+            "| Sub | GoTo | 種別 | Label | kind | 文 | 断片 |\n"
+            "|---|---|---|---|---|---|---|\n"
         )
-        for f in skipped[:30]:
-            frag = (f.get("path_fragment") or "").replace("|", "\\|")
+        for f in skipped[:40]:
+            frag = (f.get("path_fragment") or f.get("stmt_text") or f.get("open_text") or "")
+            frag = frag.replace("|", "\\|")[:80]
+            stmt_ln = f.get("stmt_line") or f.get("open_line")
+            kind = f.get("stmt_kind") or "open"
             md.append(
                 f"| `{f['sub']}` | L{f['goto_line']} | {f['goto_kind']} | "
-                f"`{f['label']}:` L{f['label_line']} | L{f['open_line']} | `{frag}` |\n"
+                f"`{f['label']}:` L{f['label_line']} | `{kind}` | L{stmt_ln} | `{frag}` |\n"
             )
-        if len(skipped) > 30:
-            md.append(f"\n他 {len(skipped) - 30} 件省略\n")
+        if len(skipped) > 40:
+            md.append(f"\n他 {len(skipped) - 40} 件省略\n")
 
     if para_hits:
         md.append(f"\n## PARA（{len(para_hits)}箇所）\n\n")
@@ -946,7 +1122,6 @@ def main(argv: list[str] | None = None) -> int:
     api_names = extract_declared_apis(code_text, bas_text)
     data_paths = extract_data_paths(lines, api_names)
     para_hits = extract_para(lines)
-    goto_skipped_opens = find_goto_skipped_opens(lines, events)
 
     events = classify_events(
         events, code_text, bas_text, controls, form_name=form_info.get("name") or "",
@@ -958,6 +1133,8 @@ def main(argv: list[str] | None = None) -> int:
     controls = annotate_hidden_ancestor(controls)
     menu_findings = analyze_menus(controls, events)
     show_map = extract_show_map(events)
+    goto_skipped_stmts = find_goto_skipped_stmts(lines, events)
+    goto_label_maps = collect_goto_label_maps(lines, events)
 
     live_ctrls = [c for c in controls if c.get("live")]
     dead_ctrls = [c for c in controls if not c.get("live")]
@@ -979,13 +1156,14 @@ def main(argv: list[str] | None = None) -> int:
             print(f"Data {cat}: {len(items)} hits")
     if para_hits:
         print(f"PARA: {len(para_hits)} hits")
-    if goto_skipped_opens:
-        print(f"GoTo-skipped Open candidates: {len(goto_skipped_opens)}")
-        for f in goto_skipped_opens[:8]:
+    if goto_skipped_stmts:
+        print(f"GoTo-skipped stmt candidates: {len(goto_skipped_stmts)}")
+        for f in goto_skipped_stmts[:8]:
             print(
                 f"  {f['sub']}  GoTo L{f['goto_line']} ({f['goto_kind']}) -> "
-                f"{f['label']}: L{f['label_line']}  skips Open L{f['open_line']}  "
-                f"{f.get('path_fragment', '')[:60]}"
+                f"{f['label']}: L{f['label_line']}  skips [{f.get('stmt_kind')}] "
+                f"L{f.get('stmt_line')}  "
+                f"{(f.get('path_fragment') or f.get('stmt_text') or '')[:60]}"
             )
 
     if menu_findings:
@@ -1011,10 +1189,18 @@ def main(argv: list[str] | None = None) -> int:
 
     if not args.no_skeleton:
         skel = build_skeleton(form_info, controls)
+        style_block = form_show_style_block(form_info)
+        skel["show_style"] = style_block
         if menu_findings:
             skel["menu_warnings"] = menu_findings
         if show_map:
             skel["show_map"] = show_map
+        if goto_skipped_stmts:
+            skel["goto_skipped_stmts"] = goto_skipped_stmts
+        if goto_label_maps:
+            skel["goto_label_maps"] = [
+                g for g in goto_label_maps if g.get("gotos")
+            ]
         skel_path = pathlib.Path(skel_name)
         if not skel_path.is_absolute() and skel_path.parent == pathlib.Path("."):
             skel_path = SKELETONS / skel_path.name
@@ -1038,7 +1224,9 @@ def main(argv: list[str] | None = None) -> int:
         write_report(
             report_path, frm_path.name, form_info, controls, events, data_paths, para_hits,
             len(lines), menu_findings, show_map, source_label=source_label,
-            goto_skipped_opens=goto_skipped_opens,
+            goto_skipped_stmts=goto_skipped_stmts,
+            goto_label_maps=goto_label_maps,
+            show_style=form_show_style_block(form_info),
         )
         print(f"Report  -> {report_path}")
 

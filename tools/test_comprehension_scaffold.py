@@ -98,6 +98,7 @@ class TestComprehensionScaffold(unittest.TestCase):
         self.assertIn('data-tick="1"', text)
         self.assertIn('data-tick="2"', text)
         self.assertIn("Form2.frm L5-9", text)
+        self.assertIn("product_ui_notes", text)
         self.assertLess(text.index('data-tick="2"'), text.index(cs.TICKS_END))
 
     def test_tick_creates_skeleton_when_missing(self):

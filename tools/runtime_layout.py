@@ -170,6 +170,72 @@ def resolve_picture1_form(sub: str | None, file_vb: str | None) -> str | None:
     return None
 
 
+def mdi_chrome_settings(
+    cfg: dict | None = None,
+) -> tuple[list[str], list[str]]:
+    """Return (shell_forms, control_names) from ``mdi_chrome`` config.
+
+    Kit default is empty lists. Consumers set their MDI shell VB_Name(s) and
+    chrome control names (e.g. Picture1 / FG1 / fg2). No app Form names are
+    hard-coded in this tool.
+    """
+    raw = (cfg if cfg is not None else load_config()).get("mdi_chrome") or {}
+    if not isinstance(raw, dict):
+        return [], []
+    shells: list[str] = []
+    for name in raw.get("shell_forms") or []:
+        s = str(name).strip()
+        if s:
+            shells.append(s)
+    controls: list[str] = []
+    for name in raw.get("control_names") or []:
+        s = str(name).strip()
+        if s:
+            controls.append(s)
+    return shells, controls
+
+
+def primary_mdi_shell(cfg: dict | None = None) -> str | None:
+    """First configured MDI shell VB_Name, or None when unset."""
+    shells, _ = mdi_chrome_settings(cfg)
+    return shells[0] if shells else None
+
+
+def is_mdi_shell(name: str | None, shells: list[str] | None = None) -> bool:
+    """True when *name* matches a configured shell (case-insensitive)."""
+    if not name:
+        return False
+    if shells is None:
+        shells, _ = mdi_chrome_settings()
+    key = name.lower()
+    return any(s.lower() == key for s in shells)
+
+
+def object_has_chrome_control(obj: str, controls: list[str] | None = None) -> bool:
+    """True when *obj* path contains a configured chrome control segment."""
+    if controls is None:
+        _, controls = mdi_chrome_settings()
+    if not controls or not obj:
+        return False
+    parts = [p.split("(")[0].lower() for p in obj.replace(" ", "").split(".")]
+    wanted = {c.lower() for c in controls}
+    return any(p in wanted for p in parts)
+
+
+def is_mdi_chrome_target(target: str, shells: list[str] | None = None) -> bool:
+    """True when *target* is a configured shell or ``Shell.Ctrl`` under it."""
+    if shells is None:
+        shells, _ = mdi_chrome_settings()
+    if not target or not shells:
+        return False
+    t = target.lower()
+    for shell in shells:
+        s = shell.lower()
+        if t == s or t.startswith(s + "."):
+            return True
+    return False
+
+
 def read_cp932(path: pathlib.Path) -> str:
     return decode_vb6_bytes(path.read_bytes())
 
@@ -256,11 +322,13 @@ def classify(
         return "screen_adapt"
     if o in KNOWN_FORMS or obj.lower() == "me" and file_vb in KNOWN_FORMS:
         return "form_place"
-    if o in ("MDIForm1",) or obj.upper().startswith("MDIFORM"):
-        if "Picture1" in obj or obj == "MDIForm1":
+    shells, controls = mdi_chrome_settings()
+    # Configured MDI shell (bare Me/shell or shell.chromeCtrl)
+    if is_mdi_shell(o, shells) or is_mdi_shell(obj, shells):
+        if object_has_chrome_control(obj, controls) or is_mdi_shell(obj, shells):
             return "mdi_chrome"
-    # MDI chrome aliases (Picture1 / FG1 / fg2)
-    if "Picture1" in obj or "FG1" in obj or "fg2" in obj.lower():
+    # Chrome control names alone (consumer config; kit default empty)
+    if object_has_chrome_control(obj, controls):
         return "mdi_chrome"
     if re.search(r"[+\-*/]|Index|Cell|SCALE|Ratio|Width|Height|Left|Top", expr):
         if value is None:
@@ -402,10 +470,14 @@ def extract_file(path: pathlib.Path, file_vb: str) -> list[dict]:
             }:
                 continue
 
-            # MDI フォーム内の素の Picture1/fg1/fg2 → MDIForm1.<ctrl>
-            if file_vb == "MDIForm1" and "." not in obj:
-                if obj.lower() in {"picture1", "fg2", "fg1"}:
-                    obj = f"MDIForm1.{obj}"
+            # MDI シェル内の素の chrome コントロール → Shell.<ctrl>
+            shells, controls = mdi_chrome_settings()
+            if (
+                is_mdi_shell(file_vb, shells)
+                and "." not in obj
+                and object_has_chrome_control(obj, controls)
+            ):
+                obj = f"{file_vb}.{obj}"
 
             expr_clean = clean_assign_expr(expr)
             if prop.lower() == "visible":
@@ -488,13 +560,17 @@ def build_form_show_layout(
         # form target?
         target = row["target"]
         form = None
+        shells, controls = mdi_chrome_settings()
+        primary_shell = shells[0] if shells else None
         if target in forms:
             form = target
         elif row["object"].lower() == "me" and row["file_vb"] in forms:
             form = row["file_vb"]
-        elif target.startswith("MDIForm1.") or target == "MDIForm1":
-            # chrome — attach via near_show, else picture1_height_by_sub, else MDIForm1
-            if "Picture1" in target and prop == "Height":
+        elif is_mdi_chrome_target(target, shells):
+            # chrome — attach via near_show, else picture1_height_by_sub, else shell
+            # Height on a configured chrome control (often Picture1) → picture1Height
+            if prop == "Height" and object_has_chrome_control(target, controls):
+                height_prop = target.rsplit(".", 1)[-1] + ".Height"
                 ctx_forms = list(row.get("near_show") or [])
                 if not ctx_forms:
                     mapped = resolve_picture1_form(
@@ -502,21 +578,23 @@ def build_form_show_layout(
                     )
                     if mapped:
                         ctx_forms = [mapped]
-                for f in ctx_forms or ["MDIForm1"]:
+                fallback = [primary_shell] if primary_shell else []
+                for f in ctx_forms or fallback:
+                    if not f:
+                        continue
                     slot = ensure(f)
-                    # MDI 本体は大きい方、子コンテキストは小さい方を採用
-                    # （アプリ固有 Form 名のハードコードはしない）
+                    # シェル本体は大きい方、子コンテキストは小さい方を採用
                     prev = slot.get("picture1Height")
                     val = int(row["value"])
                     if prev is None:
                         slot["picture1Height"] = val
-                    elif f == "MDIForm1" and val > prev:
+                    elif is_mdi_shell(f, shells) and val > prev:
                         slot["picture1Height"] = val
-                    elif f != "MDIForm1" and val < prev:
+                    elif not is_mdi_shell(f, shells) and val < prev:
                         slot["picture1Height"] = val
                     slot["evidence"].append(
                         {
-                            "prop": "Picture1.Height",
+                            "prop": height_prop,
                             "value": val,
                             "file": row["file"],
                             "line": row["line"],
@@ -776,17 +854,23 @@ def build_code_control_moves(
 def build_mdi_defaults(form_layout: dict) -> dict | None:
     """Consumer `mdi_defaults` → slim JSON `mdiDefaults`（キット既定は空＝出力しない）。
 
-    left/height は config 優先、未指定なら form_layout の MDIForm1 窓座標へフォールバック。
+    left/height は config 優先、未指定なら form_layout の設定済み MDI シェル窓座標へ
+    フォールバック（``mdi_chrome.shell_forms`` の先頭）。シェル未設定ならフォールバックなし。
     Picture1 展開/縮退高さはアプリ固有のため config 必須。
     """
-    cfg = load_config().get("mdi_defaults")
+    full = load_config()
+    cfg = full.get("mdi_defaults")
     if not isinstance(cfg, dict) or not cfg:
         return None
     expanded = cfg.get("picture1HeightExpanded")
     collapsed = cfg.get("picture1HeightCollapsed")
     if expanded is None or collapsed is None:
         return None
-    mdi = form_layout.get("MDIForm1") or {}
+    mdi: dict = {}
+    for shell in mdi_chrome_settings(full)[0]:
+        if shell in form_layout:
+            mdi = form_layout[shell] or {}
+            break
     return {
         "left": cfg.get("left", mdi.get("left")),
         "height": cfg.get("height", mdi.get("height")),
@@ -1023,6 +1107,10 @@ def write_reports(
     md.append(
         "- 開経路の優先 Sub スコアは同 config の `layout_sub_scores`"
         "（アプリ固有名は消費者 config に書く。キット既定は form_load / mdiform_load のみ）\n"
+    )
+    md.append(
+        "- MDI chrome 帰属は同 config の `mdi_chrome`"
+        "（`shell_forms` / `control_names`。キット既定は空）\n"
     )
     md.append("- セル相対など動的式（`CellLeft` 等）はカタログのみ\n")
     md.append(

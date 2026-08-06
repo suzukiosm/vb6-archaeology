@@ -11,6 +11,8 @@ description: >-
 
 抽出済み VB6 プロジェクトから「VBP → ファイル → プロシージャ」の**確定事実のみ**のレポートを生成する。
 役割ラベル・呼び出し関係など推定情報は一切含めない（それらは vb6-comprehension の領分）。
+ただし Form の `MDIChild` / `Foo.Show [arg]` は**文面の事実**として `show_style` / `show_calls` に載せ、
+再実装の見せ方候補（断定しない）の入口にする。
 
 ## 前提
 
@@ -29,11 +31,13 @@ description: >-
 2. レポート上の次を確認する:
    - `missing_in_extract` / `not_in_vbp`
    - `warnings`（パス欠落の `Form=` / `Module=` / `Class=`）
+   - Form の `show_style` / outbound Show（目次列・専用節）
    - 任意で `--skip-parent-common` を使った場合は `skipped_parent_common`
 3. **機械検証必須**: `count mismatches: none` まで。
-4. HTML はローカル HTTP（`/serve-reports`）。
+4. HTML はローカル HTTP（`/serve-reports`）。短い抜粋は `python -m tools excerpt` または `/excerpt`。
 
 オプション詳細は `tools/README.md`（inventory 節）。VBP キーは `docs/reference/vbp-keys.md`。
+Show 規約: `docs/reimplementation-handoff.md`。
 
 ## 位置づけ
 

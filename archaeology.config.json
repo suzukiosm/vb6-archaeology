@@ -16,6 +16,10 @@
   "scan_skip_dirs": ["node_modules", ".next", ".git", "_archive", "__pycache__"],
   "geometry_hints": {},
   "mdi_defaults": {},
+  "mdi_chrome": {
+    "shell_forms": [],
+    "control_names": []
+  },
   "deep_read_name_map": {},
   "layout_sub_scores": {
     "form_load": 80,
@@ -31,6 +35,7 @@
     "scan": "scan_roots / scan_skip_dirs drive scan-chars. Protected dirs and path markers are skipped automatically, so they need not be repeated here.",
     "geometry_hints": "Optional map of FormName → {left,top,width,height} twips used when evaluating parent-relative runtime expressions.",
     "mdi_defaults": "Consumer-only. Emitted as mdiDefaults in runtime-layout.json for reimplementation; empty means the key is omitted. Keep app numbers in the consumer config.",
+    "mdi_chrome": "Consumer-only. shell_forms = MDI shell VB_Name(s); control_names = chrome controls (e.g. Picture1, FG1, fg2). Kit default empty — do not hardcode app shell names in tools. Common consumer example: shell_forms [\"MDIForm1\"], control_names [\"Picture1\", \"FG1\", \"fg2\"].",
     "deep_read_name_map": "Optional map of VB_Name → output key for frm_deep_read.py / frm_deep_read_all.py (e.g. {\"MDIForm1\": \"mdi\"}). Empty = lowercase VB_Name (not file stem).",
     "layout_sub_scores": "Optional map of lowercase Sub name → int score for runtime_layout open-path preference. Kit default is form_load/mdiform_load only. Put app-specific openers (e.g. stet_click) in the consumer config — do not upstream them into the kit.",
     "picture1_height_by_sub": "Optional map of lowercase Sub (or sub@file_vb) → Form VB_Name for Picture1.Height context when near_show is empty. Consumer-only; keep empty in the kit.",

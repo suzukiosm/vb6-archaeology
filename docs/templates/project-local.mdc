@@ -20,6 +20,6 @@ alwaysApply: true
 - VB6 テキストは **CP932**。内容判断は Python（`tools/`）経由。Cursor Read の化けを根拠にしない。
 - サイクル: **検証 → 理解 →（任意）実装**。使い捨て `working/_*.py` を増やさず `tools/` を改定。
 - セッション開始: `AGENTS.md` → `docs/ai-onboarding.md` → `docs/ai-dev-context.md` を Read。
-- 定型作業は `/vb6-extract` `/vb6-inventory` `/frm-deep-read` `/runtime-layout` `/vb6-comprehend` `/vb6-report` `/vb6-verify-reports` `/serve-reports` `/kit-smoke` から入る。ツール入口は `python -m tools <command>`。
+- 定型作業は `/vb6-extract` `/vb6-inventory` `/frm-deep-read` `/runtime-layout` `/vb6-comprehend` `/vb6-report` `/vb6-verify-reports` `/serve-reports` `/kit-smoke` から入る。ツール入口は `python -m tools <command>`（再実装抜粋は `excerpt` · serve `/excerpt`）。
 - 正典層: `AGENTS.md` / `docs/flow/_master.md` / `docs/ai-dev-context.md`。キット保守メモが別にある場合は `docs/kit-dev-context.md`。
 - 利用・複製は `LICENSE`（許諾前提）。保護は hooks（`.cursor/hooks.json`）でも強制される。

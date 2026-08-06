@@ -5,6 +5,7 @@ Reads an extracted VBP (CP932) and lists, per source file, every procedure
 definition found at line start. No call-graph guessing; only facts:
   - VBP metadata (Startup, Title, version, Object=, form/module/class in VBP order)
   - per file: VB_Name, form kind, controls (from the .frm header)
+  - per form: show_style candidate + Show statements (MDIChild / Foo.Show arg)
   - per procedure: kind, visibility, params, returns, line range, event role
 
 Outputs <stem>_inventory.json / .md / .html into working/reports/.
@@ -28,11 +29,12 @@ from lib.cache import load as cache_load  # noqa: E402
 from lib.cache import store as cache_store  # noqa: E402
 from lib.config import decode_vb6_bytes, reports_root  # noqa: E402
 from lib.console import enable_utf8_stdio  # noqa: E402
+from lib.show_style import parse_show_calls_in_line, self_show_style  # noqa: E402
 from lib.vbparse import iter_logical_lines  # noqa: E402
 
 # Bump when parse_* output shape or semantics change (invalidates the cache).
 # Suffix is part of the key (see inventory_file): .frm vs .bas parse differently.
-PARSER_VERSION = "inv-4"
+PARSER_VERSION = "inv-5"
 
 # VBP project metadata: lowercase match → canonical key for report consumers.
 VBP_META_CANON = {
@@ -245,6 +247,35 @@ def parse_form_header(lines: list[str]) -> tuple[str | None, list[dict]]:
         else:
             controls.append({"class": cls, "name": name})
     return form_kind, controls
+
+
+def scan_form_show_facts(lines: list[str], form_kind: str | None) -> dict:
+    """Facts-only Show / MDIChild scan for inventory (not a callgraph).
+
+    - ``self``: show_style candidate for *this* form (MDIChild / MDIForm kind)
+    - ``outbound``: every ``Foo.Show [arg]`` in the file with style hint
+    Dead/live classification is deep-read's job; inventory lists the statements.
+    """
+    mdi_child: bool | None = None
+    outbound: list[dict] = []
+    in_header = True
+    for i, line in enumerate(lines):
+        s = line.strip()
+        if VBNAME_RE.match(s):
+            in_header = False
+            continue
+        if in_header:
+            mm = re.match(r"MDIChild\s*=\s*(-?\d+)", s, re.IGNORECASE)
+            if mm:
+                mdi_child = mm.group(1) != "0"
+            continue
+        outbound.extend(parse_show_calls_in_line(line, i + 1))
+    self_block = self_show_style(mdi_child=mdi_child, form_kind=form_kind or "")
+    return {
+        "self": self_block,
+        "mdi_child": mdi_child,
+        "outbound": outbound,
+    }
 
 
 def parse_procedures(lines: list[str]) -> tuple[list[dict], list[dict]]:
@@ -463,10 +494,11 @@ def _parse_bytes(raw: bytes, path: Path) -> dict:
             break
     is_form = path.suffix.lower() == ".frm"
     form_kind, controls = parse_form_header(lines) if is_form else (None, [])
+    show_facts = scan_form_show_facts(lines, form_kind) if is_form else None
     procs, declares = parse_procedures(lines)
     decls = parse_declarations(lines)
     classify_events(procs, {c["name"] for c in controls}, is_form)
-    return {
+    out = {
         "file": path.name,
         "vb_name": vb_name,
         "form_kind": form_kind,
@@ -480,6 +512,11 @@ def _parse_bytes(raw: bytes, path: Path) -> dict:
         "events": decls["events"],
         "procedures": procs,
     }
+    if show_facts is not None:
+        out["show_style"] = show_facts["self"]
+        out["mdi_child"] = show_facts["mdi_child"]
+        out["show_calls"] = show_facts["outbound"]
+    return out
 
 
 def build_report(
@@ -553,6 +590,7 @@ def write_markdown(report: dict, out: Path) -> None:
         f"- Name: `{meta.get('Name', '?')}` / Version: `{ver}` / Command32: `{meta.get('Command32') or '—'}`",
         f"- ファイル: **{report['file_count']}**（VBP 記載順 Form→Module→Class） / プロシージャ合計: **{report['proc_total']}**",
         "- 行頭のプロシージャ定義のみを機械抽出（呼び出し推定なし）。行番号は抽出コピーの実ファイル基準。",
+        "- Form の `show_style` / `Show` 文は事実スキャン（`MDIChild`・`Foo.Show [arg]`）。呼び出し元グラフは作らない。",
         "",
     ]
     if report.get("objects"):
@@ -578,15 +616,58 @@ def write_markdown(report: dict, out: Path) -> None:
     L.append("")
     L.append("## 目次")
     L.append("")
-    L.append("| # | ファイル | 種別 | VB_Name | 行数 | コントロール | プロシージャ |")
-    L.append("|---:|---|---|---|---:|---:|---:|")
+    L.append("| # | ファイル | 種別 | VB_Name | show_style | Show出 | 行数 | Ctrl | Proc |")
+    L.append("|---:|---|---|---|---|---:|---:|---:|---:|")
     for i, f in enumerate(report["files"], 1):
         kind = file_kind_label(f)
+        if f.get("type") == "form":
+            style = (f.get("show_style") or {}).get("show_style", "unknown")
+            outbound = len(f.get("show_calls") or [])
+            style_cell = f"`{style}`"
+            out_cell = str(outbound)
+        else:
+            style_cell = "—"
+            out_cell = "—"
         L.append(
             f"| {i} | `{f['file']}` | {kind} | `{f['vb_name'] or '?'}` "
+            f"| {style_cell} | {out_cell} "
             f"| {f['total_lines']:,} | {f['control_count'] or '-'} | {len(f['procedures'])} |"
         )
     L.append("")
+
+    form_shows = [f for f in report["files"] if f.get("type") == "form"]
+    if form_shows:
+        L.append("## show_style / Show 文（Form・事実）")
+        L.append("")
+        L.append(
+            "> ヒューリスティック候補。断定しない。詳細・ライブ限定は deep-read。"
+            " 規約: `docs/reimplementation-handoff.md`。"
+        )
+        L.append("")
+        L.append("| Form | file | self | MDIChild | outbound |")
+        L.append("|---|---|---|---|---|")
+        for f in form_shows:
+            style = (f.get("show_style") or {}).get("show_style", "unknown")
+            mdi = f.get("mdi_child")
+            mdi_s = "—" if mdi is None else ("True" if mdi else "False")
+            outs = f.get("show_calls") or []
+            if outs:
+                bits = []
+                for c in outs[:8]:
+                    arg = c.get("arg") or "—"
+                    bits.append(
+                        f"`{c['target']}`/{arg}/`{c.get('show_style', 'unknown')}`@L{c['line']}"
+                    )
+                more = f" …+{len(outs) - 8}" if len(outs) > 8 else ""
+                out_s = ", ".join(bits) + more
+            else:
+                out_s = "—"
+            L.append(
+                f"| `{f.get('vb_name') or '?'}` | `{f['file']}` | `{style}` "
+                f"| {mdi_s} | {out_s} |"
+            )
+        L.append("")
+
     for f in report["files"]:
         kind = file_kind_label(f)
         L.append(f"## {f['file']} — `{f['vb_name'] or '?'}`（{kind}, {f['total_lines']:,} 行）")
@@ -681,13 +762,44 @@ def write_html(report: dict, out: Path) -> None:
 
     toc_rows = []
     sections = []
+    show_rows = []
     for i, f in enumerate(report["files"], 1):
         kind = file_kind_label(f)
         anchor = f"f{i}"
+        if f.get("type") == "form":
+            style = (f.get("show_style") or {}).get("show_style", "unknown")
+            outbound_n = len(f.get("show_calls") or [])
+            style_cell = f"<code>{e(style)}</code>"
+            out_cell = str(outbound_n)
+            mdi = f.get("mdi_child")
+            mdi_s = "—" if mdi is None else ("True" if mdi else "False")
+            outs = f.get("show_calls") or []
+            if outs:
+                bits = []
+                for c in outs[:8]:
+                    arg = c.get("arg") or "—"
+                    bits.append(
+                        f"<code>{e(c['target'])}</code>/{e(arg)}/"
+                        f"<code>{e(c.get('show_style', 'unknown'))}</code>@L{c['line']}"
+                    )
+                more = f" …+{len(outs) - 8}" if len(outs) > 8 else ""
+                out_s = ", ".join(bits) + more
+            else:
+                out_s = "—"
+            show_rows.append(
+                f"<tr><td><code>{e(f.get('vb_name') or '?')}</code></td>"
+                f"<td><code>{e(f['file'])}</code></td>"
+                f"<td><code>{e(style)}</code></td>"
+                f"<td>{e(mdi_s)}</td><td>{out_s}</td></tr>"
+            )
+        else:
+            style_cell = "—"
+            out_cell = "—"
         toc_rows.append(
             f"<tr class='tocrow' data-for='{anchor}'><td class='num'>{i}</td>"
             f"<td><a href='#{anchor}'><code>{e(f['file'])}</code></a></td>"
             f"<td>{e(kind)}</td><td><code>{e(f['vb_name'] or '?')}</code></td>"
+            f"<td>{style_cell}</td><td class='num'>{out_cell}</td>"
             f"<td class='num'>{f['total_lines']:,}</td>"
             f"<td class='num'>{f['control_count'] or '-'}</td>"
             f"<td class='num'>{len(f['procedures'])}</td></tr>"
@@ -804,7 +916,7 @@ summary{{cursor:pointer;padding:.3rem 0}}
 <p class="meta">Startup: <code>{e(meta.get('Startup', '?'))}</code> ／ Title: <code>{e(meta.get('Title', '?'))}</code> ／ Exe: <code>{e(meta.get('ExeName32', '?'))}</code><br>
 Name: <code>{e(meta.get('Name', '?'))}</code> ／ Version: <code>{e(ver)}</code> ／ Command32: <code>{e(meta.get('Command32') or '—')}</code>{obj_html}<br>
 ファイル {report['file_count']}（VBP 記載順 Form→Module→Class） ／ プロシージャ合計 {report['proc_total']}。
-行頭のプロシージャ定義のみを機械抽出（呼び出し推定なし）。行番号は working/extracts の実ファイル基準。</p>
+行頭のプロシージャ定義のみを機械抽出（呼び出し推定なし）。Form の show_style / Show 文は事実スキャン。行番号は working/extracts の実ファイル基準。</p>
 {warn_html}
 <div class="toolbar">
   <input id="q" type="search" placeholder="検索: ファイル名 / VB_Name / プロシージャ名 / Const / Enum …" autocomplete="off">
@@ -813,8 +925,9 @@ Name: <code>{e(meta.get('Name', '?'))}</code> ／ Version: <code>{e(ver)}</code>
   <span class="count" id="count"></span>
 </div>
 <h2>目次</h2>
-<table><tr><th>#</th><th>ファイル</th><th>種別</th><th>VB_Name</th><th>行数</th><th>Ctrl</th><th>Proc</th></tr>
+<table><tr><th>#</th><th>ファイル</th><th>種別</th><th>VB_Name</th><th>show_style</th><th>Show出</th><th>行数</th><th>Ctrl</th><th>Proc</th></tr>
 {''.join(toc_rows)}</table>
+{"<h2>show_style / Show 文（Form・事実）</h2><p class='meta'>ヒューリスティック候補。詳細は deep-read / excerpt。</p><table><tr><th>Form</th><th>file</th><th>self</th><th>MDIChild</th><th>outbound</th></tr>" + ''.join(show_rows) + "</table>" if show_rows else ""}
 <h2>ファイル別詳細</h2>
 {''.join(sections)}
 <script>

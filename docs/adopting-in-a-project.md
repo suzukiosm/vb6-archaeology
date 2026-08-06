@@ -33,6 +33,8 @@ docs/methodology.md
 docs/workflow.md
 docs/flow/_master.md         # アプリ目標に合わせて改稿
 docs/ai-onboarding.md        # パスだけ合わせてよい
+docs/reimplementation-handoff.md  # 再実装レーンがあるとき
+docs/QUICKREF.md
 docs/templates/              # 初回コピー元
 ```
 
@@ -97,6 +99,10 @@ docs/templates/              # 初回コピー元
   "deep_read_name_map": {
     "MDIForm1": "mdi"
   },
+  "mdi_chrome": {
+    "shell_forms": ["MDIForm1"],
+    "control_names": ["Picture1", "FG1", "fg2"]
+  },
   "layout_sub_scores": {
     "form_load": 80,
     "mdiform_load": 80,
@@ -113,6 +119,7 @@ docs/templates/              # 初回コピー元
 - `skeletons_dir` 既定は `working/skeletons`
 - `geometry_hints` は親フォーム相対の実行時式を数値化するときだけ使う（任意）
 - `deep_read_name_map` は deep-read の出力キー特例（任意。空なら VB_Name 小文字。ファイル stem ではない）
+- `mdi_chrome` は layout の MDI シェル名・chrome コントロール名（任意。**キット既定は空**）。シェルが `MDIForm1` でないアプリは自名を書く。上例はよくある共通デフォルト
 - `layout_sub_scores` は layout の開経路優先（任意）。**自アプリの開経路 Sub は消費者 config に書く**（キット既定へ戻さない）
 - `picture1_height_by_sub` は `near_show` が空のとき Picture1.Height をどの Form に帰属させるか（任意。キーは小文字 Sub、または `sub@file_vb`）
 - `verify_report_allow_files` は inventory 外のモジュール名を名前照合で許可するリスト（任意）
@@ -143,8 +150,49 @@ docs/templates/              # 初回コピー元
 2. エージェント手順が必要なら [`templates/frm-audit-skill.md`](templates/frm-audit-skill.md) を  
    消費者の `.cursor/skills/vb6-frm-audit/SKILL.md` にコピーし、抽出パス等だけ書き換える  
    （キット commands への必須追加はしない。自リポで任意 command を足してよい）
+3. 製品面に進む前に [`reimplementation-handoff.md`](reimplementation-handoff.md) を通す  
+   （調査 tick の厚さと製品 UI 完了は別。Show の取り違え・VB 文言の直出しを防ぐ）
 
 テンプレ一覧: [`templates/README.md`](templates/README.md)
+
+## データ I/O ミラー方針（再実装消費者）
+
+キット hooks は VB6 **正本**を守る。業務データの本番ツリー直書き抑止はキット責務外だが、再実装リポではほぼ必須。
+
+| 操作 | 既定 |
+|---|---|
+| 読取 | 本番パス可（突合・調査） |
+| 書込 | ミラー（例: `working/data_mirror/`） |
+| 本番書込 | 明示フラグ（環境変数等）が無い限り hooks で deny |
+
+サンプル（パス・変数名はプレースホルダ）:  
+[`templates/consumer-data-guards.example.md`](templates/consumer-data-guards.example.md)
+
+採用時: 消費者 `.cursor/hooks/` に改稿して入れる。キットの `protect_source` と併用する（置換しない）。
+
+## smoke の層（キット / 業務）
+
+- キットの `python -m tools smoke`（および `smoke --kit-only`）は **フィクスチャ + キット unittest** のみ
+- 消費者は同じ入口の**後段**に業務 unittest を足してよい
+- 業務を足した消費者がキット層だけ回すとき: `python -m tools smoke --kit-only`
+
+キット本体に業種ドメインのテストは載せない。
+
+## 長セッション手渡し
+
+- [`templates/CURRENT.md`](templates/CURRENT.md) → 消費者 `working/CURRENT.md`（上書き正本）
+- フェーズ境界で Compact（CURRENT の手順どおり）。長い事実は `docs/ai-dev-context.md`
+- 調査 Stop と製品 UI Stop を CURRENT 上で分けて書く
+
+## 消費者実戦ノート（delivery_slip 由来）
+
+納品書Ⅱ → Next.js 再実装でのフルサイクル運用から、キット境界で効いたこと:
+
+- **維持**: inventory 正 + verify-names、protect の tools/hooks 共有、CP932、comprehend の inventory 外名拒否、layout 必須
+- **製品面ギャップ**: tick が厚くても VB 証跡文言・拠点名・二重ステータスが製品に残る → [`reimplementation-handoff.md`](reimplementation-handoff.md)
+- **Show**: モーダル相当をフルページ遷移にすると呼び出し元が消える → `show_style` を Form ごとに明示
+- **データ**: 正本 protect に加え、本番データ書込を hooks + WriteMode で抑止（上節）
+- **やらない（キット）**: Next コンポーネント同梱、Win95/モダン CSS、業種ドメイン、拠点分岐の一般化
 
 ## 境界
 
@@ -152,4 +200,5 @@ docs/templates/              # 初回コピー元
 |---|---|
 | 方法論・hooks・汎用抽出 | 業務知識・DAT 契約 |
 | inventory / deep-read | 画面配線・UX 差分 |
-| 事実レポートの型 | 「今どこまで終わったか」（`ai-dev-context.md`） |
+| 事実レポートの型 · ハンドオフチェックリスト | 「今どこまで終わったか」（`ai-dev-context.md` · `working/CURRENT.md`） |
+| 操作契約の証拠 | 製品文言・デザインシステム |

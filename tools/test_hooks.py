@@ -136,5 +136,14 @@ class TestMarkersForOffRepoOriginals(unittest.TestCase):
         )
 
 
+class TestSessionContext(unittest.TestCase):
+    def test_mentions_runtime_layout_and_excerpt(self) -> None:
+        out = run_hook("session_context.py", {})
+        ctx = out.get("additional_context") or ""
+        self.assertIn("/runtime-layout", ctx)
+        self.assertIn("excerpt", ctx)
+        self.assertIn("AGENTS.md", ctx)
+
+
 if __name__ == "__main__":
     unittest.main()

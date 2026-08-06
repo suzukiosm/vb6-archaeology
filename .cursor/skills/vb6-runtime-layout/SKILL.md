@@ -41,5 +41,6 @@ python -m tools layout --extract working\extracts\<stem>
 - `--extract` 未指定時は `working/extracts/` 下が一意ならそれを使う
 - Show 文脈は Sub 境界でリセットされる。別 Sub の Show を根拠にしない
 - 開経路スコアの既定は `form_load` / `mdiform_load` のみ。**アプリ固有の開経路 Sub は消費者 config にだけ書く**（キットへ還元しない）
+- MDI chrome（シェル名・Picture1/FG 等）は `mdi_chrome`。**キット既定は空**。消費者 config に書く
 - 座標式が親フォーム相対のときは `geometry_hints` を与えると数値化できる
 - 設計時座標と実行時座標が食い違うときは、両方をレポートに残す（片方を消さない）

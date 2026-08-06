@@ -66,6 +66,7 @@ def run_pipeline() -> None:
             "C",
         ],
     )
+    run_step("excerpt", ["excerpt", "--inventory", str(INV_JSON)])
     # Reports are only trustworthy if every name in them exists in the inventory,
     # so the name check runs after every report has been generated.
     run_step("verify-names", ["verify-names", "--inventory", str(INV_JSON)])
@@ -88,9 +89,18 @@ def run_unit_tests() -> None:
 
 def main(argv: list[str] | None = None) -> int:
     enable_utf8_stdio()
-    argparse.ArgumentParser(
+    ap = argparse.ArgumentParser(
         description="Kit self-check: fixture pipeline + unit tests"
-    ).parse_args(argv)
+    )
+    # Consumers that append business tests to smoke should gate them behind
+    # the absence of --kit-only. The kit itself is always fixture-only.
+    ap.add_argument(
+        "--kit-only",
+        action="store_true",
+        help="Run fixture pipeline + kit unittests only (default behavior here; "
+        "consumers use this flag to skip business-test stages they add)",
+    )
+    ap.parse_args(argv)
     run_pipeline()
     run_unit_tests()
     print("kit_smoke: OK")

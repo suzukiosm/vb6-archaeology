@@ -6,7 +6,9 @@ from pathlib import Path
 
 from tools.frm_deep_read import (
     annotate_hidden_ancestor,
+    collect_goto_label_maps,
     find_goto_skipped_opens,
+    find_goto_skipped_stmts,
     resolve_deep_read_out_key,
     write_report,
 )
@@ -209,15 +211,60 @@ class GotoSkippedOpenTests(unittest.TestCase):
                 len(lines),
                 [],
                 [],
-                goto_skipped_opens=hits,
+                goto_skipped_stmts=hits,
             )
             text = path.read_text(encoding="utf-8")
-        self.assertIn("GoTo で飛び越えられる Open（候補）", text)
+        self.assertIn("GoTo で飛び越えられる文（候補）", text)
         self.assertIn("静的近似", text)
         self.assertIn("断定しない", text)
         self.assertIn("ソース順＝実行順と読まないこと", text)
         self.assertIn("unconditional", text)
         self.assertIn("skip.dat", text)
+
+    def test_skips_call_and_kill(self) -> None:
+        lines = _frm_lines(
+            "Private Sub Form_Load()",
+            "    GoTo Done",
+            '    Kill App.Path & "\\tmp.dat"',
+            "    Call Helper",
+            "Done:",
+            "End Sub",
+        )
+        hits = find_goto_skipped_stmts(lines)
+        kinds = {h["stmt_kind"] for h in hits}
+        self.assertEqual(kinds, {"kill", "call"})
+
+    def test_dim_not_flagged_as_skip(self) -> None:
+        lines = _frm_lines(
+            "Private Sub Form_Load()",
+            "    GoTo Done",
+            "    Dim x As Long",
+            "    x = 1",
+            "Done:",
+            "End Sub",
+        )
+        self.assertEqual(find_goto_skipped_stmts(lines), [])
+
+    def test_label_map_lists_gotos(self) -> None:
+        lines = _frm_lines(
+            "Private Sub Form_Load()",
+            "    GoTo Done",
+            "    Dim x As Long",
+            "Done:",
+            "End Sub",
+        )
+        events = [
+            {
+                "name": "Form_Load",
+                "status": "live",
+                "start_line": 3,
+                "end_line": 7,
+            }
+        ]
+        maps = collect_goto_label_maps(lines, events)
+        self.assertEqual(len(maps), 1)
+        self.assertEqual(maps[0]["gotos"][0]["target"], "Done")
+        self.assertEqual(maps[0]["labels"][0]["name"], "done")
 
 
 if __name__ == "__main__":

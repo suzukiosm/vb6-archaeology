@@ -30,6 +30,10 @@ VALID = {
     "geometry_hints": {"MDIForm1": {"left": 0, "top": 0, "height": 13550, "width": 0}},
     "deep_read_name_map": {"MDIForm1": "mdi"},
     "layout_sub_scores": {"form_load": 80, "stet_click": 75},
+    "mdi_chrome": {
+        "shell_forms": ["MDIForm1"],
+        "control_names": ["Picture1", "FG1", "fg2"],
+    },
     "picture1_height_by_sub": {"hyouji": "Form7"},
     "verify_report_allow_files": ["shared.bas"],
     "notes": {"consumer": "app tree"},

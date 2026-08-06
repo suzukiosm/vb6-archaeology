@@ -13,7 +13,8 @@ python -m tools smoke
 
 成功条件:
 
-- config-check / extract / inventory / verify（End 数・名前集合）/ deep-read / deep-read-all / layout / comprehend / scan-chars が例外なく終了
+- config-check / extract / inventory / verify（End 数・名前集合）/ deep-read / deep-read-all / layout / comprehend / excerpt / scan-chars が例外なく終了
+- 消費者リポで業務テストを足しているときは `python -m tools smoke --kit-only` でキット層だけ回せる
 - `count mismatches: none` · `name mismatches: none`
 - `python -m unittest discover -s tools -p "test_*.py"` 相当がすべて成功
 - `working/reports/` と `working/skeletons/` に成果が出る

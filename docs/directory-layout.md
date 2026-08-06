@@ -8,7 +8,7 @@ vb6-archaeology/
 ├── SECURITY.md
 ├── CHANGELOG.md
 ├── LICENSE
-├── archaeology.config.json   # 保護 dir・出力先
+├── archaeology.config.json   # 保護 dir・出力先・layout hints（mdi_chrome 等）
 ├── schema/
 │   └── archaeology.config.schema.json   # 上記設定の JSON Schema
 ├── source/                   # 読取専用正本（既定）
@@ -16,7 +16,7 @@ vb6-archaeology/
 │   └── mini_vbp/             # スモーク用フィクスチャ
 ├── working/
 │   ├── extracts/<stem>/      # 切り出し
-│   ├── reports/              # 調査成果
+│   ├── reports/              # 調査成果（inventory / deep_read / excerpt 等）
 │   └── skeletons/            # Form skeleton / runtime-layout.json
 ├── tools/
 │   ├── README.md
@@ -26,6 +26,8 @@ vb6-archaeology/
 │   ├── lib/
 │   │   ├── config.py
 │   │   ├── config_schema.py
+│   │   ├── console.py
+│   │   ├── show_style.py
 │   │   ├── vbparse.py
 │   │   └── cache.py
 │   ├── extract_vbp.py
@@ -36,6 +38,7 @@ vb6-archaeology/
 │   ├── frm_deep_read_all.py
 │   ├── runtime_layout.py
 │   ├── comprehension_scaffold.py
+│   ├── reimpl_excerpt.py
 │   ├── serve_reports.py
 │   ├── frm_lines.py
 │   ├── scan_control_chars.py
@@ -44,6 +47,7 @@ vb6-archaeology/
 │   ├── README.md             # 本ディレクトリの索引
 │   ├── ai-onboarding.md      # AI 必読（AGENTS の次）
 │   ├── kit-dev-context.md    # キット保守（消費者 ai-dev-context ではない）
+│   ├── reimplementation-handoff.md
 │   ├── methodology.md
 │   ├── workflow.md
 │   ├── adopting-in-a-project.md
@@ -70,4 +74,5 @@ vb6-archaeology/
 書込禁止: `protected_source_dirs` 配下。
 
 定型入口（commands）: `/vb6-extract` · `/vb6-inventory` · `/frm-deep-read` · `/runtime-layout` · `/vb6-comprehend` · `/vb6-report` · `/vb6-verify-reports` · `/serve-reports` · `/kit-smoke`。  
+CLI のみ: `python -m tools excerpt` · `python -m tools config-check`。  
 ツール入口: `python -m tools <command>`（一覧は `python -m tools --help`）。

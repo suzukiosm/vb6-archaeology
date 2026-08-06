@@ -32,12 +32,15 @@ python -m tools layout --extract working\extracts\mini_vbp
 ```powershell
 python -m tools serve
 # http://127.0.0.1:8765/mini_vbp_inventory.html
+# http://127.0.0.1:8765/excerpt   （再実装向け抜粋。静的生成は python -m tools excerpt）
 ```
 
 自己点検（パイプライン + テスト）:
 
 ```powershell
 python -m tools smoke
+# 消費者リポで業務テストを足しているとき、キット層だけ:
+# python -m tools smoke --kit-only
 ```
 
 ## AI エージェントへ
@@ -50,7 +53,8 @@ python -m tools smoke
 ## ドキュメント
 
 索引: [`docs/README.md`](docs/README.md)  
-採用: [`docs/adopting-in-a-project.md`](docs/adopting-in-a-project.md) · 貢献: [`CONTRIBUTING.md`](CONTRIBUTING.md)
+採用: [`docs/adopting-in-a-project.md`](docs/adopting-in-a-project.md) · 貢献: [`CONTRIBUTING.md`](CONTRIBUTING.md)  
+再実装の製品面: [`docs/reimplementation-handoff.md`](docs/reimplementation-handoff.md)（調査完了 ≠ UI 完了）
 
 ## レイアウト
 
@@ -63,7 +67,7 @@ tools/                  # 再利用 CLI（python -m tools）
 docs/                   # 方法論・採用ガイド・テンプレ
 schema/                 # archaeology.config.json の JSON Schema
 .cursor/                # rules / skills / commands / hooks
-archaeology.config.json # 保護ディレクトリ・出力先
+archaeology.config.json # 保護 dir・出力先・layout hints（mdi_chrome 等）
 ```
 
 ## 他リポへの採用

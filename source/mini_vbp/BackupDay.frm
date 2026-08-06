@@ -5,6 +5,7 @@ Begin VB.Form Form12
    ClientWidth     =   3000
    Height          =   2400
    Left            =   120
+   MDIChild        =   -1  'True
    Top             =   120
    Width           =   3120
    Begin VB.CommandButton Command1

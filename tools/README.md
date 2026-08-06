@@ -33,9 +33,10 @@ python -m tools --version
 | `comprehend` | `comprehension_scaffold.py` | 理解レポートの骨格生成・tick 追記（inventory 外の名前は拒否） | `working/reports/<stem>_comprehension.html` |
 | `lines` | `frm_lines.py` | CP932 ソースの行番号つき表示 | stdout |
 | `scan-chars` | `scan_control_chars.py` | PS バッククォート由来の制御文字検出 | stdout（hits=0 で exit 0） |
-| `serve` | `serve_reports.py` | レポートをローカル HTTP 配信 | 127.0.0.1:`reports_http_port` |
+| `excerpt` | `reimpl_excerpt.py` | 再実装向け抜粋 HTML（Form · Show · 未 tick） | `working/reports/<stem>_reimpl_excerpt.html` |
+| `serve` | `serve_reports.py` | レポート配信 + `/excerpt` 動的抜粋（`file://` 不可） | 127.0.0.1:`reports_http_port` |
 | `fixture` | `make_fixture.py` | スモーク用ミニ VBP（CP932） | `source/mini_vbp/` |
-| `smoke` | `kit_smoke.py` | キット自己点検（パイプライン + unittest） | stdout（失敗時非ゼロ） |
+| `smoke` | `kit_smoke.py` | キット自己点検（パイプライン + unittest）。`--kit-only` は消費者拡張時にキット層だけ回すフラグ（キット本体では既定と同じ） | stdout（失敗時非ゼロ） |
 
 ## 共有ライブラリ
 
@@ -82,6 +83,7 @@ python -m tools scan-chars
 - `default_extract` — `--extract` 省略時に使う extract 名（複数 extract を持つ消費者向け）
 - `scan_roots` / `scan_skip_dirs` — `scan-chars` の走査対象。保護ディレクトリとマーカーは自動で除外される
 - `mdi_defaults` — 消費者専用。設定時のみ `runtime-layout.json` に `mdiDefaults` を出す
+- `mdi_chrome` — 消費者専用。`shell_forms`（MDI シェル VB_Name）と `control_names`（chrome コントロール）。**キット既定は空**。layout の `mdi_chrome` 分類・Bare 正規化・Picture1.Height 帰属に使う。よくある例: `["MDIForm1"]` + `["Picture1","FG1","fg2"]`
 
 - `geometry_hints` で親フォーム相対式を数値化できる（任意）
 - `layout_sub_scores` — `layout` の開経路優先 Sub → int スコア（キーは小文字）

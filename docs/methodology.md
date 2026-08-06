@@ -42,13 +42,15 @@
 - `frm_deep_read.py` は **対象 .frm 単体**の解析。他 .frm/.bas からの参照（`Show` 呼び元・外部操作）は見えない
 - イベント数 0 を「孤立・到達不能」と即断しない
 - 親が `VB.Frame` / `VB.PictureBox` で設計時 `Visible=0` かつコード非参照（dead container）のとき、子孫に `ancestor_hidden` / `ancestor_hidden_by` が付く（実行時非表示相当）
-- 同一 Sub 内で前方 `GoTo` が `Open … As #` を飛び越す場合、deep-read が到達不能候補として出す（静的近似。ソース順＝実行順と読まない）
+- 同一 Sub 内で前方 `GoTo` が注目文（`Open` / ファイル I/O / `Call` 等）を飛び越す場合、deep-read が到達不能**候補**として出す（静的近似。ソース順＝実行順と読まない。デッド確定にしない）
+- Sub 内の GoTo / ラベル地図も deep-read に出す（事実のみ）
 
 ## 再実装消費者向け（任意・1段落）
 
 意図的未移植（外部 EXE・実機連携等）と取りこぼしを監査で区別する。  
 .frm 再監査の型: `docs/templates/frm-audit.md`（採用手順は `docs/adopting-in-a-project.md`）。  
-詳細の実装・棚卸し表は消費者リポ側。キットは証拠抽出まで。
+製品面チェックリスト · Show パターン: `docs/reimplementation-handoff.md`。  
+横断の短い抜粋: `python -m tools excerpt`。詳細の実装・棚卸し表は消費者リポ側。キットは証拠抽出まで。
 
 ## レポートの正（canon）
 
@@ -57,7 +59,8 @@
 | 構成 | `<stem>_inventory.*` | `vb6_inventory.py` |
 | 抽出 | `working/extracts/<stem>/` | `extract_vbp.py` |
 | Form 深読み | `*_deep_read.md` + skeleton | `frm_deep_read.py` |
-| 実行時座標 | `runtime_layout.*` | `runtime_layout.py` |
+| 実行時座標 | `runtime_layout.*` | `runtime_layout.py`（MDI chrome は `mdi_chrome` config） |
+| 再実装抜粋 | `<stem>_reimpl_excerpt.html` | `reimpl_excerpt.py` |
 | ツール索引 | `tools/README.md` | 人手 |
 | セッション現状（消費者） | `docs/ai-dev-context.md` | 人手 |
 | キット保守 | `docs/kit-dev-context.md` | 人手 |

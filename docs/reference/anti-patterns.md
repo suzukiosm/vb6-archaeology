@@ -14,5 +14,9 @@
 | 9 | 到達不能 Form を必須機能扱い | 証拠を残して除外 or Dev 専用と明記 |
 | 9b | `frm_deep_read` のイベント 0 を孤立・到達不能と即断する | 本ツールは .frm 単体解析。他 .frm/.bas からの `Show` / 操作は見えない |
 | 9c | 親 Frame/PictureBox が `Visible=0` かつコード未参照なのに子孫を必須 UI にする | `ancestor_hidden` を確認し実行時非表示相当として扱う |
-| 9d | deep-read の Open 列挙をソース順＝実行順と読む（GoTo 飛び越しを無視） | 「GoTo で飛び越えられる Open（候補）」節を確認。条件付き GoTo でもその分岐では Open に届かない |
-| 10 | 完了を信用して再監査しない | gap 再監査を定例化 |
+| 9d | deep-read の文列挙をソース順＝実行順と読む（GoTo 飛び越しを無視） | 「GoTo で飛び越えられる文（候補）」「GoTo / ラベル地図」を確認。条件付き GoTo でもその分岐では届かない |
+| 9e | GoTo 飛び越え候補を「デッド確定」とレポートする | 候補のまま残す。断定は tick で証拠つき。`On Error` / 後方 GoTo / GoSub は未対応と知る |
+| 10 | デザイナ座標だけで runtime UI を確定する | `/runtime-layout` も見る。両方をレポートに残す |
+| 11 | キット `tools/` に自アプリの MDI シェル名・chrome 名をハードコードする | `archaeology.config.json` の `mdi_chrome`（キット既定は空） |
+| 12 | 素の `.Show` / `unknown` を機械的に `navigate` とみなす | 合意があるときだけ `navigate`。横断一覧は `excerpt` |
+| 13 | 完了を信用して再監査しない | gap 再監査を定例化。製品面は `reimplementation-handoff.md` |

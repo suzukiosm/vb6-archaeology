@@ -251,5 +251,62 @@ Module=Ok; Ok.bas
         self.assertIn("{12345}", got["objects"][0]["raw"])
 
 
+class ShowFactsTests(unittest.TestCase):
+    def test_mdi_child_and_vbmodal_outbound(self) -> None:
+        src = """\
+VERSION 5.00
+Begin VB.Form Form12
+   Caption         =   "x"
+   MDIChild        =   -1  'True
+End
+Attribute VB_Name = "Form12"
+Private Sub Command1_Click()
+    Form1.Show vbModal
+End Sub
+"""
+        facts = inv.scan_form_show_facts(src.splitlines(), "VB.Form")
+        self.assertTrue(facts["mdi_child"])
+        self.assertEqual(facts["self"]["show_style"], "mdi_child")
+        self.assertEqual(len(facts["outbound"]), 1)
+        self.assertEqual(facts["outbound"][0]["target"], "Form1")
+        self.assertEqual(facts["outbound"][0]["show_style"], "modal_overlay")
+
+    def test_inventory_file_includes_show_fields(self) -> None:
+        frm = """\
+VERSION 5.00
+Begin VB.Form Form1
+   Caption = "F"
+End
+Attribute VB_Name = "Form1"
+Private Sub Command1_Click()
+    Form12.Show vbModal
+End Sub
+"""
+        with tempfile.TemporaryDirectory() as td:
+            path = Path(td) / "Form1.frm"
+            path.write_bytes(frm.encode("cp932"))
+            info = inv.inventory_file(path, use_cache=False)
+        self.assertEqual(info["show_style"]["show_style"], "unknown")
+        self.assertEqual(info["show_calls"][0]["show_style"], "modal_overlay")
+        with tempfile.TemporaryDirectory() as td:
+            out = Path(td) / "inv.md"
+            inv.write_markdown(
+                {
+                    "vbp": "t.vbp",
+                    "meta": {},
+                    "file_count": 1,
+                    "proc_total": 1,
+                    "objects": [],
+                    "missing_in_extract": [],
+                    "not_in_vbp": [],
+                    "files": [{**info, "type": "form"}],
+                },
+                out,
+            )
+            md = out.read_text(encoding="utf-8")
+        self.assertIn("show_style / Show 文", md)
+        self.assertIn("modal_overlay", md)
+
+
 if __name__ == "__main__":
     unittest.main()

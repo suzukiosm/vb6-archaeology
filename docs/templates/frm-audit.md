@@ -16,6 +16,7 @@
 | 項目 | 結果 | 証拠 |
 |---|---|---|
 | UI から開けるか | 到達可 / 不能 / 未確認 | 〈Show・メニュー Enabled・親 Visible 等〉 |
+| `show_style`（再実装） | `mdi_child` / `modal_overlay` / `navigate` / 未確認 | 〈`vbModal` · MDIChild · 合意〉 — [`../reimplementation-handoff.md`](../reimplementation-handoff.md) |
 | イベント 0 の扱い | 即断しない（.frm 単体解析の限界） | deep-read 注記 / 他 Form からの操作 |
 | `ancestor_hidden` | 有 / 無 | skeleton または deep-read |
 
@@ -33,6 +34,7 @@
 - Invisible / Disabled / Click 無しメニューを現役扱いしていないか
 - inventory に無いファイル名・Sub 名を書いていないか
 - デッドコンテナ配下（`ancestor_hidden`）を必須 UI にしていないか
+- **GoTo**: deep-read の「飛び越え候補」「ラベル地図」を見たか。ソース順＝実行順と読んでいないか。候補をデッド**確定**にしていないか
 
 | 所見 | 種別 | 証拠 |
 |---|---|---|

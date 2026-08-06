@@ -66,6 +66,10 @@ COMMANDS: dict[str, Command] = {
         "tools.comprehension_scaffold",
         "Create the comprehension report skeleton and append evidence ticks",
     ),
+    "excerpt": Command(
+        "tools.reimpl_excerpt",
+        "Build a short reimplementation excerpt (forms / Show / unticked)",
+    ),
     "lines": Command(
         "tools.frm_lines",
         "Print CP932 source lines with physical line numbers",

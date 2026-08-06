@@ -29,6 +29,8 @@
 
 ```powershell
 python -m tools smoke
+# 消費者リポで業務テストを後段追加しているとき、キット層だけ:
+python -m tools smoke --kit-only
 ```
 
 （フィクスチャパイプライン + `tools/` 配下の unittest。CI も同じ入口です。）

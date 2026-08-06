@@ -41,6 +41,7 @@ Begin VB.Form Form12
    ClientWidth     =   3000
    Height          =   2400
    Left            =   120
+   MDIChild        =   -1  'True
    Top             =   120
    Width           =   3120
    Begin VB.CommandButton Command1
@@ -126,7 +127,7 @@ Private Sub Form_Load()
 End Sub
 
 Private Sub Command1_Click()
-    Unload Me
+    Form12.Show vbModal
 End Sub
 """
 

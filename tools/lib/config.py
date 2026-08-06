@@ -25,6 +25,10 @@ DEFAULTS: dict = {
     "scan_skip_dirs": ["node_modules", ".next", ".git", "_archive", "__pycache__"],
     "geometry_hints": {},
     "mdi_defaults": {},
+    "mdi_chrome": {
+        "shell_forms": [],
+        "control_names": [],
+    },
     "deep_read_name_map": {},
     "layout_sub_scores": {
         "form_load": 80,

@@ -14,3 +14,4 @@ python -m tools serve
 - ポートは `archaeology.config.json` の `reports_http_port`（既定 8765）。衝突したら `--port` で変える
 - 事前確認だけしたいときは `python -m tools serve --check`（起動せず URL と対象ディレクトリを表示）
 - 開く URL: `http://127.0.0.1:<port>/<file>.html`
+- **再実装向け抜粋**: `http://127.0.0.1:<port>/excerpt`（Form · Show · 未 tick）。静的生成は `python -m tools excerpt`

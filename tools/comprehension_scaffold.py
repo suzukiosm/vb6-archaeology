@@ -252,6 +252,12 @@ def render_tick(number: int, record: dict, layer: str) -> str:
     <li>書く: </li>
     <li>呼ぶ: （精読で確認した分のみ）</li>
   </ul>
+  <h4>product_ui_notes（任意・製品面）</h4>
+  <ul>
+    <li>隠す: （VB Caption / MsgBox / 拠点名 / debug meta など。無ければ「なし」）</li>
+    <li>言い換える: </li>
+    <li>Show: mdi_child | modal_overlay | navigate | 未確認</li>
+  </ul>
 </section>"""
 
 

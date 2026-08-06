@@ -10,9 +10,11 @@ CONTEXT = (
     "[vb6-archaeology] Before work: Read AGENTS.md then docs/ai-onboarding.md. "
     "Canon: docs/flow/_master.md. Cycle: verify → understand (tools/) → optional implement. "
     "Protected dirs (default source/, see archaeology.config.json) are read-only "
-    "(exception: python tools/make_fixture.py). "
-    "Commands: /vb6-extract /vb6-inventory /frm-deep-read /vb6-comprehend "
-    "/vb6-report /vb6-verify-reports /serve-reports /kit-smoke."
+    "(exception: python -m tools fixture). "
+    "Commands: /vb6-extract /vb6-inventory /frm-deep-read /runtime-layout "
+    "/vb6-comprehend /vb6-report /vb6-verify-reports /serve-reports /kit-smoke. "
+    "Reimpl excerpt: python -m tools excerpt or serve /excerpt. "
+    "config-check: python -m tools config-check."
 )
 
 

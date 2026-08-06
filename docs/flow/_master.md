@@ -23,11 +23,12 @@
 3. 正本配置（`source/`）
 4. VBP 抽出
 5. inventory + verify
-6. Startup / 主要 Form の deep-read
-7. runtime layout（`/runtime-layout`）
+6. Startup / 主要 Form の deep-read（GoTo 飛び越え候補・ラベル地図を含む）
+7. runtime layout（`/runtime-layout`）— デザイナ座標だけで確定しない
 8. comprehension ticks（層 A→E。枠は `python -m tools comprehend --add-tick`）
 9. 名前集合の照合（`python -m tools verify-names`）
-10. ギャップ再監査（完了不信）
+10. 再実装向け抜粋（`python -m tools excerpt` · serve `/excerpt`）
+11. ギャップ再監査（完了不信）· 製品面は `docs/reimplementation-handoff.md`
 
 各アプリの進捗チェックリストは消費者の `docs/ai-dev-context.md` に書く（本ファイルへ長く複製しない）。
 

@@ -80,10 +80,12 @@ hooks（`.cursor/hooks/`）が書込ツールと破壊的 shell を阻む。
     → layout           → runtime_layout.md + runtime-layout.json
     → comprehend       → <stem>_comprehension.html（骨格・tick 枠はツール、中身は人手+証拠）
     → verify-names     → name mismatches: none
+    → excerpt          → <stem>_reimpl_excerpt.html（Form · Show · GoTo件数 · 未 tick）
+    →（任意）smoke     → キット自己点検（`python -m tools smoke`）
 ```
 
 各ステップの詳細は `docs/workflow.md`。  
-コマンド入口は `.cursor/commands/`。
+コマンド入口は `.cursor/commands/`。再実装製品面は `docs/reimplementation-handoff.md`。
 
 ---
 
@@ -132,7 +134,8 @@ hooks（`.cursor/hooks/`）が書込ツールと破壊的 shell を阻む。
 - 消費者 = `docs/ai-dev-context.md`（現状）+ アプリ固有 tools + `working/web/` 等
 
 採用手順: `docs/adopting-in-a-project.md`  
-テンプレ: `docs/templates/`
+再実装の製品面: `docs/reimplementation-handoff.md`  
+テンプレ: `docs/templates/`（`CURRENT.md` · data-guards 例を含む）
 
 ---
 

@@ -81,6 +81,23 @@
         "picture1HeightCollapsed": { "type": "integer" }
       }
     },
+    "mdi_chrome": {
+      "type": "object",
+      "description": "Consumer-only: MDI shell VB_Name(s) and chrome control names for runtime_layout. Kit default is empty — set shell_forms/control_names in the consumer config (common example: MDIForm1 + Picture1/FG1/fg2).",
+      "additionalProperties": false,
+      "properties": {
+        "shell_forms": {
+          "type": "array",
+          "description": "MDI shell form VB_Name(s). Empty = no shell-name chrome attribution.",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "control_names": {
+          "type": "array",
+          "description": "Controls treated as MDI chrome (matched case-insensitively as path segments). Empty = no control-name chrome.",
+          "items": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
     "geometry_hints": {
       "type": "object",
       "description": "FormName -> twips box, used when resolving parent-relative runtime expressions.",

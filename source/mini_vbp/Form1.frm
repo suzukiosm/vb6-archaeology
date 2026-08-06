@@ -55,5 +55,5 @@ Private Sub Form_Load()
 End Sub
 
 Private Sub Command1_Click()
-    Unload Me
+    Form12.Show vbModal
 End Sub
