@@ -82,10 +82,32 @@ def parse_referenced_files(vbp_text: str) -> tuple[list[str], list[str]]:
     return files, skipped_refs
 
 
+# Same-stem designer binaries. Contents are never parsed (copy only).
+COMPANION_BY_SOURCE: dict[str, tuple[str, ...]] = {
+    ".frm": (".frx",),
+    ".ctl": (".ctx",),
+    ".pag": (".pgx",),
+    ".dob": (".dox",),
+    ".dsr": (".dsx",),
+}
+
+
+def companion_paths(path: Path) -> list[Path]:
+    """Existing same-stem companions for a VBP-listed source file."""
+    suffixes = COMPANION_BY_SOURCE.get(path.suffix.lower(), ())
+    found: list[Path] = []
+    for suffix in suffixes:
+        candidate = path.with_suffix(suffix)
+        if candidate.is_file():
+            found.append(candidate)
+    return found
+
+
 def companion_frx(path: Path) -> Path | None:
-    if path.suffix.lower() == ".frm":
-        frx = path.with_suffix(".frx")
-        return frx if frx.is_file() else None
+    """Compat: ``.frm`` → ``.frx`` only. Prefer :func:`companion_paths`."""
+    for candidate in companion_paths(path):
+        if candidate.suffix.lower() == ".frx":
+            return candidate
     return None
 
 
@@ -139,12 +161,11 @@ def extract(vbp_path: Path, out_dir: Path, source_root: Path) -> dict:
         shutil.copy2(src, dest)
         copied.append(dest.name)
 
-        frx = companion_frx(src)
-        if frx is not None:
-            dest_frx = out_dir / frx.name
-            ensure_not_writing_source(dest_frx, source_root)
-            shutil.copy2(frx, dest_frx)
-            copied.append(dest_frx.name)
+        for companion in companion_paths(src):
+            dest_comp = out_dir / companion.name
+            ensure_not_writing_source(dest_comp, source_root)
+            shutil.copy2(companion, dest_comp)
+            copied.append(dest_comp.name)
 
     report = {
         "vbp": str(vbp_path),

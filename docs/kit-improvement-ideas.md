@@ -1,6 +1,6 @@
 # キット改良アイデア（提案・未採用）
 
-**これは提案。** 採用するまで実装しない（P0 · P1 · P2-G〜K は 2026-08-16 採用済）。1 テーマ 1 PR。  
+**これは提案。** 採用するまで実装しない（P0 · P1 · P2 は 2026-08-16 採用済）。1 テーマ 1 PR。  
 消費者アプリのセッション事実ではない。キット保守用。現状の正は [`kit-dev-context.md`](kit-dev-context.md)。
 
 方針は変えない: 事実と推定を混ぜない · 正規表現一括の callgraph は作らない · 標準ライブラリのみ · アプリ固有は消費者へ。
@@ -27,7 +27,7 @@
 | # | 穴 | 根拠 |
 |---|---|---|
 | F1 | ~~`extract` は extra キーをコピーするが inventory は Form/Module/Class だけ~~ **採用済 2026-08-16** | `vb6_inventory.parse_vbp` · [`reference/vbp-keys.md`](reference/vbp-keys.md) |
-| F2 | 同伴コピーは `.frm`→`.frx` のみ。`.ctl` の `.ctx` 等は見ない | `extract_vbp.companion_frx` |
+| F2 | ~~同伴コピーは `.frm`→`.frx` のみ~~ **採用済 2026-08-16** 同 stem の既知同伴 | `extract_vbp.companion_paths` |
 | F3 | `deep-read` は `.frm` 単体。`.cls` / `.bas` に同等の表面レポートが無い | `frm_deep_read` の範囲注記 · `methodology.md` |
 | F4 | ~~`layout` は `.frm` + `.bas`。`.cls` は走査しない~~ **採用済 2026-08-16** | `runtime_layout.py` · `iter_module_paths` |
 | F5 | 前方 GoTo 飛び越えは一般化済。~~`On Error GoTo` / `GoSub` は対象外~~ **採用済 2026-08-16**（ラベル地図）。後方 GoTo は対象外 | `frm_deep_read` · [`anti-patterns.md`](reference/anti-patterns.md) 9e |
@@ -99,9 +99,9 @@ skeleton `menu_tree` + deep-read「メニュー木（デザイナ値）」。親
 
 `.bas` と同じく `.cls` を走査（`iter_module_paths`）。VB_Name があればそれを `file_vb` にする。幾何代入は稀でも見ないことをやめる。fixture `Widget.PlaceHost` が `Form1.Left = 50`。`.ctl` は対象外。
 
-#### L. 同伴 `.ctx` / デザイナ同伴
+#### L. 同伴 `.ctx` / デザイナ同伴 — **採用済 2026-08-16**
 
-`companion_frx` を「同 stem の既知同伴拡張子」に一般化。中身は解析しない（コピー漏れ防止）。
+`companion_paths`: `.frm`→`.frx` · `.ctl`→`.ctx` · `.pag`→`.pgx` · `.dob`→`.dox` · `.dsr`→`.dsx`。中身は解析しない。`companion_frx` は互換（`.frx` のみ）。fixture `MiniCtl.ctx`。
 
 ---
 
@@ -144,4 +144,4 @@ UserControl 1 つ · `On Error GoTo` 1 本 · 前方 GoTo 既存に加えて `Go
 3. 採用したら [`kit-dev-context.md`](kit-dev-context.md) の「次手」に「採用済」と日付を足し、本ファイルの該当節を短くする
 4. 捨てる案は「やらない」表へ移す（消して忘れない）
 
-P0 · P1 · P2-G〜K は採用済。次の候補は P2-L（同伴 `.ctx` / デザイナ同伴）。
+P0 · P1 · P2 は採用済。次の候補は P3-M（smoke で `/excerpt` を live GET）。

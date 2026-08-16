@@ -42,6 +42,7 @@ python -m tools extract "source\<project>\<Name>.vbp"
 
 - `_extract_report.json` の `missing` が空
 - `skipped_ref_count` は COM `Reference=`（コピー対象外・正常）
+- 同 stem の `.frx` / `.ctx` 等が `copied` に入る（中身は解析しない）
 
 ## Step 3 — インベントリ (`/vb6-inventory`)
 

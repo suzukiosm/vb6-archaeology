@@ -25,7 +25,7 @@ description: >-
    ```
 
 3. 終了コードとレポートを確認:
-   - `copied` — コピー成功
+   - `copied` — コピー成功（同 stem の `.frx` / `.ctx` / `.pgx` / `.dox` / `.dsx` も含む。中身は解析しない）
    - `missing` — VBP が指すが正本に無い
    - `skipped_ref_count` — COM `Reference=`（対象外・正常）
 4. 抽出結果の編集は `working/extracts/` 内のみ。正本へ戻さない。

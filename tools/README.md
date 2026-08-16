@@ -23,7 +23,7 @@ python -m tools --version
 | command | モジュール | 用途 | 主な出力 |
 |---|---|---|---|
 | `config-check` | `lib/config_schema.py` | 設定を JSON Schema で検証 | stdout（問題ごとに JSON パス） |
-| `extract` | `extract_vbp.py` | VBP 切り出し（`Reference=` スキップ） | `working/extracts/<stem>/` + `_extract_report.json` |
+| `extract` | `extract_vbp.py` | VBP 切り出し（`Reference=` スキップ。同 stem の `.frx`/`.ctx` 等もコピー） | `working/extracts/<stem>/` + `_extract_report.json` |
 | `inventory` | `vb6_inventory.py` | 構成事実のみ（Module/Class 表面: Implements / WithEvents / Instancing） | `working/reports/<stem>_inventory.{json,md,html}` |
 | `verify` | `verify_inventory.py` | End 文カウント照合 | stdout JSON + `count mismatches: none` |
 | `verify-names` | `verify_report_names.py` | inventory 名集合 ↔ レポート言及照合 | stdout JSON + `name mismatches: none` |
@@ -159,6 +159,7 @@ python -m unittest discover -s tools -p "test_*.py" -v
 - `test_build_report.py` — 並列＝逐次の一致・VBP 順維持・HTML 検索 TOC
 - `test_status.py` — 成果物の有無・件数、複数 extract、`default_extract`、verify 永続化
 - `test_io_catalog.py` — I/O 5 種の分類、コメント/`GetTickCount`/`Name =` 除外、GoTo 飛び越え突合
+- `test_extract_vbp.py` — 同 stem 同伴（`.frx` / `.ctx` 等）。中身は解析しない
 
 いずれも特定顧客アプリの正本は不要（合成データ／一時ディレクトリ）。
 

@@ -248,6 +248,8 @@ def main(argv: list[str] | None = None) -> int:
     (OUT / "Module1.bas").write_bytes(BAS.encode("cp932"))
     (OUT / "Widget.cls").write_bytes(CLS.encode("cp932"))
     (OUT / "MiniCtl.ctl").write_bytes(CTL.encode("cp932"))
+    # Designer binary stub — extract copies it; contents are never parsed.
+    (OUT / "MiniCtl.ctx").write_bytes(b"vb6-archaeology fixture companion stub\n")
     readme = REPO / "source" / "README.md"
     if not readme.is_file():
         readme.write_text(
