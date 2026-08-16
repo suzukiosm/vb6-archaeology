@@ -9,6 +9,7 @@ Versions are exposed by `python -m tools --version` (`tools/__init__.py`).
 
 ### Added
 
+- `docs/kit-improvement-ideas.md` — キット保守の未採用バックログ（事実の穴 + 優先提案。完全 callgraph / Next / 業種は対象外のまま）
 - `mdi_chrome` — `shell_forms` / `control_names` を config 化（キット既定は空）。layout の MDI chrome 分類・Bare 正規化・`mdiDefaults` フォールバックシェルを消費者 config だけで合わせられる
 - `docs/reimplementation-handoff.md` — 調査完了と製品 UI 完了のギャップ用チェックリスト · `show_style`（`mdi_child` / `modal_overlay` / `navigate`）の精読メモ規約
 - comprehension tick 任意欄 `product_ui_notes`（テンプレ + `comprehend --add-tick` 骨格 HTML）

@@ -16,6 +16,7 @@
 | 他リポへ持ち出す | `docs/adopting-in-a-project.md`（**LICENSE 許諾後**） |
 | 再実装の製品面 | `docs/reimplementation-handoff.md`（調査完了 ≠ UI 完了） |
 | キット自体の保守 | `docs/kit-dev-context.md` |
+| キット改良の未採用案 | `docs/kit-improvement-ideas.md`（採用指示があるまで実装しない） |
 
 ## 絶対ルール（短縮）
 

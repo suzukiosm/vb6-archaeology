@@ -42,5 +42,6 @@
 | 文書 | 用途 |
 |---|---|
 | [kit-dev-context.md](kit-dev-context.md) | キット自体の現状・公開方針（消費者 ai-dev-context ではない） |
+| [kit-improvement-ideas.md](kit-improvement-ideas.md) | 未採用の改良提案（採用するまで実装しない） |
 
 ツール索引: [`../tools/README.md`](../tools/README.md) · 貢献: [`../CONTRIBUTING.md`](../CONTRIBUTING.md)
