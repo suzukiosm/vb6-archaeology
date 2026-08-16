@@ -1,6 +1,6 @@
 # キット改良アイデア（提案・未採用）
 
-**これは提案。** 採用するまで実装しない（P0 と P1-D / P1-E / P1-F は 2026-08-16 採用済）。1 テーマ 1 PR。  
+**これは提案。** 採用するまで実装しない（P0 · P1 · P2-G 表面は 2026-08-16 採用済）。1 テーマ 1 PR。  
 消費者アプリのセッション事実ではない。キット保守用。現状の正は [`kit-dev-context.md`](kit-dev-context.md)。
 
 方針は変えない: 事実と推定を混ぜない · 正規表現一括の callgraph は作らない · 標準ライブラリのみ · アプリ固有は消費者へ。
@@ -79,9 +79,9 @@ excerpt に未 tick の `.bas`/`.cls` と `Declare` 件数の節を追加。DLL 
 
 ### P2 — 深読みの穴
 
-#### G. `.cls` / `.bas` 表面レポート
+#### G. `.cls` / `.bas` 表面レポート — **採用済 2026-08-16**
 
-事実のみ: `Implements` / `WithEvents` / `Instancing` / 公開 Property。deep-read の Form 版をコピーせず、短い `surface` コマンド（または inventory のファイル節拡張）にする。
+inventory ファイル節 + excerpt に `Implements` / `WithEvents` / `Instancing`（生の整数）/ `VB_Creatable`·`VB_Exposed` / 公開 Property 件数。deep-read の Form 版はコピーしない。PARSER_VERSION `inv-7`。fixture `Widget.cls` に Implements / WithEvents / Instancing / Property Get。
 
 #### H. `On Error GoTo` / `GoSub` を候補として出す
 
@@ -144,4 +144,4 @@ UserControl 1 つ · `On Error GoTo` 1 本 · 前方 GoTo 既存に加えて `Go
 3. 採用したら [`kit-dev-context.md`](kit-dev-context.md) の「次手」に「採用済」と日付を足し、本ファイルの該当節を短くする
 4. 捨てる案は「やらない」表へ移す（消して忘れない）
 
-P0 と P1 は採用済。次の候補は P2（`.cls`/`.bas` 表面レポート、On Error/GoSub、I/O カタログ等）。
+P0 · P1 · P2-G は採用済。次の候補は P2-H（`On Error GoTo` / `GoSub` 候補）。

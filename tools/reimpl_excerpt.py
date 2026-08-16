@@ -245,6 +245,14 @@ def module_class_surface(
             for proc in procs
             if proc.get("name") and (file_name, proc.get("name")) not in ticked
         ]
+        surf = entry.get("surface") or {}
+        pub_prop = sum(
+            1
+            for proc in procs
+            if str(proc.get("kind") or "").lower().startswith("property")
+            and str(proc.get("visibility") or "Public").lower() == "public"
+        )
+        inst = surf.get("instancing")
         rows.append(
             {
                 "file": file_name,
@@ -252,6 +260,10 @@ def module_class_surface(
                 "type": kind,
                 "proc_count": len(procs),
                 "declare_count": len(declares),
+                "implements": [i.get("name") or "" for i in (surf.get("implements") or [])],
+                "with_events": [w.get("name") or "" for w in (surf.get("with_events") or [])],
+                "instancing": inst,
+                "public_properties": pub_prop,
                 "unticked": unticked,
             }
         )
@@ -338,6 +350,10 @@ def build_excerpt_html(
             names = ", ".join(f"<code>{_esc(n)}</code>" for n in row["unticked"])
         else:
             names = "—"
+        impl = ", ".join(f"<code>{_esc(n)}</code>" for n in row.get("implements") or []) or "—"
+        we = ", ".join(f"<code>{_esc(n)}</code>" for n in row.get("with_events") or []) or "—"
+        inst = row.get("instancing")
+        inst_s = str(inst) if inst is not None else "—"
         surface_rows.append(
             "<tr>"
             f"<td>{_esc(row['file'])}</td>"
@@ -345,6 +361,10 @@ def build_excerpt_html(
             f"<td>{_esc(row['type'])}</td>"
             f"<td>{_esc(row['proc_count'])}</td>"
             f"<td>{_esc(row['declare_count'])}</td>"
+            f"<td>{impl}</td>"
+            f"<td>{we}</td>"
+            f"<td>{_esc(inst_s)}</td>"
+            f"<td>{_esc(row.get('public_properties', 0))}</td>"
             f"<td>{names}</td>"
             "</tr>"
         )
@@ -445,11 +465,11 @@ GoTo 列は skeleton の飛び越え<strong>候補</strong>件数（デッド確
 </table>
 
 <h2>Module / Class 表面（{len(surfaces)}）</h2>
-<p class="meta">未 tick の <code>.bas</code> / <code>.cls</code> と <code>Declare</code> 件数。DLL の意味は書かない。詳細は inventory。</p>
+<p class="meta">未 tick の <code>.bas</code> / <code>.cls</code> · <code>Declare</code> 件数 · Implements / WithEvents / Instancing · 公開 Property。DLL 意味は書かない。詳細は inventory。</p>
 <table>
-<thead><tr><th>file</th><th>VB_Name</th><th>type</th><th>Proc</th><th>Declare</th><th>未 tick</th></tr></thead>
+<thead><tr><th>file</th><th>VB_Name</th><th>type</th><th>Proc</th><th>Declare</th><th>Implements</th><th>WithEvents</th><th>Instancing</th><th>公開 Prop</th><th>未 tick</th></tr></thead>
 <tbody>
-{''.join(surface_rows) or '<tr><td colspan="6">（module / class なし）</td></tr>'}
+{''.join(surface_rows) or '<tr><td colspan="10">（module / class なし）</td></tr>'}
 </tbody>
 </table>
 

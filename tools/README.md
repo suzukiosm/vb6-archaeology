@@ -24,7 +24,7 @@ python -m tools --version
 |---|---|---|---|
 | `config-check` | `lib/config_schema.py` | 設定を JSON Schema で検証 | stdout（問題ごとに JSON パス） |
 | `extract` | `extract_vbp.py` | VBP 切り出し（`Reference=` スキップ） | `working/extracts/<stem>/` + `_extract_report.json` |
-| `inventory` | `vb6_inventory.py` | 構成事実のみ | `working/reports/<stem>_inventory.{json,md,html}` |
+| `inventory` | `vb6_inventory.py` | 構成事実のみ（Module/Class 表面: Implements / WithEvents / Instancing） | `working/reports/<stem>_inventory.{json,md,html}` |
 | `verify` | `verify_inventory.py` | End 文カウント照合 | stdout JSON + `count mismatches: none` |
 | `verify-names` | `verify_report_names.py` | inventory 名集合 ↔ レポート言及照合 | stdout JSON + `name mismatches: none` |
 | `deep-read` | `frm_deep_read.py` | .frm 深読み（単体解析。`ancestor_hidden` 付与。出力キーは VB_Name） | `<out_key>_deep_read.md` + `working/skeletons/<out_key>-skeleton.json` |

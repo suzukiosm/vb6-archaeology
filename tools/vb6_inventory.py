@@ -8,6 +8,8 @@ definition found at line start. No call-graph guessing; only facts:
   - per form: show_style candidate + Show statements (MDIChild / Foo.Show arg)
   - show_inbound / show_unresolved: transpose of existing show_calls (not a callgraph)
   - per procedure: kind, visibility, params, returns, line range, event role
+  - per file surface: Implements / WithEvents / Instancing + VB_Creatable/Exposed
+    (facts only; not a Form deep-read copy)
 
 Outputs <stem>_inventory.json / .md / .html into working/reports/.
 Read-only on sources.
@@ -39,7 +41,7 @@ from lib.vbparse import iter_logical_lines  # noqa: E402
 
 # Bump when parse_* output shape or semantics change (invalidates the cache).
 # Suffix is part of the key (see inventory_file): .frm vs .bas parse differently.
-PARSER_VERSION = "inv-6"
+PARSER_VERSION = "inv-7"
 
 # Designer-like text files: header + code, same family as .frm.
 DESIGNER_SUFFIXES = frozenset({".frm", ".ctl", ".pag", ".dob", ".dsr"})
@@ -90,6 +92,23 @@ DECLARE_RE = re.compile(
 END_RE = re.compile(r"^End\s+(Sub|Function|Property)\b", re.IGNORECASE)
 CONTROL_RE = re.compile(r"^\s*Begin\s+([\w.]+)\s+(\w+)")
 VBNAME_RE = re.compile(r'^Attribute\s+VB_Name\s*=\s*"([^"]+)"', re.IGNORECASE)
+IMPLEMENTS_RE = re.compile(r"^Implements\s+([A-Za-z_]\w*)\s*$", re.IGNORECASE)
+WITHEVENTS_RE = re.compile(
+    r"^(?:(Public|Private|Friend|Dim|Global)\s+)?WithEvents\s+"
+    r"([A-Za-z_]\w*)\s+As\s+(.+)$",
+    re.IGNORECASE,
+)
+INSTANCING_RE = re.compile(r"^Instancing\s*=\s*(-?\d+)", re.IGNORECASE)
+ATTR_BOOL_RE = re.compile(
+    r"^Attribute\s+(VB_Creatable|VB_Exposed|VB_GlobalNameSpace)\s*=\s*"
+    r"(True|False)\s*$",
+    re.IGNORECASE,
+)
+ATTR_BOOL_KEYS = {
+    "vb_creatable": "VB_Creatable",
+    "vb_exposed": "VB_Exposed",
+    "vb_global_name_space": "VB_GlobalNameSpace",
+}
 
 # Module-level declarations (facts only; locals inside procedures are excluded)
 CONST_RE = re.compile(
@@ -523,6 +542,91 @@ def parse_declarations(lines: list[str]) -> dict:
     return {"consts": consts, "enums": enums, "types": types, "events": events}
 
 
+def empty_surface() -> dict:
+    return {
+        "implements": [],
+        "with_events": [],
+        "instancing": None,
+        "vb_creatable": None,
+        "vb_exposed": None,
+        "vb_global_name_space": None,
+    }
+
+
+def parse_surface(lines: list[str]) -> dict:
+    """Collect Implements / WithEvents / Instancing facts (no role inference)."""
+    out = empty_surface()
+    for i, raw in enumerate(lines, start=1):
+        s = raw.strip()
+        if not s or s.startswith("'"):
+            continue
+        im = INSTANCING_RE.match(s)
+        if im:
+            out["instancing"] = int(im.group(1))
+            continue
+        am = ATTR_BOOL_RE.match(s)
+        if am:
+            key = next(
+                k for k, attr in ATTR_BOOL_KEYS.items() if attr.lower() == am.group(1).lower()
+            )
+            out[key] = am.group(2).lower() == "true"
+
+    logical = iter_logical_lines(lines)
+    in_header = bool(logical) and logical[0].text.startswith("VERSION")
+    in_proc = False
+    for ll in logical:
+        s = ll.text
+        if in_header:
+            if VBNAME_RE.match(s):
+                in_header = False
+            continue
+        if not in_proc:
+            pm = PROC_RE.match(s)
+            if pm and not s.lower().startswith("declare"):
+                in_proc = True
+                continue
+        else:
+            if END_RE.match(s):
+                in_proc = False
+            continue
+        if s.startswith("'"):
+            continue
+        impl = IMPLEMENTS_RE.match(s)
+        if impl:
+            out["implements"].append({"name": impl.group(1), "line": ll.phys_start})
+            continue
+        we = WITHEVENTS_RE.match(s)
+        if we:
+            vis = (we.group(1) or "Private").capitalize()
+            if vis == "Dim":
+                vis = "Private"
+            out["with_events"].append(
+                {
+                    "name": we.group(2),
+                    "as_type": we.group(3).strip(),
+                    "visibility": vis,
+                    "line": ll.phys_start,
+                }
+            )
+    return out
+
+
+def public_property_count(procedures: list[dict]) -> int:
+    return sum(
+        1
+        for p in procedures
+        if str(p.get("kind") or "").lower().startswith("property")
+        and str(p.get("visibility") or "Public").lower() == "public"
+    )
+
+
+def is_module_or_class_file(entry: dict) -> bool:
+    kind = str(entry.get("type") or "").strip().lower()
+    if kind:
+        return kind in {"module", "class"}
+    return Path(str(entry.get("file") or "")).suffix.lower() in {".bas", ".cls"}
+
+
 def classify_events(procs: list[dict], control_names: set[str], is_form: bool) -> None:
     prefixes = {n.lower() for n in control_names}
     if is_form:
@@ -586,6 +690,7 @@ def _parse_bytes(raw: bytes, path: Path) -> dict:
         "types": decls["types"],
         "events": decls["events"],
         "procedures": procs,
+        "surface": parse_surface(lines),
     }
     if show_facts is not None:
         out["show_style"] = show_facts["self"]
@@ -638,6 +743,7 @@ def build_report(
             "types": [],
             "events": [],
             "procedures": [],
+            "surface": empty_surface(),
         }
 
     def work(item: tuple[str, str]) -> dict:
@@ -711,6 +817,91 @@ def _format_inbound_bits(calls: list[dict], *, html_mode: bool = False) -> str:
         bits.append(piece)
     more = f" …+{len(calls) - 8}" if len(calls) > 8 else ""
     return ", ".join(bits) + more
+
+
+def _has_surface_facts(surf: dict) -> bool:
+    if not surf:
+        return False
+    return bool(
+        surf.get("implements")
+        or surf.get("with_events")
+        or surf.get("instancing") is not None
+        or surf.get("vb_creatable") is not None
+        or surf.get("vb_exposed") is not None
+        or surf.get("vb_global_name_space") is not None
+    )
+
+
+def surface_md_lines(entry: dict) -> list[str]:
+    surf = entry.get("surface") or {}
+    if not is_module_or_class_file(entry) and not _has_surface_facts(surf):
+        return []
+    impl = surf.get("implements") or []
+    we = surf.get("with_events") or []
+    inst = surf.get("instancing")
+    pub_prop = public_property_count(entry.get("procedures") or [])
+    impl_s = ", ".join(f"`{i['name']}` L{i['line']}" for i in impl) or "—"
+    we_s = (
+        ", ".join(
+            f"`{w['name']}` As `{w['as_type']}` ({w['visibility']}) L{w['line']}"
+            for w in we
+        )
+        or "—"
+    )
+    inst_s = str(inst) if inst is not None else "—"
+    attrs = []
+    for key, label in ATTR_BOOL_KEYS.items():
+        val = surf.get(key)
+        if val is not None:
+            attrs.append(f"{label}={val}")
+    attr_s = ", ".join(attrs) or "—"
+    return [
+        "### 表面（Implements / WithEvents / Instancing）",
+        "",
+        f"- Implements: {impl_s}",
+        f"- WithEvents: {we_s}",
+        f"- Instancing: `{inst_s}`",
+        f"- Attribute: {attr_s}",
+        f"- 公開 Property: {pub_prop}",
+        "",
+    ]
+
+
+def surface_html_block(entry: dict, e) -> str:
+    surf = entry.get("surface") or {}
+    if not is_module_or_class_file(entry) and not _has_surface_facts(surf):
+        return ""
+    impl = surf.get("implements") or []
+    we = surf.get("with_events") or []
+    inst = surf.get("instancing")
+    pub_prop = public_property_count(entry.get("procedures") or [])
+    impl_s = (
+        ", ".join(f"<code>{e(i['name'])}</code> L{i['line']}" for i in impl) or "—"
+    )
+    we_s = (
+        ", ".join(
+            f"<code>{e(w['name'])}</code> As <code>{e(w['as_type'])}</code>"
+            f"（{e(w['visibility'])}）L{w['line']}"
+            for w in we
+        )
+        or "—"
+    )
+    inst_s = str(inst) if inst is not None else "—"
+    attrs = []
+    for key, label in ATTR_BOOL_KEYS.items():
+        val = surf.get(key)
+        if val is not None:
+            attrs.append(f"{e(label)}={e(val)}")
+    attr_s = ", ".join(attrs) or "—"
+    return (
+        "<h4>表面（Implements / WithEvents / Instancing）</h4><ul>"
+        f"<li>Implements: {impl_s}</li>"
+        f"<li>WithEvents: {we_s}</li>"
+        f"<li>Instancing: <code>{e(inst_s)}</code></li>"
+        f"<li>Attribute: {attr_s}</li>"
+        f"<li>公開 Property: {pub_prop}</li>"
+        "</ul>"
+    )
 
 
 def write_markdown(report: dict, out: Path) -> None:
@@ -838,6 +1029,7 @@ def write_markdown(report: dict, out: Path) -> None:
         kind = file_kind_label(f)
         L.append(f"## {f['file']} — `{f['vb_name'] or '?'}`（{kind}, {f['total_lines']:,} 行）")
         L.append("")
+        L.extend(surface_md_lines(f))
         events = [p for p in f["procedures"] if p["role"] == "event"]
         general = [p for p in f["procedures"] if p["role"] == "general"]
         if events:
@@ -983,6 +1175,9 @@ def write_html(report: dict, out: Path) -> None:
         )
         general = [p for p in f["procedures"] if p["role"] == "general"]
         blocks = []
+        surf_html = surface_html_block(f, e)
+        if surf_html:
+            blocks.append(surf_html)
         if events:
             blocks.append(
                 f"<h4>イベントハンドラ（{len(events)}）</h4>"

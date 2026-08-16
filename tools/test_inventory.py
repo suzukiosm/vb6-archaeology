@@ -352,5 +352,87 @@ End Sub
             self.assertIn("modal_overlay", md)
 
 
+class ParseSurfaceTests(unittest.TestCase):
+    def test_implements_withevents_instancing_and_attrs(self) -> None:
+        src = """\
+VERSION 1.0 CLASS
+BEGIN
+  MultiUse = -1  'True
+  Instancing = 5
+END
+Attribute VB_Name = "Widget"
+Attribute VB_GlobalNameSpace = False
+Attribute VB_Creatable = True
+Attribute VB_Exposed = False
+Option Explicit
+
+Implements IPing
+
+Private WithEvents Bus As AppEvents
+
+Public Property Get Ready() As Boolean
+    Ready = True
+End Property
+
+Public Sub Ping()
+End Sub
+"""
+        surf = inv.parse_surface(src.splitlines())
+        self.assertEqual(surf["instancing"], 5)
+        self.assertTrue(surf["vb_creatable"])
+        self.assertFalse(surf["vb_exposed"])
+        self.assertFalse(surf["vb_global_name_space"])
+        self.assertEqual([i["name"] for i in surf["implements"]], ["IPing"])
+        self.assertEqual(surf["with_events"][0]["name"], "Bus")
+        self.assertEqual(surf["with_events"][0]["as_type"], "AppEvents")
+        self.assertEqual(surf["with_events"][0]["visibility"], "Private")
+        self.assertGreater(surf["implements"][0]["line"], 0)
+        self.assertGreater(surf["with_events"][0]["line"], 0)
+        procs, _ = inv.parse_procedures(src.splitlines())
+        self.assertEqual(inv.public_property_count(procs), 1)
+
+    def test_withevents_inside_proc_is_ignored(self) -> None:
+        src = """\
+Attribute VB_Name = "M"
+Public Sub Alpha()
+    Dim WithEvents x As AppEvents
+End Sub
+"""
+        surf = inv.parse_surface(src.splitlines())
+        self.assertEqual(surf["with_events"], [])
+        self.assertEqual(surf["implements"], [])
+
+    def test_markdown_lists_surface_for_class(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            path = Path(td) / "Widget.cls"
+            path.write_bytes(
+                (
+                    "VERSION 1.0 CLASS\nBEGIN\n  Instancing = 2\nEND\n"
+                    'Attribute VB_Name = "Widget"\n'
+                    "Implements IFoo\n"
+                    "Public Sub Ping()\nEnd Sub\n"
+                ).encode("cp932")
+            )
+            info = inv.inventory_file(path, use_cache=False)
+            out = Path(td) / "inv.md"
+            inv.write_markdown(
+                {
+                    "vbp": "t.vbp",
+                    "meta": {},
+                    "file_count": 1,
+                    "proc_total": 1,
+                    "objects": [],
+                    "missing_in_extract": [],
+                    "not_in_vbp": [],
+                    "files": [{**info, "type": "class"}],
+                },
+                out,
+            )
+            md = out.read_text(encoding="utf-8")
+        self.assertIn("Implements / WithEvents / Instancing", md)
+        self.assertIn("`IFoo`", md)
+        self.assertIn("Instancing: `2`", md)
+
+
 if __name__ == "__main__":
     unittest.main()

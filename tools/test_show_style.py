@@ -417,8 +417,22 @@ class ExcerptTests(unittest.TestCase):
                     "file": "Widget.cls",
                     "vb_name": "Widget",
                     "type": "class",
-                    "procedures": [{"name": "Ping"}],
+                    "procedures": [
+                        {"name": "Ready", "kind": "Property Get", "visibility": "Public"}
+                    ],
                     "declares": [],
+                    "surface": {
+                        "implements": [{"name": "IPing", "line": 12}],
+                        "with_events": [
+                            {
+                                "name": "Bus",
+                                "as_type": "AppEvents",
+                                "visibility": "Private",
+                                "line": 14,
+                            }
+                        ],
+                        "instancing": 5,
+                    },
                 },
                 {
                     "file": "MiniCtl.ctl",
@@ -435,7 +449,11 @@ class ExcerptTests(unittest.TestCase):
         self.assertEqual(rows[0]["declare_count"], 1)
         self.assertEqual(rows[0]["unticked"], ["AddOne"])
         self.assertEqual(rows[1]["declare_count"], 0)
-        self.assertEqual(rows[1]["unticked"], ["Ping"])
+        self.assertEqual(rows[1]["implements"], ["IPing"])
+        self.assertEqual(rows[1]["with_events"], ["Bus"])
+        self.assertEqual(rows[1]["instancing"], 5)
+        self.assertEqual(rows[1]["public_properties"], 1)
+        self.assertEqual(rows[1]["unticked"], ["Ready"])
         html = build_excerpt_html(
             inventory,
             ticked=ticked,
@@ -446,6 +464,8 @@ class ExcerptTests(unittest.TestCase):
         self.assertIn("Module1.bas", html)
         self.assertIn("Widget.cls", html)
         self.assertIn("AddOne", html)
+        self.assertIn("IPing", html)
+        self.assertIn("Bus", html)
         self.assertNotIn("MiniCtl.ctl", html.split("未 tick プロシージャ")[0])
         self.assertNotIn("GetTickCount", html)
 
