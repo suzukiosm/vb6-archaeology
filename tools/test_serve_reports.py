@@ -27,6 +27,8 @@ class ClassifyReportTests(unittest.TestCase):
         self.assertEqual(classify_report("demo_reimpl_excerpt.html"), "excerpt")
         self.assertEqual(classify_report("runtime_layout.md"), "layout")
         self.assertEqual(classify_report("form_layout_gap.md"), "layout")
+        self.assertEqual(classify_report("demo_io_catalog.md"), "io_catalog")
+        self.assertEqual(classify_report("demo_io_catalog.json"), "io_catalog")
         self.assertEqual(classify_report("form1_deep_read.md"), "deep_read")
         self.assertIsNone(classify_report("demo_verify.json"))
         self.assertIsNone(classify_report("notes.txt"))
@@ -45,6 +47,7 @@ class ClassifyReportTests(unittest.TestCase):
         self.assertIn("notes.txt", html)
         self.assertIn("<h2>comprehension</h2>", html)
         self.assertIn("<h2>layout</h2>", html)
+        self.assertIn("<h2>io-catalog</h2>", html)
         self.assertIn("（なし）", html)
         self.assertNotIn("demo_comprehension.html", html)
 

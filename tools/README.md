@@ -34,6 +34,7 @@ python -m tools --version
 | `lines` | `frm_lines.py` | CP932 ソースの行番号つき表示 | stdout |
 | `scan-chars` | `scan_control_chars.py` | PS バッククォート由来の制御文字検出 | stdout（hits=0 で exit 0） |
 | `excerpt` | `reimpl_excerpt.py` | 再実装向け抜粋 HTML（Form · Module/Class · Show · Show転置 · 未 tick） | `working/reports/<stem>_reimpl_excerpt.html` |
+| `io-catalog` | `io_catalog.py` | extract の Open / Kill / Name / Get / Put（事実のみ。GoTo 飛び越えと突合） | `working/reports/<stem>_io_catalog.{json,md}` |
 | `status` | `status.py` | 既存成果物の有無・件数だけ（推定なし） | stdout 3 行 + JSON |
 | `serve` | `serve_reports.py` | `/` ランディング + レポート配信 + `/excerpt` 動的抜粋（`file://` 不可） | 127.0.0.1:`reports_http_port` |
 | `fixture` | `make_fixture.py` | スモーク用ミニ VBP（CP932） | `source/mini_vbp/` |
@@ -63,6 +64,7 @@ python -m tools layout --extract working\extracts\mini_vbp
 python -m tools comprehend --add-tick Command1_Click@Form1.frm --layer C
 python -m tools comprehend --unticked
 python -m tools comprehend --suggest
+python -m tools io-catalog --extract working\extracts\mini_vbp
 python -m tools lines working\extracts\mini_vbp\Form1.frm 1-20
 python -m tools scan-chars
 python -m tools status
@@ -156,6 +158,7 @@ python -m unittest discover -s tools -p "test_*.py" -v
 - `test_cache.py` — 内容ハッシュキー・保存/読込
 - `test_build_report.py` — 並列＝逐次の一致・VBP 順維持・HTML 検索 TOC
 - `test_status.py` — 成果物の有無・件数、複数 extract、`default_extract`、verify 永続化
+- `test_io_catalog.py` — I/O 5 種の分類、コメント/`GetTickCount`/`Name =` 除外、GoTo 飛び越え突合
 
 いずれも特定顧客アプリの正本は不要（合成データ／一時ディレクトリ）。
 

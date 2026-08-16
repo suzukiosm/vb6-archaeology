@@ -43,6 +43,7 @@
 - イベント数 0 を「孤立・到達不能」と即断しない
 - 親が `VB.Frame` / `VB.PictureBox` で設計時 `Visible=0` かつコード非参照（dead container）のとき、子孫に `ancestor_hidden` / `ancestor_hidden_by` が付く（実行時非表示相当）
 - 同一 Sub 内で前方 `GoTo` が注目文（`Open` / ファイル I/O / `Call` 等）を飛び越す場合、deep-read が到達不能**候補**として出す（静的近似。ソース順＝実行順と読まない。デッド確定にしない）
+- extract 横断の `Open` / `Kill` / `Name` / `Get` / `Put` 位置は `python -m tools io-catalog`（業務意味は書かない。飛び越えは skeleton と file+line 突合）
 - Sub 内の GoTo / On Error GoTo / GoSub / ラベル地図も deep-read に出す（事実のみ。飛び越えスパンは前方 GoTo のみ）
 
 ## 再実装消費者向け（任意・1段落）

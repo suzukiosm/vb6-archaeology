@@ -106,6 +106,12 @@ inventory に無い名前は拒否される。拒否されたら名前を疑う�
 python -m tools verify-names --inventory working\reports\<stem>_inventory.json
 ```
 
+ファイル I/O の位置（業務意味は書かない。GoTo 飛び越えは skeleton と突合）:
+
+```powershell
+python -m tools io-catalog --extract working\extracts\<stem>
+```
+
 いつでも進捗だけ見る（再実行しない）:
 
 ```powershell

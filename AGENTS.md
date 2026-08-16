@@ -22,6 +22,7 @@ VBP を切り出し・棚卸し・深読み・証拠つき理解まで進める�
 | 理解 tick | `python -m tools comprehend --add-tick <Proc>` · `--unticked` / `--suggest` | `/vb6-comprehend` |
 | 報告書 | （skill `vb6-accurate-reports`） | `/vb6-report` |
 | 再実装抜粋 | `python -m tools excerpt` · serve /excerpt | — |
+| 横断 I/O | `python -m tools io-catalog` | `/vb6-io-catalog` |
 | パイプライン進捗 | `python -m tools status` | `/vb6-status` |
 | レポート閲覧 | `python -m tools serve` | `/serve-reports` |
 | 設定検証 | `python -m tools config-check` | — |
@@ -38,7 +39,7 @@ python -m tools smoke --kit-only
 ```
 
 フィクスチャパイプライン（config-check → extract → inventory → verify → deep-read →
-layout → comprehend → excerpt → status → verify-names → scan-chars）＋ `tools/` 配下の unittest。
+layout → comprehend → excerpt → io-catalog → status → verify-names → scan-chars）＋ `tools/` 配下の unittest。
 詳細は `CONTRIBUTING.md` · `tools/README.md`。
 再実装の製品面チェック: `docs/reimplementation-handoff.md`。
 

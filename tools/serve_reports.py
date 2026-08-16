@@ -8,7 +8,7 @@ through a loopback HTTP server.
     python -m tools serve --port 8790
     python -m tools serve --check      # validate directory, print URL, exit
 
-    http://127.0.0.1:8765/             # landing (inventory / excerpt / …)
+    http://127.0.0.1:8765/             # landing (inventory / excerpt / io-catalog / …)
     http://127.0.0.1:8765/excerpt
     http://127.0.0.1:8765/excerpt?stem=mini_vbp
 """
@@ -33,6 +33,7 @@ LANDING_SECTIONS: tuple[tuple[str, str], ...] = (
     ("inventory", "inventory"),
     ("comprehension", "comprehension"),
     ("layout", "layout"),
+    ("io_catalog", "io-catalog"),
     ("deep_read", "deep-read"),
 )
 LAYOUT_NAMES = frozenset(
@@ -56,6 +57,8 @@ def classify_report(name: str) -> str | None:
         return "excerpt"
     if lower in LAYOUT_NAMES:
         return "layout"
+    if lower.endswith(("_io_catalog.md", "_io_catalog.json")):
+        return "io_catalog"
     if lower.endswith("_deep_read.md"):
         return "deep_read"
     return None

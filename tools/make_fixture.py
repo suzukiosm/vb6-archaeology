@@ -125,6 +125,9 @@ Private Sub Form_Load()
     Me.Left = 0
     Me.Top = 0
     Label1.Caption = "読込済"
+    GoTo AfterOpen
+    Open "skip.dat" For Input As #2
+AfterOpen:
 End Sub
 
 Private Sub Command1_Click()
@@ -160,6 +163,16 @@ Public Declare Function GetTickCount Lib "kernel32" _
 Public Function AddOne(ByVal n As Long) As Long
     AddOne = n + 1
 End Function
+
+Public Sub IoDemo()
+    Dim n As Long
+    Open "tmp.dat" For Output As #1
+    Put #1, , n
+    Get #1, , n
+    Close #1
+    Name "tmp.dat" As "tmp.bak"
+    Kill "tmp.bak"
+End Sub
 """
 
 CLS = """\

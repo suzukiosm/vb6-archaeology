@@ -62,10 +62,12 @@ class TestStatusEmpty(unittest.TestCase):
         self.assertEqual(data["deep_read"]["reports"], 0)
         self.assertEqual(data["ticks"]["count"], 0)
         self.assertFalse(data["excerpt"]["present"])
+        self.assertFalse(data["io_catalog"]["present"])
         lines = format_status_lines(data).splitlines()
         self.assertEqual(len(lines), 3)
         self.assertIn("extract=no", lines[0])
         self.assertIn("verify=not persisted", lines[2])
+        self.assertIn("io=no", lines[2])
 
 
 class TestStatusArtifacts(unittest.TestCase):
@@ -110,6 +112,10 @@ class TestStatusArtifacts(unittest.TestCase):
                 encoding="utf-8",
             )
             (reports / "runtime_layout.md").write_text("# layout\n", encoding="utf-8")
+            (reports / "demo_io_catalog.json").write_text(
+                json.dumps({"stem": "demo", "entry_count": 0, "entries": []}),
+                encoding="utf-8",
+            )
             data = build_status(root)
 
         self.assertEqual(data["stem"], "demo")
@@ -125,7 +131,9 @@ class TestStatusArtifacts(unittest.TestCase):
         self.assertTrue(data["verify"]["persisted"])
         self.assertTrue(data["verify"]["ok"])
         self.assertTrue(data["layout"]["present"])
+        self.assertTrue(data["io_catalog"]["present"])
         text = format_status_lines(data)
+        self.assertIn("io=yes", text)
         self.assertIn("deep-read=1/2", text)
         self.assertIn("ticks=2/4", text)
         self.assertIn("verify=ok", text)

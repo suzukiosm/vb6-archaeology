@@ -81,6 +81,7 @@ hooks（`.cursor/hooks/`）が書込ツールと破壊的 shell を阻む。
     → comprehend       → <stem>_comprehension.html（骨格・tick 枠はツール、中身は人手+証拠。--unticked / --suggest は一覧のみ）
     → verify-names     → name mismatches: none
     → excerpt          → <stem>_reimpl_excerpt.html（Form · Module/Class · Show · GoTo件数 · 未 tick）
+    → io-catalog       → <stem>_io_catalog.{json,md}（Open / Kill / Name / Get / Put。業務意味なし）
     → status           → 既存成果物の有無・件数（再実行しない）
     →（任意）smoke     → キット自己点検（`python -m tools smoke`）
 ```

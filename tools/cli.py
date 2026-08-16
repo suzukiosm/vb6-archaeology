@@ -70,6 +70,10 @@ COMMANDS: dict[str, Command] = {
         "tools.reimpl_excerpt",
         "Build a short reimplementation excerpt (forms / modules / Show / unticked)",
     ),
+    "io-catalog": Command(
+        "tools.io_catalog",
+        "Catalog Open / Kill / Name / Get / Put (facts only; attach GoTo-skip)",
+    ),
     "status": Command(
         "tools.status",
         "Print facts-only pipeline status from existing artifacts",

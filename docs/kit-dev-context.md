@@ -11,9 +11,9 @@ VB6 を壊さず理解するための汎用 OS（docs / .cursor / tools）を維
 ## 2. 現状（事実）
 
 - 単一入口: `python -m tools <command>`（`tools/cli.py` の `COMMANDS` が正。個別 `python tools/<name>.py` も維持）
-- コアツール: extract / inventory / verify_inventory / verify_report_names / frm_deep_read / runtime_layout / comprehension_scaffold / reimpl_excerpt / status
+- コアツール: extract / inventory / verify_inventory / verify_report_names / frm_deep_read / runtime_layout / comprehension_scaffold / reimpl_excerpt / io_catalog / status
 - 設定検証: `schema/archaeology.config.schema.json` + `lib/config_schema.py`（stdlib のみ）
-- 自己点検: `kit_smoke.py`（config-check → fixture パイプライン → comprehend → excerpt → verify-names → scan-chars + unittest）· CI: ubuntu/windows × Python 3.10/3.13
+- 自己点検: `kit_smoke.py`（config-check → fixture パイプライン → comprehend → excerpt → io-catalog → verify-names → scan-chars + unittest）· CI: ubuntu/windows × Python 3.10/3.13
 - 補助: `frm_lines.py` · `scan_control_chars.py` · `frm_deep_read_all.py`（`deep_read_name_map`）
 - `frm_deep_read`: .frm 単体解析注記、`show_style`、GoTo 飛び越え文候補（I/O·Call 等）+ ラベル地図、`ancestor_hidden`（静的近似・断定しない）
 - `runtime_layout`: Show 文脈は Sub 境界で `recent_shows` クリア。開経路スコアは `layout_sub_scores`（既定 `form_load` / `mdiform_load` のみ）。MDI chrome は `mdi_chrome`（キット既定空）
@@ -27,11 +27,12 @@ VB6 を壊さず理解するための汎用 OS（docs / .cursor / tools）を維
 - （採用済 2026-08-16 · Show 転置）既存 `show_calls` の逆引きを inventory / excerpt に出す。未解決ターゲットは `unresolved`。呼び出しグラフではない
 - （採用済 2026-08-16 · status）`python -m tools status` — 既存成果物の有無・件数（JSON + 3 行）。sessionStart が同じ 3 行を出す。`verify` は `<stem>_verify.json` を残す。推定・次手は出さない
 - （採用済 2026-08-16 · comprehend --unticked）`python -m tools comprehend --unticked` / `--suggest`。既存 tick の欠を一覧。`--suggest` はヒューリスティック（Startup Load → Show 先 Load → 公開 Sub）。自動 tick しない
-- （採用済 2026-08-16 · serve ランディング）`/` に inventory · comprehension · excerpt · layout · deep-read のリンク。無い種類は「なし」。ディレクトリ生一覧は同ページ。`file://` 禁止は維持
+- （採用済 2026-08-16 · serve ランディング）`/` に inventory · comprehension · excerpt · layout · io-catalog · deep-read のリンク。無い種類は「なし」。ディレクトリ生一覧は同ページ。`file://` 禁止は維持
 - （採用済 2026-08-16 · excerpt Module/Class）excerpt に未 tick の `.bas`/`.cls` と `Declare` 件数。DLL 意味は書かない
 - （採用済 2026-08-16 · Module/Class 表面）inventory / excerpt に Implements · WithEvents · Instancing · 公開 Property。deep-read は複製しない。PARSER_VERSION inv-7
 - （採用済 2026-08-16 · On Error/GoSub）ラベル地図に `on_error` / `gosub`。飛び越えスパンは前方 GoTo のみ。デッド確定しない
-- （提案 2026-08-16）未採用バックログ: [`kit-improvement-ideas.md`](kit-improvement-ideas.md)。P0 · P1 · P2-G / P2-H は採用済。次の候補は P2-I。完全 callgraph / Next / 業種は引き続きやらない
+- （採用済 2026-08-16 · I/O カタログ）`python -m tools io-catalog` — extract の Open / Kill / Name / Get / Put を file:line。業務意味なし。skeleton の飛び越えと突合
+- （提案 2026-08-16）未採用バックログ: [`kit-improvement-ideas.md`](kit-improvement-ideas.md)。P0 · P1 · P2-G / P2-H / P2-I は採用済。次の候補は P2-J。完全 callgraph / Next / 業種は引き続きやらない
 - （採用済 2026-08-06 · mdi_chrome）`shell_forms` / `control_names` を config 化。`MDIForm1`·Picture1/FG1/fg2 のハードコードを撤去
 - （採用済 2026-08-06 · GoTo）飛び越え候補の一般化 + ラベル地図 + tick/frm-audit 手順。デッド確定はしない
 - （採用済 2026-08-06 · delivery_slip 実戦）inventory `show_style`/`show_calls` · 再実装ハンドオフ · `product_ui_notes` · CURRENT · data-guards · `smoke --kit-only` · deep-read `show_style` · `excerpt`/`serve /excerpt`。**未採用**: Show 完全 callgraph · Next/UI 同梱

@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Read existing pipeline artifacts and print a facts-only status.
 
-Does not run extract / inventory / verify / deep-read. Missing artifacts are
-reported as absent. No ranking and no "what to do next".
+Does not run extract / inventory / verify / deep-read / io-catalog. Missing
+artifacts are reported as absent. No ranking and no "what to do next".
 
     python -m tools status
     python -m tools status --extract working/extracts/mini_vbp
@@ -222,6 +222,7 @@ def build_status(
     comprehension = reports / f"{stem}_comprehension.html" if stem else None
     tick_count = _count_ticks(comprehension) if comprehension else 0
     excerpt = reports / f"{stem}_reimpl_excerpt.html" if stem else None
+    io_catalog = reports / f"{stem}_io_catalog.json" if stem else None
     verify_path = reports / f"{stem}_verify.json" if stem else None
     layout_md = reports / "runtime_layout.md"
 
@@ -283,6 +284,10 @@ def build_status(
             "present": layout_md.is_file(),
             "path": _rel(layout_md, root) if layout_md.is_file() else None,
         },
+        "io_catalog": {
+            "present": bool(io_catalog and io_catalog.is_file()),
+            "path": _rel(io_catalog, root) if io_catalog and io_catalog.is_file() else None,
+        },
     }
 
 
@@ -306,6 +311,7 @@ def format_status_lines(data: dict) -> str:
     ticks = data.get("ticks") or {}
     excerpt = "yes" if (data.get("excerpt") or {}).get("present") else "no"
     layout = "yes" if (data.get("layout") or {}).get("present") else "no"
+    io_catalog = "yes" if (data.get("io_catalog") or {}).get("present") else "no"
 
     verify = data.get("verify") or {}
     if verify.get("persisted"):
@@ -322,7 +328,7 @@ def format_status_lines(data: dict) -> str:
         f"ticks={ticks.get('count', 0)}/{ticks.get('proc_total') if ticks.get('proc_total') is not None else 0} "
         f"excerpt={excerpt}"
     )
-    line3 = f"verify={verify_s} layout={layout}"
+    line3 = f"verify={verify_s} layout={layout} io={io_catalog}"
     return "\n".join((line1, line2, line3))
 
 

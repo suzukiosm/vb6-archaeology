@@ -1,6 +1,6 @@
 # キット改良アイデア（提案・未採用）
 
-**これは提案。** 採用するまで実装しない（P0 · P1 · P2-G / P2-H は 2026-08-16 採用済）。1 テーマ 1 PR。  
+**これは提案。** 採用するまで実装しない（P0 · P1 · P2-G / P2-H / P2-I は 2026-08-16 採用済）。1 テーマ 1 PR。  
 消費者アプリのセッション事実ではない。キット保守用。現状の正は [`kit-dev-context.md`](kit-dev-context.md)。
 
 方針は変えない: 事実と推定を混ぜない · 正規表現一括の callgraph は作らない · 標準ライブラリのみ · アプリ固有は消費者へ。
@@ -35,7 +35,7 @@
 | F7 | ~~`serve` に目次が無い~~ **採用済 2026-08-16** `/` ランディング | `serve_reports.py` |
 | F8 | `smoke` の `/excerpt` live GET は意図的未実装 | `CHANGELOG` Deferred |
 | F9 | バージョン表示は `0.1.0` のまま。`[Unreleased]` に 0.1.0 以降の機能が厚い | `tools/__init__.py` · `CHANGELOG.md` |
-| F10 | フィクスチャに ~~UserControl~~ / ~~`On Error`~~ / ~~`GoSub`~~ が無い（2026-08-16 追加） | `source/mini_vbp/` |
+| F10 | フィクスチャに ~~UserControl~~ / ~~`On Error`~~ / ~~`GoSub`~~ / ~~I/O 5 種~~ が無い（2026-08-16 追加） | `source/mini_vbp/` |
 | F11 | GitHub Issues は空。改善テンプレはあるがバックログの置き場が無い | `gh issue list` · `.github/ISSUE_TEMPLATE/feature_request.yml` |
 | F12 | ~~パイプライン進捗を出すコマンドが無い~~ **採用済 2026-08-16** `python -m tools status` | `tools/status.py` |
 
@@ -57,7 +57,7 @@ inventory / excerpt に「Show 文の転置（事実）」を出す。既存 `sh
 
 #### C. `python -m tools status` — **採用済 2026-08-16**
 
-`python -m tools status`（`--json-only` 可）。extract / inventory / `<stem>_verify.json` / deep-read 数÷Form 数 / tick 数÷プロシージャ数 / excerpt / layout の有無を JSON + 3 行で出す。推定も次手も付けない。sessionStart が同じ 3 行を出す。複数 extract は `default_extract`（既存契約）。
+`python -m tools status`（`--json-only` 可）。extract / inventory / `<stem>_verify.json` / deep-read 数÷Form 数 / tick 数÷プロシージャ数 / excerpt / layout / io-catalog の有無を JSON + 3 行で出す。推定も次手も付けない。sessionStart が同じ 3 行を出す。複数 extract は `default_extract`（既存契約）。
 
 ---
 
@@ -87,9 +87,9 @@ inventory ファイル節 + excerpt に `Implements` / `WithEvents` / `Instancin
 
 ラベル地図に `on_error` / `gosub`（および `gosub_conditional`）を載せる。飛び越えスパンは前方 `GoTo` のみ（エラー時だけ飛ぶ / Return で戻る）。デッド確定しない。anti-patterns 9e を更新。fixture `Command1_Click` に 1 本ずつ。
 
-#### I. 横断 I/O カタログ
+#### I. 横断 I/O カタログ — **採用済 2026-08-16**
 
-extract 内の `Open` / `Kill` / `Name` / `Get` / `Put` を file:line で列挙。業務意味は書かない。GoTo 飛び越え I/O と突合できる。
+`python -m tools io-catalog`。extract 内の `Open` / `Kill` / `Name` / `Get` / `Put` を file:line で列挙。業務意味は書かない。既存 skeleton の `goto_skipped_stmts` と file+line 突合。fixture `IoDemo` + `Form_Load` 前方 GoTo 越し `Open`。
 
 #### J. メニュー木を skeleton へ
 
@@ -144,4 +144,4 @@ UserControl 1 つ · `On Error GoTo` 1 本 · 前方 GoTo 既存に加えて `Go
 3. 採用したら [`kit-dev-context.md`](kit-dev-context.md) の「次手」に「採用済」と日付を足し、本ファイルの該当節を短くする
 4. 捨てる案は「やらない」表へ移す（消して忘れない）
 
-P0 · P1 · P2-G / P2-H は採用済。次の候補は P2-I（横断 I/O カタログ）。
+P0 · P1 · P2-G / P2-H / P2-I は採用済。次の候補は P2-J（メニュー木を skeleton へ）。

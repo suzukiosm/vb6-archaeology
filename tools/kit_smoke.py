@@ -75,6 +75,7 @@ def run_pipeline() -> None:
         ["comprehend", "--inventory", str(INV_JSON), "--suggest"],
     )
     run_step("excerpt", ["excerpt", "--inventory", str(INV_JSON)])
+    run_step("io-catalog", ["io-catalog", "--extract", str(EXTRACT)])
     run_step("status", ["status", "--extract", str(EXTRACT), "--json-only"])
     # Reports are only trustworthy if every name in them exists in the inventory,
     # so the name check runs after every report has been generated.

@@ -39,6 +39,7 @@ vb6-archaeology/
 │   ├── runtime_layout.py
 │   ├── comprehension_scaffold.py
 │   ├── reimpl_excerpt.py
+│   ├── io_catalog.py
 │   ├── status.py
 │   ├── serve_reports.py
 │   ├── frm_lines.py
