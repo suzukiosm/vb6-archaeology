@@ -304,8 +304,9 @@ End Sub
                 out,
             )
             md = out.read_text(encoding="utf-8")
-        self.assertIn("show_style / Show 文", md)
-        self.assertIn("modal_overlay", md)
+            self.assertIn("show_style / Show 文", md)
+            self.assertIn("Show 文の転置（事実）", md)
+            self.assertIn("modal_overlay", md)
 
 
 if __name__ == "__main__":

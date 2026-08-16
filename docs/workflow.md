@@ -50,7 +50,8 @@ python -m tools inventory working\extracts\<stem>
 python -m tools verify working\reports\<stem>_inventory.json
 ```
 
-これが構成把握の正。以降のレポートはここの名前集合に従う。
+これが構成把握の正。以降のレポートはここの名前集合に従う。  
+Form の Show 出方向は `show_calls`。入方向は同じ文の転置（`show_inbound`）。新しい呼び出しは足さない。
 
 ## Step 4 — Form 深読み (`/frm-deep-read`)
 

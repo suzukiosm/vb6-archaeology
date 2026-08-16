@@ -6,6 +6,7 @@ definition found at line start. No call-graph guessing; only facts:
   - VBP metadata (Startup, Title, version, Object=, form/module/class in VBP order)
   - per file: VB_Name, form kind, controls (from the .frm header)
   - per form: show_style candidate + Show statements (MDIChild / Foo.Show arg)
+  - show_inbound / show_unresolved: transpose of existing show_calls (not a callgraph)
   - per procedure: kind, visibility, params, returns, line range, event role
 
 Outputs <stem>_inventory.json / .md / .html into working/reports/.
@@ -29,7 +30,11 @@ from lib.cache import load as cache_load  # noqa: E402
 from lib.cache import store as cache_store  # noqa: E402
 from lib.config import decode_vb6_bytes, reports_root  # noqa: E402
 from lib.console import enable_utf8_stdio  # noqa: E402
-from lib.show_style import parse_show_calls_in_line, self_show_style  # noqa: E402
+from lib.show_style import (  # noqa: E402
+    attach_show_inbound,
+    parse_show_calls_in_line,
+    self_show_style,
+)
 from lib.vbparse import iter_logical_lines  # noqa: E402
 
 # Bump when parse_* output shape or semantics change (invalidates the cache).
@@ -562,7 +567,7 @@ def build_report(
         for p in extract_dir.iterdir()
         if p.suffix.lower() in (".frm", ".bas", ".cls") and p.name.lower() not in listed
     )
-    return {
+    report = {
         "vbp": vbp_path.name,
         "stem": vbp_path.stem,
         "extract_dir": str(extract_dir.resolve()),
@@ -576,9 +581,30 @@ def build_report(
         "skipped_parent_common": vbp["skipped_parent_common"],
         "warnings": vbp.get("warnings") or [],
     }
+    return attach_show_inbound(report)
+
+
+def _format_inbound_bits(calls: list[dict], *, html_mode: bool = False) -> str:
+    if not calls:
+        return "—"
+    bits = []
+    for c in calls[:8]:
+        arg = c.get("arg") or "—"
+        src = c.get("from_vb_name") or c.get("from_file") or "?"
+        piece = f"`{src}`/{arg}/`{c.get('show_style', 'unknown')}`@L{c['line']}"
+        if html_mode:
+            e = html.escape
+            piece = (
+                f"<code>{e(str(src))}</code>/{e(str(arg))}/"
+                f"<code>{e(str(c.get('show_style', 'unknown')))}</code>@L{c['line']}"
+            )
+        bits.append(piece)
+    more = f" …+{len(calls) - 8}" if len(calls) > 8 else ""
+    return ", ".join(bits) + more
 
 
 def write_markdown(report: dict, out: Path) -> None:
+    attach_show_inbound(report)
     meta = report["meta"]
     ver = ".".join(
         meta.get(k, "?") for k in ("MajorVer", "MinorVer", "RevisionVer")
@@ -644,8 +670,8 @@ def write_markdown(report: dict, out: Path) -> None:
             " 規約: `docs/reimplementation-handoff.md`。"
         )
         L.append("")
-        L.append("| Form | file | self | MDIChild | outbound |")
-        L.append("|---|---|---|---|---|")
+        L.append("| Form | file | self | MDIChild | outbound | inbound |")
+        L.append("|---|---|---|---|---|---|")
         for f in form_shows:
             style = (f.get("show_style") or {}).get("show_style", "unknown")
             mdi = f.get("mdi_child")
@@ -662,10 +688,40 @@ def write_markdown(report: dict, out: Path) -> None:
                 out_s = ", ".join(bits) + more
             else:
                 out_s = "—"
+            in_s = _format_inbound_bits(f.get("show_inbound") or [])
             L.append(
                 f"| `{f.get('vb_name') or '?'}` | `{f['file']}` | `{style}` "
-                f"| {mdi_s} | {out_s} |"
+                f"| {mdi_s} | {out_s} | {in_s} |"
             )
+        L.append("")
+        L.append("## Show 文の転置（事実）")
+        L.append("")
+        L.append(
+            "> 既存 `show_calls` の逆引き。新しい呼び出しは推定しない。"
+            " inventory に無い（または一意でない）ターゲットは unresolved。"
+            " 呼び出しグラフではない。"
+        )
+        L.append("")
+        L.append("| Form | inbound（from / arg / style @行） |")
+        L.append("|---|---|")
+        for f in form_shows:
+            L.append(
+                f"| `{f.get('vb_name') or '?'}` | "
+                f"{_format_inbound_bits(f.get('show_inbound') or [])} |"
+            )
+        unresolved = report.get("show_unresolved") or []
+        if unresolved:
+            L.append("")
+            L.append("### unresolved（inventory に無いターゲット）")
+            L.append("")
+            L.append("| from | target | arg | style | 行 |")
+            L.append("|---|---|---|---|---:|")
+            for c in unresolved:
+                L.append(
+                    f"| `{c.get('from_vb_name') or c.get('from_file')}` | "
+                    f"`{c.get('target')}` | `{c.get('arg') or '—'}` | "
+                    f"`{c.get('show_style', 'unknown')}` | {c.get('line')} |"
+                )
         L.append("")
 
     for f in report["files"]:
@@ -735,6 +791,7 @@ def write_markdown(report: dict, out: Path) -> None:
 
 
 def write_html(report: dict, out: Path) -> None:
+    attach_show_inbound(report)
     meta = report["meta"]
     e = html.escape
 
@@ -763,6 +820,7 @@ def write_html(report: dict, out: Path) -> None:
     toc_rows = []
     sections = []
     show_rows = []
+    inbound_rows = []
     for i, f in enumerate(report["files"], 1):
         kind = file_kind_label(f)
         anchor = f"f{i}"
@@ -786,11 +844,16 @@ def write_html(report: dict, out: Path) -> None:
                 out_s = ", ".join(bits) + more
             else:
                 out_s = "—"
+            in_s = _format_inbound_bits(f.get("show_inbound") or [], html_mode=True)
             show_rows.append(
                 f"<tr><td><code>{e(f.get('vb_name') or '?')}</code></td>"
                 f"<td><code>{e(f['file'])}</code></td>"
                 f"<td><code>{e(style)}</code></td>"
-                f"<td>{e(mdi_s)}</td><td>{out_s}</td></tr>"
+                f"<td>{e(mdi_s)}</td><td>{out_s}</td><td>{in_s}</td></tr>"
+            )
+            inbound_rows.append(
+                f"<tr><td><code>{e(f.get('vb_name') or '?')}</code></td>"
+                f"<td>{in_s}</td></tr>"
             )
         else:
             style_cell = "—"
@@ -893,6 +956,27 @@ def write_html(report: dict, out: Path) -> None:
             )
         )
 
+    unresolved_html = ""
+    unresolved = report.get("show_unresolved") or []
+    if unresolved:
+        urows = []
+        for c in unresolved:
+            urows.append(
+                "<tr>"
+                f"<td><code>{e(str(c.get('from_vb_name') or c.get('from_file') or ''))}</code></td>"
+                f"<td><code>{e(str(c.get('target') or ''))}</code></td>"
+                f"<td><code>{e(str(c.get('arg') or '—'))}</code></td>"
+                f"<td><code>{e(str(c.get('show_style') or 'unknown'))}</code></td>"
+                f"<td>{e(str(c.get('line') or ''))}</td>"
+                "</tr>"
+            )
+        unresolved_html = (
+            "<h3>unresolved（inventory に無いターゲット）</h3>"
+            "<table><tr><th>from</th><th>target</th><th>arg</th><th>style</th><th>行</th></tr>"
+            + "".join(urows)
+            + "</table>"
+        )
+
     doc = f"""<!DOCTYPE html>
 <html lang="ja"><head><meta charset="utf-8">
 <title>{e(report['vbp'])} インベントリ</title>
@@ -927,7 +1011,9 @@ Name: <code>{e(meta.get('Name', '?'))}</code> ／ Version: <code>{e(ver)}</code>
 <h2>目次</h2>
 <table><tr><th>#</th><th>ファイル</th><th>種別</th><th>VB_Name</th><th>show_style</th><th>Show出</th><th>行数</th><th>Ctrl</th><th>Proc</th></tr>
 {''.join(toc_rows)}</table>
-{"<h2>show_style / Show 文（Form・事実）</h2><p class='meta'>ヒューリスティック候補。詳細は deep-read / excerpt。</p><table><tr><th>Form</th><th>file</th><th>self</th><th>MDIChild</th><th>outbound</th></tr>" + ''.join(show_rows) + "</table>" if show_rows else ""}
+{"<h2>show_style / Show 文（Form・事実）</h2><p class='meta'>ヒューリスティック候補。詳細は deep-read / excerpt。</p><table><tr><th>Form</th><th>file</th><th>self</th><th>MDIChild</th><th>outbound</th><th>inbound</th></tr>" + ''.join(show_rows) + "</table>" if show_rows else ""}
+{"<h2>Show 文の転置（事実）</h2><p class='meta'>既存 show_calls の逆引き。新しい呼び出しは推定しない。inventory に無いターゲットは unresolved。呼び出しグラフではない。</p><table><tr><th>Form</th><th>inbound（from / arg / style @行）</th></tr>" + ''.join(inbound_rows) + "</table>" if inbound_rows else ""}
+{unresolved_html}
 <h2>ファイル別詳細</h2>
 {''.join(sections)}
 <script>

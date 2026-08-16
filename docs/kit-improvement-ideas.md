@@ -1,6 +1,6 @@
 # キット改良アイデア（提案・未採用）
 
-**これは提案。** 採用するまで実装しない（P0-C `status` は 2026-08-16 採用済）。1 テーマ 1 PR。  
+**これは提案。** 採用するまで実装しない（P0-B Show 転置 · P0-C `status` は 2026-08-16 採用済）。1 テーマ 1 PR。  
 消費者アプリのセッション事実ではない。キット保守用。現状の正は [`kit-dev-context.md`](kit-dev-context.md)。
 
 方針は変えない: 事実と推定を混ぜない · 正規表現一括の callgraph は作らない · 標準ライブラリのみ · アプリ固有は消費者へ。
@@ -54,12 +54,9 @@
 - やらない: OCX の中身解析、`.res` バイナリの意味付け
 - 検証: `PARSER_VERSION` を上げる · fixture にダミー `.ctl` を 1 つ
 
-#### B. Show 逆引き（既存 `show_calls` の転置）
+#### B. Show 逆引き（既存 `show_calls` の転置） — **採用済 2026-08-16**
 
-各 Form の outbound を集計し、「この Form を Show しているファイル・行」を出す。**新しい呼び出しを推定しない。** 文字列ターゲットが inventory に無いときは `unresolved` と残す（エッジを作らない）。
-
-置き場の候補: inventory HTML の既存 Show 表の隣、または `excerpt`。  
-「完全グラフ」とは呼ばない。キャプションは「Show 文の転置（事実）」。
+inventory / excerpt に「Show 文の転置（事実）」を出す。既存 `show_calls` の逆引きのみ。ターゲットが inventory の Form（`vb_name`、なければファイル stem）に一意に無いときは `unresolved`。呼び出しグラフではない。
 
 #### C. `python -m tools status` — **採用済 2026-08-16**
 
@@ -156,4 +153,4 @@ UserControl 1 つ · `On Error GoTo` 1 本 · 前方 GoTo 既存に加えて `Go
 3. 採用したら [`kit-dev-context.md`](kit-dev-context.md) の「次手」に「採用済」と日付を足し、本ファイルの該当節を短くする
 4. 捨てる案は「やらない」表へ移す（消して忘れない）
 
-P0-C は採用済。次の 1 本の候補: **P0-B Show 転置**（既に持っている `show_calls` だけ使う）。
+P0-B / P0-C は採用済。次の候補: **P0-A**（inventory が extract したファイル種を棚卸しする）。

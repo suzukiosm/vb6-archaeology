@@ -39,7 +39,8 @@ VB の `Show` / `Load` / MDI 子は、Web では取り違えやすい。
 
 `python -m tools deep-read` と `python -m tools inventory` が Form 自身の `MDIChild` と
 `Foo.Show [vbModal|…]` から **候補**を出す（inventory=全文面、deep-read=ライブ Sub 優先）。  
-横断一覧は `python -m tools excerpt` または `serve` の `/excerpt`。
+横断一覧は `python -m tools excerpt` または `serve` の `/excerpt`。  
+「誰がこの Form を Show しているか」は既存 `show_calls` の転置（inventory / excerpt の「Show 文の転置」）。新しい呼び出しは推定しない。
 
 | 痕跡（例） | 寄せる候補 |
 |---|---|

@@ -14,7 +14,12 @@ from tools.frm_deep_read import (
     form_show_style_block,
     write_report,
 )
-from tools.lib.show_style import classify_show_arg, parse_show_calls_in_line
+from tools.lib.show_style import (
+    attach_show_inbound,
+    classify_show_arg,
+    invert_show_calls,
+    parse_show_calls_in_line,
+)
 from tools.reimpl_excerpt import build_excerpt_html, load_goto_counts, write_excerpt
 from tools.serve_reports import ReportsHandler
 
@@ -38,6 +43,112 @@ class ParseShowCallsTests(unittest.TestCase):
         self.assertEqual(calls[0]["arg"], "vbModal")
         self.assertEqual(calls[0]["show_style"], "modal_overlay")
         self.assertEqual(calls[0]["line"], 42)
+
+
+class InvertShowCallsTests(unittest.TestCase):
+    def test_known_target_becomes_inbound(self) -> None:
+        files = [
+            {
+                "file": "Form1.frm",
+                "vb_name": "Form1",
+                "type": "form",
+                "show_calls": [
+                    {
+                        "target": "Form12",
+                        "arg": "vbModal",
+                        "show_style": "modal_overlay",
+                        "line": 10,
+                    }
+                ],
+            },
+            {
+                "file": "BackupDay.frm",
+                "vb_name": "Form12",
+                "type": "form",
+                "show_calls": [],
+            },
+        ]
+        inbound, unresolved = invert_show_calls(files)
+        self.assertEqual(unresolved, [])
+        self.assertEqual(len(inbound["form12"]), 1)
+        self.assertEqual(inbound["form12"][0]["from_vb_name"], "Form1")
+        self.assertEqual(inbound["form1"], [])
+
+    def test_unknown_target_is_unresolved(self) -> None:
+        files = [
+            {
+                "file": "Form1.frm",
+                "vb_name": "Form1",
+                "type": "form",
+                "show_calls": [
+                    {
+                        "target": "Ghost",
+                        "arg": None,
+                        "show_style": "unknown",
+                        "line": 3,
+                    }
+                ],
+            }
+        ]
+        inbound, unresolved = invert_show_calls(files)
+        self.assertEqual(inbound["form1"], [])
+        self.assertEqual(unresolved[0]["target"], "Ghost")
+        self.assertEqual(unresolved[0]["reason"], "unresolved")
+
+    def test_file_stem_match_when_vb_name_differs(self) -> None:
+        files = [
+            {
+                "file": "Caller.frm",
+                "vb_name": "Caller",
+                "type": "form",
+                "show_calls": [
+                    {
+                        "target": "BackupDay",
+                        "arg": None,
+                        "show_style": "unknown",
+                        "line": 4,
+                    }
+                ],
+            },
+            {
+                "file": "BackupDay.frm",
+                "vb_name": "Form12",
+                "type": "form",
+                "show_calls": [],
+            },
+        ]
+        inbound, unresolved = invert_show_calls(files)
+        self.assertEqual(unresolved, [])
+        self.assertEqual(inbound["form12"][0]["from_file"], "Caller.frm")
+
+    def test_attach_writes_fields_on_report(self) -> None:
+        report = {
+            "files": [
+                {
+                    "file": "A.frm",
+                    "vb_name": "A",
+                    "type": "form",
+                    "show_calls": [
+                        {
+                            "target": "B",
+                            "arg": "vbModal",
+                            "show_style": "modal_overlay",
+                            "line": 1,
+                        }
+                    ],
+                },
+                {
+                    "file": "B.frm",
+                    "vb_name": "B",
+                    "type": "form",
+                    "show_calls": [],
+                },
+            ]
+        }
+        attach_show_inbound(report)
+        b = next(f for f in report["files"] if f["vb_name"] == "B")
+        self.assertEqual(b["show_inbound"][0]["from_vb_name"], "A")
+        self.assertEqual(report["show_unresolved"], [])
 
 
 class MdiChildExtractionTests(unittest.TestCase):
@@ -218,8 +329,60 @@ class ExcerptTests(unittest.TestCase):
             self.assertIn("navigate", text)
             self.assertIn("候補", text)
             self.assertIn("unknown", text)
+            self.assertIn("Show 文の転置（事実）", text)
             counts = load_goto_counts(skel)
             self.assertEqual(counts["Form1"]["skip_stmts"], 1)
+
+    def test_excerpt_inbound_from_inventory_show_calls(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            reports = root / "reports"
+            skel = root / "skeletons"
+            reports.mkdir()
+            skel.mkdir()
+            inv = {
+                "stem": "demo",
+                "proc_total": 0,
+                "files": [
+                    {
+                        "file": "Form1.frm",
+                        "vb_name": "Form1",
+                        "form_kind": "VB.Form",
+                        "type": "form",
+                        "control_count": 0,
+                        "procedures": [],
+                        "show_style": {"show_style": "unknown"},
+                        "show_calls": [
+                            {
+                                "target": "Form12",
+                                "arg": "vbModal",
+                                "show_style": "modal_overlay",
+                                "line": 8,
+                            }
+                        ],
+                    },
+                    {
+                        "file": "BackupDay.frm",
+                        "vb_name": "Form12",
+                        "form_kind": "VB.Form",
+                        "type": "form",
+                        "control_count": 0,
+                        "procedures": [],
+                        "show_style": {"show_style": "mdi_child"},
+                        "show_calls": [],
+                    },
+                ],
+            }
+            inv_path = reports / "demo_inventory.json"
+            inv_path.write_text(json.dumps(inv), encoding="utf-8")
+            dest = write_excerpt(
+                inventory_path=inv_path, reports=reports, skeletons=skel
+            )
+            text = dest.read_text(encoding="utf-8")
+        self.assertIn("Show 文の転置（事実）", text)
+        self.assertIn("Form12", text)
+        self.assertIn("Form1", text)
+        self.assertNotIn("unresolved</h3>", text)
 
 
 class ServeExcerptTests(unittest.TestCase):

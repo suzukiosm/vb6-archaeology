@@ -23,6 +23,7 @@ sys.path.insert(0, str(REPO / "tools"))
 
 from lib.config import load_config, reports_root, skeletons_root  # noqa: E402
 from lib.console import enable_utf8_stdio  # noqa: E402
+from lib.show_style import invert_show_calls  # noqa: E402
 
 TICK_TARGET_RE = re.compile(
     r'data-target="([^"#]+)#([^"]+)"',
@@ -189,6 +190,33 @@ def load_show_rows_from_inventory(inventory: dict) -> list[dict]:
     return rows
 
 
+def inbound_from_inventory(inventory: dict) -> tuple[list[dict], list[dict]]:
+    """Prefer stored show_inbound; otherwise transpose show_calls in memory."""
+    files = inventory.get("files") or []
+    stored = any(f.get("show_inbound") for f in files) or bool(
+        inventory.get("show_unresolved")
+    )
+    if stored:
+        inbound: list[dict] = []
+        for entry in files:
+            if entry.get("type") != "form":
+                continue
+            dest = entry.get("vb_name") or Path(str(entry.get("file") or "")).stem
+            for rec in entry.get("show_inbound") or []:
+                inbound.append({**rec, "to_form": dest})
+        return inbound, list(inventory.get("show_unresolved") or [])
+    inbound_map, unresolved = invert_show_calls(files)
+    inbound = []
+    for entry in files:
+        if entry.get("type") != "form":
+            continue
+        dest = entry.get("vb_name") or Path(str(entry.get("file") or "")).stem
+        key = str(dest).lower()
+        for rec in inbound_map.get(key, []):
+            inbound.append({**rec, "to_form": dest})
+    return inbound, unresolved
+
+
 def merge_show_rows(skeleton_rows: list[dict], inventory_rows: list[dict]) -> list[dict]:
     """Prefer skeleton (live-filtered) Show rows; keep inventory self styles as fill."""
     if not skeleton_rows:
@@ -215,6 +243,8 @@ def build_excerpt_html(
     show_rows: list[dict],
     stem: str,
     goto_counts: dict[str, dict[str, int]] | None = None,
+    inbound_rows: list[dict] | None = None,
+    unresolved_rows: list[dict] | None = None,
 ) -> str:
     forms = [f for f in inventory.get("files") or [] if f.get("type") == "form"]
     goto_counts = goto_counts or {}
@@ -260,6 +290,9 @@ def build_excerpt_html(
             "</tr>"
         )
 
+    inbound_rows = inbound_rows if inbound_rows is not None else []
+    unresolved_rows = unresolved_rows if unresolved_rows is not None else []
+
     show_html = []
     for r in show_rows:
         if r["kind"] != "show":
@@ -275,6 +308,28 @@ def build_excerpt_html(
             f"<td><code>{_esc(r['target'])}</code>{flag}</td>"
             f"<td><code>{_esc(r['show_style'])}</code></td>"
             f"<td>{_esc(r.get('evidence') or '—')}</td>"
+            "</tr>"
+        )
+
+    inbound_html = []
+    for r in inbound_rows:
+        inbound_html.append(
+            "<tr>"
+            f"<td><code>{_esc(r.get('to_form'))}</code></td>"
+            f"<td><code>{_esc(r.get('from_vb_name') or r.get('from_file'))}</code></td>"
+            f"<td>L{_esc(r.get('line'))}</td>"
+            f"<td><code>{_esc(r.get('arg') or '—')}</code></td>"
+            f"<td><code>{_esc(r.get('show_style', 'unknown'))}</code></td>"
+            "</tr>"
+        )
+    unresolved_html = []
+    for r in unresolved_rows:
+        unresolved_html.append(
+            "<tr>"
+            f"<td><code>{_esc(r.get('from_vb_name') or r.get('from_file'))}</code></td>"
+            f"<td><code>{_esc(r.get('target'))}</code></td>"
+            f"<td>L{_esc(r.get('line'))}</td>"
+            f"<td><code>{_esc(r.get('reason') or 'unresolved')}</code></td>"
             "</tr>"
         )
 
@@ -314,7 +369,7 @@ def build_excerpt_html(
 </head>
 <body>
 <h1>再実装向け抜粋 — <code>{_esc(stem)}</code></h1>
-<p class="meta">Form 一覧 · Show 関係 · GoTo 飛び越え件数 · 未 tick。詳細は inventory / deep-read / comprehension を正とする。</p>
+<p class="meta">Form 一覧 · Show 関係 · Show 転置 · GoTo 飛び越え件数 · 未 tick。詳細は inventory / deep-read / comprehension を正とする。</p>
 <p class="note">調査完了 ≠ 製品 UI 完了。出荷前は
 <code>docs/reimplementation-handoff.md</code> を通す。<br/>
 <code>show_style</code> はヒューリスティック候補（断定しない）。
@@ -337,6 +392,16 @@ GoTo 列は skeleton の飛び越え<strong>候補</strong>件数（デッド確
 {''.join(show_html) or '<tr><td colspan="6">（show_map なし — deep-read を先に実行）</td></tr>'}
 </tbody>
 </table>
+
+<h2>Show 文の転置（事実）</h2>
+<p class="meta">既存 <code>show_calls</code> の逆引き。新しい呼び出しは推定しない。呼び出しグラフではない。</p>
+<table>
+<thead><tr><th>target Form</th><th>from</th><th>L</th><th>arg</th><th>show_style</th></tr></thead>
+<tbody>
+{''.join(inbound_html) or '<tr><td colspan="5">（inbound なし）</td></tr>'}
+</tbody>
+</table>
+{"<h3>unresolved</h3><table><thead><tr><th>from</th><th>target</th><th>L</th><th>reason</th></tr></thead><tbody>" + ''.join(unresolved_html) + "</tbody></table>" if unresolved_html else ""}
 
 <h2>未 tick プロシージャ（{len(unticked)} / inventory {inventory.get('proc_total', '?')}）</h2>
 <table>
@@ -384,12 +449,15 @@ def write_excerpt(
     for r in show_rows:
         if r["kind"] == "self" and r["from_form"] in inv_self:
             r["show_style"] = inv_self[r["from_form"]]
+    inbound_rows, unresolved_rows = inbound_from_inventory(inventory)
     html_text = build_excerpt_html(
         inventory,
         ticked=ticked,
         show_rows=show_rows,
         stem=stem,
         goto_counts=goto_counts,
+        inbound_rows=inbound_rows,
+        unresolved_rows=unresolved_rows,
     )
     dest = out or (reports / f"{stem}_reimpl_excerpt.html")
     dest.parent.mkdir(parents=True, exist_ok=True)

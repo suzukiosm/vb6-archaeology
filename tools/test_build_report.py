@@ -136,6 +136,48 @@ End Sub
         form = next(f for f in rep["files"] if f["file"] == "Form1.frm")
         self.assertEqual(form["show_style"]["show_style"], "mdi_child")
         self.assertEqual(form["show_calls"][0]["show_style"], "modal_overlay")
+        self.assertEqual(form["show_inbound"], [])
+        self.assertEqual(rep["show_unresolved"][0]["target"], "Other")
+
+    def test_show_inbound_when_target_form_exists(self) -> None:
+        frm1 = """\
+VERSION 5.00
+Begin VB.Form Form1
+   Caption = "F"
+End
+Attribute VB_Name = "Form1"
+Private Sub Command1_Click()
+    Form12.Show vbModal
+End Sub
+"""
+        frm12 = """\
+VERSION 5.00
+Begin VB.Form Form12
+   Caption = "G"
+   MDIChild = -1  'True
+End
+Attribute VB_Name = "Form12"
+"""
+        (self.d / "Form1.frm").write_bytes(frm1.encode("cp932"))
+        (self.d / "Form12.frm").write_bytes(frm12.encode("cp932"))
+        vbp = self.d / "t.vbp"
+        vbp.write_bytes(
+            "Type=Exe\r\nForm=Form1.frm\r\nForm=Form12.frm\r\n".encode("cp932")
+        )
+        rep = inv.build_report(self.d, vbp, use_cache=False, jobs=1)
+        form12 = next(f for f in rep["files"] if f["vb_name"] == "Form12")
+        self.assertEqual(form12["show_inbound"][0]["from_vb_name"], "Form1")
+        self.assertEqual(rep["show_unresolved"], [])
+        with tempfile.TemporaryDirectory() as td:
+            md = Path(td) / "inv.md"
+            html_path = Path(td) / "inv.html"
+            inv.write_markdown(rep, md)
+            inv.write_html(rep, html_path)
+            text = md.read_text(encoding="utf-8")
+            html_text = html_path.read_text(encoding="utf-8")
+        self.assertIn("Show 文の転置（事実）", text)
+        self.assertIn("Show 文の転置（事実）", html_text)
+        self.assertIn("unresolved", text.lower() + html_text.lower())  # caption only
 
 
 if __name__ == "__main__":

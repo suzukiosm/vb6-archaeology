@@ -33,7 +33,7 @@ python -m tools --version
 | `comprehend` | `comprehension_scaffold.py` | 理解レポートの骨格生成・tick 追記（inventory 外の名前は拒否） | `working/reports/<stem>_comprehension.html` |
 | `lines` | `frm_lines.py` | CP932 ソースの行番号つき表示 | stdout |
 | `scan-chars` | `scan_control_chars.py` | PS バッククォート由来の制御文字検出 | stdout（hits=0 で exit 0） |
-| `excerpt` | `reimpl_excerpt.py` | 再実装向け抜粋 HTML（Form · Show · 未 tick） | `working/reports/<stem>_reimpl_excerpt.html` |
+| `excerpt` | `reimpl_excerpt.py` | 再実装向け抜粋 HTML（Form · Show · Show転置 · 未 tick） | `working/reports/<stem>_reimpl_excerpt.html` |
 | `status` | `status.py` | 既存成果物の有無・件数だけ（推定なし） | stdout 3 行 + JSON |
 | `serve` | `serve_reports.py` | レポート配信 + `/excerpt` 動的抜粋（`file://` 不可） | 127.0.0.1:`reports_http_port` |
 | `fixture` | `make_fixture.py` | スモーク用ミニ VBP（CP932） | `source/mini_vbp/` |
@@ -114,6 +114,7 @@ python -m tools status
   - プロシージャ: Sub/Function/Property + **引数・戻り値**、Declare、モジュールレベル Const/Enum/Type/Event
 - パス欠落の `Form=` / `Module=` / `Class=` は一覧に入れず `warnings` に出す（JSON / MD / HTML / CLI サマリ）。
 - HTML レポートは検索ボックス（ファイル名 / VB_Name / プロシージャ / 宣言名）と全開閉ボタン付き。
+- Form の `show_calls` を転置して `show_inbound` / `show_unresolved` を出す（新しい呼び出しは推定しない）。
 - VBP キーの正: `docs/reference/vbp-keys.md`。
 
 ## comprehension scaffold の契約
@@ -146,6 +147,7 @@ python -m unittest discover -s tools -p "test_*.py" -v
 - `test_console.py` — cp1252 コンソール（英語 Windows 相当）でも日本語 Caption を出力して落ちない
 - `test_runtime_layout.py` — Show 経路の文脈解決・Sub 境界で `recent_shows` クリア（合成データ）
 - `test_frm_deep_read.py` — `ancestor_hidden`（死んだ非表示コンテナ配下）
+- `test_show_style.py` — show_style ヒューリスティック · Show 転置 · excerpt 配線
 - `test_verify_report_names.py` — inventory 名集合照合（偽 Sub で fail / 既知名で pass）
 - `test_vbparse.py` — 行連結畳み込みと物理行番号の保持
 - `test_inventory.py` — proc/Declare/Property シグネチャ、Const/Enum/Type/Event、Class=/Object=/meta、`warnings`、`--skip-parent-common`、End 数不変条件
