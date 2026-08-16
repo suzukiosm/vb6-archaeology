@@ -9,6 +9,8 @@ Versions are exposed by `python -m tools --version` (`tools/__init__.py`).
 
 ### Added
 
+- `python -m tools ideas` — `docs/kit-improvement-ideas.md` の open / adopted / deferred / wont を集計（キットバックログの正。Issues は受付口）
+- `deep-read` / `deep-read-all` が `.bas` / `.cls` の表面レポート + skeleton（Implements / GoTo / Show 文面。Form chrome なし）。fixture `SkipOpen`
 - `python -m tools verify-show` — inventory と deep-read の `show_style` 照合。同じ行の食い違いは exit 1。inventory だけの Show（デッド Sub）は警告。どちらが正かは決めない。fixture `Ghost_Click`
 - `test_make_fixture.py` — mini_vbp の回帰契約（UserControl · `On Error GoTo` · `GoSub` · 前方 GoTo 越し Open · I/O 5 種）。temp へ書いてパーサで見る（`source/` は触らない）
 

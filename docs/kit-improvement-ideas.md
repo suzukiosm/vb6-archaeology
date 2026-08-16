@@ -1,6 +1,7 @@
 # キット改良アイデア（提案・未採用）
 
-**これは提案。** 採用するまで実装しない（P0 · P1 · P2 · P3 は 2026-08-16 採用済）。1 テーマ 1 PR。  
+**これは提案。** 採用するまで実装しない（P0–P3 · F1–F12 は 2026-08-16 採用済）。1 テーマ 1 PR。  
+機械集計: `python -m tools ideas`。  
 消費者アプリのセッション事実ではない。キット保守用。現状の正は [`kit-dev-context.md`](kit-dev-context.md)。
 
 方針は変えない: 事実と推定を混ぜない · 正規表現一括の callgraph は作らない · 標準ライブラリのみ · アプリ固有は消費者へ。
@@ -28,7 +29,7 @@
 |---|---|---|
 | F1 | ~~`extract` は extra キーをコピーするが inventory は Form/Module/Class だけ~~ **採用済 2026-08-16** | `vb6_inventory.parse_vbp` · [`reference/vbp-keys.md`](reference/vbp-keys.md) |
 | F2 | ~~同伴コピーは `.frm`→`.frx` のみ~~ **採用済 2026-08-16** 同 stem の既知同伴 | `extract_vbp.companion_paths` |
-| F3 | `deep-read` は `.frm` 単体。`.cls` / `.bas` に同等の表面レポートが無い | `frm_deep_read` の範囲注記 · `methodology.md` |
+| F3 | ~~`deep-read` は `.frm` 単体。`.cls` / `.bas` に同等の表面レポートが無い~~ **採用済 2026-08-16** `.bas`/`.cls` 表面レポート | `frm_deep_read.analyze_module_file` |
 | F4 | ~~`layout` は `.frm` + `.bas`。`.cls` は走査しない~~ **採用済 2026-08-16** | `runtime_layout.py` · `iter_module_paths` |
 | F5 | 前方 GoTo 飛び越えは一般化済。~~`On Error GoTo` / `GoSub` は対象外~~ **採用済 2026-08-16**（ラベル地図）。後方 GoTo は対象外 | `frm_deep_read` · [`anti-patterns.md`](reference/anti-patterns.md) 9e |
 | F6 | ~~メニューは警告のみ。木構造は skeleton の一級市民ではない~~ **採用済 2026-08-16** `menu_tree` | `analyze_menus` · `build_menu_tree` |
@@ -36,7 +37,7 @@
 | F8 | ~~`smoke` の `/excerpt` live GET は意図的未実装~~ **採用済 2026-08-16** `serve --live-get` | `serve_reports.live_get` |
 | F9 | ~~バージョン表示は `0.1.0` のまま。`[Unreleased]` に 0.1.0 以降の機能が厚い~~ **採用済 2026-08-16** `0.2.0` | `tools/__init__.py` · `CHANGELOG.md` · `tools/lib/version.py` |
 | F10 | ~~フィクスチャに UserControl / `On Error` / `GoSub` / I/O 5 種が無い~~ **採用済 2026-08-16** `test_make_fixture.py` | `tools/make_fixture.py` |
-| F11 | GitHub Issues は空。改善テンプレはあるがバックログの置き場が無い | `gh issue list` · `.github/ISSUE_TEMPLATE/feature_request.yml` |
+| F11 | ~~GitHub Issues は空。改善テンプレはあるがバックログの置き場が無い~~ **採用済 2026-08-16** 正は本ファイル。`python -m tools ideas` | `docs/kit-improvement-ideas.md` · `tools/ideas.py` |
 | F12 | ~~パイプライン進捗を出すコマンドが無い~~ **採用済 2026-08-16** `python -m tools status` | `tools/status.py` |
 
 `show_calls`（Form 単位の出方向事実）は採用済。無いのは **入方向の転置** と **進捗の機械集計**。
@@ -144,4 +145,4 @@ skeleton `menu_tree` + deep-read「メニュー木（デザイナ値）」。親
 3. 採用したら [`kit-dev-context.md`](kit-dev-context.md) の「次手」に「採用済」と日付を足し、本ファイルの該当節を短くする
 4. 捨てる案は「やらない」表へ移す（消して忘れない）
 
-P0 · P1 · P2 · P3 は採用済。文書化された優先提案はここまで。完全 callgraph / Next / 業種は「やらない」のまま。
+P0 · P1 · P2 · P3 と穴 F1–F12 は採用済。残るのは「後回し」表と「やらない」表。`python -m tools ideas` が機械集計する。

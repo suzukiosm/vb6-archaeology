@@ -52,6 +52,13 @@ def run_pipeline() -> None:
             "(VB_Name out_key for BackupDay.frm)"
         )
     run_step("deep-read-all", ["deep-read-all", "--extract", str(EXTRACT)])
+    widget_skel = REPO / "working" / "skeletons" / "widget-skeleton.json"
+    module_skel = REPO / "working" / "skeletons" / "module1-skeleton.json"
+    if not widget_skel.is_file() or not module_skel.is_file():
+        raise SystemExit(
+            "kit_smoke failed: expected widget-skeleton.json and "
+            "module1-skeleton.json from deep-read-all .cls/.bas"
+        )
     run_step("layout", ["layout", "--extract", str(EXTRACT)])
     run_step("comprehend skeleton", ["comprehend", "--inventory", str(INV_JSON), "--force"])
     run_step(
@@ -85,6 +92,7 @@ def run_pipeline() -> None:
     run_step("serve --check", ["serve", "--check"])
     run_step("serve --live-get", ["serve", "--live-get"])
     run_step("scan-chars", ["scan-chars"])
+    run_step("ideas", ["ideas", "--json-only"])
 
 
 def run_unit_tests() -> None:

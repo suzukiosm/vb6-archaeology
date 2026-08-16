@@ -18,13 +18,14 @@ VBP を切り出し・棚卸し・深読み・証拠つき理解まで進める�
 | End 数照合 | `python -m tools verify <inventory.json>` | `/vb6-verify-reports` |
 | 名前集合照合 | `python -m tools verify-names --inventory <inventory.json>` | `/vb6-verify-reports` |
 | show_style 照合 | `python -m tools verify-show --inventory <inventory.json>` | `/vb6-verify-reports` |
-| Form 深読み | `python -m tools deep-read <File>.frm --extract <dir>` | `/frm-deep-read` |
+| Form / Module 深読み | `python -m tools deep-read <File.frm\|.bas\|.cls> --extract <dir>` | `/frm-deep-read` |
 | 実行時座標 | `python -m tools layout --extract <dir>` | `/runtime-layout` |
 | 理解 tick | `python -m tools comprehend --add-tick <Proc>` · `--unticked` / `--suggest` | `/vb6-comprehend` |
 | 報告書 | （skill `vb6-accurate-reports`） | `/vb6-report` |
 | 再実装抜粋 | `python -m tools excerpt` · serve /excerpt | — |
 | 横断 I/O | `python -m tools io-catalog` | `/vb6-io-catalog` |
 | パイプライン進捗 | `python -m tools status` | `/vb6-status` |
+| キットバックログ | `python -m tools ideas` | — |
 | レポート閲覧 | `python -m tools serve` | `/serve-reports` |
 | 設定検証 | `python -m tools config-check` | — |
 | 自己点検 | `python -m tools smoke` | `/kit-smoke` |

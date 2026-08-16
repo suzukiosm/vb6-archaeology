@@ -190,6 +190,12 @@ Public Sub IoDemo()
     Name "tmp.dat" As "tmp.bak"
     Kill "tmp.bak"
 End Sub
+
+Public Sub SkipOpen()
+    GoTo AfterSkip
+    Open "modskip.dat" For Input As #3
+AfterSkip:
+End Sub
 """
 
 CLS = """\

@@ -143,8 +143,11 @@ def load_goto_skip_index(
         skips = data.get("goto_skipped_stmts") or []
         if not skips:
             continue
-        form_name = str((data.get("form") or {}).get("name") or "")
-        source_file = file_by_vb_name.get(form_name.lower()) if form_name else None
+        source_file = str(data.get("file") or "").strip()
+        if not source_file:
+            form_name = str((data.get("form") or {}).get("name") or "")
+            vb_name = str(data.get("vb_name") or form_name)
+            source_file = file_by_vb_name.get(vb_name.lower()) if vb_name else None
         if not source_file:
             continue
         for skip in skips:

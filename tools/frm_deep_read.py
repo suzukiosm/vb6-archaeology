@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Deep-read a VB6 .frm: extract live controls, events, data paths, PARA, dead code.
+"""Deep-read a VB6 .frm (Form) or .bas/.cls (surface; no designer live/dead).
 
 検証→理解→実装サイクルの「理解」段で再利用する。足りない抽出・誤検知が出たら
 ワンショットを増やさず、本ファイルを改定してから再実行すること。
@@ -35,6 +35,10 @@ from lib.config import (  # noqa: E402
 )
 from lib.console import enable_utf8_stdio  # noqa: E402
 from lib.show_style import parse_show_calls_in_line, self_show_style  # noqa: E402
+from vb6_inventory import parse_surface  # noqa: E402
+
+MODULE_SUFFIXES = {".bas", ".cls"}
+FORM_SUFFIXES = {".frm"}
 
 EXTRACT = extracts_root()  # overridden in main() via --extract
 SKELETONS = skeletons_root()
@@ -1140,6 +1144,166 @@ def write_report(
     report_path.write_text("".join(md), encoding="utf-8")
 
 
+def _source_kind(path: pathlib.Path) -> str:
+    suffix = path.suffix.lower()
+    if suffix == ".cls":
+        return "class"
+    if suffix == ".bas":
+        return "module"
+    return "form"
+
+
+def analyze_module_file(lines: list[str], path: pathlib.Path, vb_name: str) -> dict:
+    """Facts for one .bas/.cls. No designer live/dead and no Form chrome."""
+    events = extract_events(lines)
+    for ev in events:
+        ev["status"] = "listed"
+        ev["dead_reason"] = ""
+        ev["note"] = "module/class: no designer live/dead"
+    show_calls: list[dict] = []
+    for ev in events:
+        show_calls.extend(ev.get("show_calls") or [])
+    return {
+        "kind": _source_kind(path),
+        "file": path.name,
+        "vb_name": vb_name or path.stem,
+        "surface": parse_surface(lines),
+        "procedures": [
+            {
+                "name": ev.get("name"),
+                "kind": ev.get("kind"),
+                "start_line": ev.get("start_line"),
+                "end_line": ev.get("end_line"),
+                "size": ev.get("size"),
+            }
+            for ev in events
+        ],
+        "show_calls": show_calls,
+        "goto_skipped_stmts": find_goto_skipped_stmts(lines, events),
+        "goto_label_maps": [
+            g for g in collect_goto_label_maps(lines, events) if g.get("gotos")
+        ],
+    }
+
+
+def write_module_skeleton(path: pathlib.Path, data: dict) -> None:
+    payload = {
+        "kind": data.get("kind"),
+        "file": data.get("file"),
+        "vb_name": data.get("vb_name"),
+        "surface": data.get("surface") or {},
+        "procedures": data.get("procedures") or [],
+        "show_calls": data.get("show_calls") or [],
+    }
+    if data.get("goto_skipped_stmts"):
+        payload["goto_skipped_stmts"] = data["goto_skipped_stmts"]
+    if data.get("goto_label_maps"):
+        payload["goto_label_maps"] = data["goto_label_maps"]
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def write_module_report(
+    report_path: pathlib.Path,
+    data: dict,
+    *,
+    source_label: str,
+    total_lines: int,
+) -> None:
+    kind = data.get("kind") or "module"
+    vb_name = data.get("vb_name") or ""
+    file_name = data.get("file") or ""
+    surface = data.get("surface") or {}
+    impl = ", ".join(i.get("name") or "" for i in surface.get("implements") or []) or "—"
+    we = ", ".join(
+        f"{w.get('name')} As {w.get('as_type')}"
+        for w in surface.get("with_events") or []
+    ) or "—"
+    inst = surface.get("instancing")
+    inst_s = "—" if inst is None else str(inst)
+    md = [
+        f"# {vb_name}（{file_name}）表面レポート\n\n",
+        f"日付: {date.today().isoformat()}\n",
+        f"ソース: `{source_label}`（CP932, {total_lines}行）\n",
+        f"種別: `{kind}`\n\n",
+        "> **範囲**: この `.bas` / `.cls` 単体。Form の deep-read ではない"
+        "（メニュー・Ctrl・`MDIChild`・ライブ/デッド分類なし）。"
+        "呼び出しグラフは作らない。\n\n",
+        "## 表面（Implements / WithEvents / Instancing）\n\n",
+        f"- Implements: {impl}\n",
+        f"- WithEvents: {we}\n",
+        f"- Instancing: {inst_s}\n",
+        f"- VB_Creatable: {surface.get('vb_creatable')}\n",
+        f"- VB_Exposed: {surface.get('vb_exposed')}\n\n",
+        f"## プロシージャ（{len(data.get('procedures') or [])}）\n\n",
+    ]
+    md.append("| name | kind | lines |\n|---|---|---|\n")
+    for proc in data.get("procedures") or []:
+        md.append(
+            f"| `{proc.get('name')}` | {proc.get('kind') or ''} | "
+            f"L{proc.get('start_line')}–{proc.get('end_line')} |\n"
+        )
+    calls = data.get("show_calls") or []
+    if calls:
+        md.append(f"\n## Show 文（事実）（{len(calls)}）\n\n")
+        md.append("> `Foo.Show [arg]` の文面だけ。呼び出しグラフではない。\n\n")
+        for call in calls:
+            arg = call.get("arg") or "—"
+            md.append(
+                f"- L{call.get('line')}: `{call.get('target')}.Show {arg}` "
+                f"`{call.get('show_style', 'unknown')}`\n"
+            )
+    maps = data.get("goto_label_maps") or []
+    if maps:
+        md.append(f"\n## GoTo / ラベル地図（{len(maps)} Sub）\n\n")
+        md.append("> 事実のみ。飛び越えスパンは前方 GoTo のみ。デッド確定しない。\n\n")
+        for row in maps:
+            jumps = ", ".join(
+                f"L{x['line']}→`{x['target']}` ({x['kind']})"
+                for x in (row.get("gotos") or [])
+            ) or "—"
+            md.append(f"- `{row.get('sub')}` — {jumps}\n")
+    skipped = data.get("goto_skipped_stmts") or []
+    if skipped:
+        md.append(f"\n## GoTo で飛び越えられる文（候補）（{len(skipped)}件）\n\n")
+        md.append("> 静的近似・候補。到達不能と断定しない。ソース順＝実行順と読まない。\n\n")
+        for hit in skipped:
+            md.append(
+                f"- `{hit.get('sub')}` GoTo L{hit.get('goto_line')} → "
+                f"`{hit.get('label')}` skips [{hit.get('stmt_kind')}] "
+                f"L{hit.get('stmt_line')}\n"
+            )
+    report_path.parent.mkdir(parents=True, exist_ok=True)
+    report_path.write_text("".join(md), encoding="utf-8")
+
+
+def run_module_deep_read(
+    src_path: pathlib.Path,
+    *,
+    vb_name: str,
+    skel_path: pathlib.Path | None,
+    report_path: pathlib.Path | None,
+    source_label: str,
+) -> dict:
+    lines = read_cp932(src_path).splitlines()
+    data = analyze_module_file(lines, src_path, vb_name)
+    print(f"=== {src_path.name} ===")
+    print(f"{data['kind']}: {data['vb_name']}")
+    print(f"Lines: {len(lines)}")
+    print(f"Procedures: {len(data['procedures'])}")
+    print(f"Show calls: {len(data['show_calls'])}")
+    print(f"GoTo-skipped stmt candidates: {len(data['goto_skipped_stmts'])}")
+    if skel_path is not None:
+        write_module_skeleton(skel_path, data)
+        print(f"\nSkeleton -> {skel_path}")
+    if report_path is not None:
+        write_module_report(
+            report_path, data, source_label=source_label, total_lines=len(lines)
+        )
+        print(f"Report  -> {report_path}")
+    return data
+
+
 # ── main ──────────────────────────────────────────────────
 
 def resolve_deep_read_out_key(
@@ -1185,10 +1349,12 @@ def _resolve_extract(arg: pathlib.Path | None) -> pathlib.Path:
 def main(argv: list[str] | None = None) -> int:
     enable_utf8_stdio()
     global EXTRACT, REPORTS, SKELETONS
-    parser = argparse.ArgumentParser(description="Deep-read a VB6 .frm")
+    parser = argparse.ArgumentParser(
+        description="Deep-read a VB6 .frm, or a .bas/.cls surface report"
+    )
     parser.add_argument(
         "frm",
-        help=".frm filename (or path) inside --extract directory",
+        help=".frm / .bas / .cls filename (or path) inside --extract directory",
     )
     parser.add_argument(
         "--extract",
@@ -1220,6 +1386,14 @@ def main(argv: list[str] | None = None) -> int:
         print(f"ERROR: {frm_path} not found", file=sys.stderr)
         return 1
 
+    suffix = frm_path.suffix.lower()
+    if suffix not in FORM_SUFFIXES | MODULE_SUFFIXES:
+        print(
+            f"ERROR: deep-read accepts .frm / .bas / .cls (got {frm_path.name})",
+            file=sys.stderr,
+        )
+        return 2
+
     text = read_cp932(frm_path)
     lines = text.splitlines()
     bas_text = load_bas_text()
@@ -1241,6 +1415,28 @@ def main(argv: list[str] | None = None) -> int:
     out_key = resolve_deep_read_out_key(vb_name, frm_path)
     skel_name = args.skeleton or f"{out_key}-skeleton.json"
     report_name = args.report or f"{out_key}_deep_read.md"
+
+    def _out_path(name: str, default_dir: pathlib.Path) -> pathlib.Path:
+        path = pathlib.Path(name)
+        if not path.is_absolute() and path.parent == pathlib.Path("."):
+            return default_dir / path.name
+        if not path.is_absolute():
+            return REPO / path
+        return path
+
+    if suffix in MODULE_SUFFIXES:
+        try:
+            source_label = str(frm_path.resolve().relative_to(REPO)).replace("\\", "/")
+        except ValueError:
+            source_label = str(frm_path).replace("\\", "/")
+        run_module_deep_read(
+            frm_path,
+            vb_name=vb_name,
+            skel_path=None if args.no_skeleton else _out_path(skel_name, SKELETONS),
+            report_path=None if args.no_report else _out_path(report_name, REPORTS),
+            source_label=source_label,
+        )
+        return 0
 
     form_info, controls = extract_controls(lines)
     events = extract_events(lines)

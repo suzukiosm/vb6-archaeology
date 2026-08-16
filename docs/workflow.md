@@ -65,6 +65,7 @@ Form の Show 出方向は `show_calls`。入方向は同じ文の転置（`show
 
 ```powershell
 python -m tools deep-read <File>.frm --extract working\extracts\<stem>
+python -m tools deep-read <File>.bas --extract working\extracts\<stem>
 python -m tools deep-read-all --extract working\extracts\<stem>
 ```
 

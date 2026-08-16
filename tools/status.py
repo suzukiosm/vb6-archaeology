@@ -144,6 +144,18 @@ def resolve_inventory_path(
     return None, "multiple", names
 
 
+def _module_entries(inventory: dict) -> list[dict]:
+    out: list[dict] = []
+    for entry in inventory.get("files") or []:
+        kind = str(entry.get("type") or "").lower()
+        if kind in {"module", "class"}:
+            out.append(entry)
+            continue
+        if Path(str(entry.get("file") or "")).suffix.lower() in {".bas", ".cls"}:
+            out.append(entry)
+    return out
+
+
 def _form_entries(inventory: dict) -> list[dict]:
     out: list[dict] = []
     for entry in inventory.get("files") or []:
@@ -218,6 +230,19 @@ def build_status(
             deep_present.append(file_name)
         else:
             deep_absent.append(file_name)
+
+    modules = _module_entries(inv_data) if inv_data else []
+    mod_present: list[str] = []
+    mod_absent: list[str] = []
+    for entry in modules:
+        file_name = str(entry.get("file") or "")
+        vb_name = entry.get("vb_name")
+        key = _out_key(str(vb_name) if vb_name else None, file_name, mapping)
+        report = reports / f"{key}_deep_read.md"
+        if report.is_file():
+            mod_present.append(file_name)
+        else:
+            mod_absent.append(file_name)
 
     comprehension = reports / f"{stem}_comprehension.html" if stem else None
     tick_count = _count_ticks(comprehension) if comprehension else 0
@@ -304,6 +329,12 @@ def build_status(
             "present": deep_present,
             "absent": deep_absent,
         },
+        "module_read": {
+            "reports": len(mod_present),
+            "modules": len(modules),
+            "present": mod_present,
+            "absent": mod_absent,
+        },
         "ticks": {
             "count": tick_count,
             "proc_total": proc_total,
@@ -367,8 +398,10 @@ def format_status_lines(data: dict) -> str:
         show_s = "not persisted"
 
     line1 = f"stem={stem} extract={extract} inventory={inventory}"
+    mods = data.get("module_read") or {}
     line2 = (
         f"deep-read={deep.get('reports', 0)}/{deep.get('forms', 0)} "
+        f"mod-read={mods.get('reports', 0)}/{mods.get('modules', 0)} "
         f"ticks={ticks.get('count', 0)}/{ticks.get('proc_total') if ticks.get('proc_total') is not None else 0} "
         f"excerpt={excerpt}"
     )

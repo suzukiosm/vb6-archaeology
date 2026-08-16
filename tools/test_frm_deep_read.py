@@ -5,6 +5,7 @@ import unittest
 from pathlib import Path
 
 from tools.frm_deep_read import (
+    analyze_module_file,
     annotate_hidden_ancestor,
     build_menu_tree,
     collect_goto_label_maps,
@@ -13,6 +14,7 @@ from tools.frm_deep_read import (
     find_goto_skipped_stmts,
     flatten_menu_tree,
     resolve_deep_read_out_key,
+    write_module_report,
     write_report,
 )
 
@@ -396,6 +398,49 @@ class MenuTreeTests(unittest.TestCase):
         rows = flatten_menu_tree(tree)
         self.assertEqual([r["name"] for r in rows], ["mnuFile", "mnuOpen"])
         self.assertEqual(rows[1]["depth"], 1)
+
+
+class ModuleReadTests(unittest.TestCase):
+    def test_class_surface_and_skip_open(self) -> None:
+        lines = [
+            "VERSION 1.0 CLASS",
+            "BEGIN",
+            "  Instancing = 5",
+            "END",
+            'Attribute VB_Name = "Widget"',
+            "Implements IPing",
+            "Private WithEvents Bus As AppEvents",
+            "Public Sub PlaceHost()",
+            "    GoTo After",
+            '    Open "modskip.dat" For Input As #3',
+            "After:",
+            "End Sub",
+        ]
+        data = analyze_module_file(lines, Path("Widget.cls"), "Widget")
+        self.assertEqual(data["kind"], "class")
+        self.assertEqual(data["surface"]["instancing"], 5)
+        self.assertEqual(data["surface"]["implements"][0]["name"], "IPing")
+        self.assertEqual(data["procedures"][0]["name"], "PlaceHost")
+        self.assertEqual(data["goto_skipped_stmts"][0]["stmt_kind"], "open")
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "widget_deep_read.md"
+            write_module_report(
+                path, data, source_label="working/extracts/demo/Widget.cls", total_lines=12
+            )
+            text = path.read_text(encoding="utf-8")
+        self.assertIn("表面レポート", text)
+        self.assertIn("Form の deep-read ではない", text)
+        self.assertIn("IPing", text)
+        self.assertIn("PlaceHost", text)
+
+    def test_bas_kind(self) -> None:
+        data = analyze_module_file(
+            ['Attribute VB_Name = "Module1"', "Public Sub A()", "End Sub"],
+            Path("Module1.bas"),
+            "Module1",
+        )
+        self.assertEqual(data["kind"], "module")
+        self.assertEqual(data["procedures"][0]["name"], "A")
 
 
 if __name__ == "__main__":

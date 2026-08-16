@@ -1,4 +1,4 @@
-"""抽出プロジェクトの全 .frm を `frm_deep_read.py` で一括再生成する。
+"""抽出プロジェクトの全 .frm / .bas / .cls を `frm_deep_read.py` で一括再生成する。
 
 出力名の既定は **VB_Name の小文字**（例: `Form1` → `form1-skeleton.json`）。
 特例（例: `MDIForm1` → `mdi`）は `archaeology.config.json` の
@@ -7,6 +7,7 @@
     python tools/frm_deep_read_all.py --extract working/extracts/mini_vbp
     python tools/frm_deep_read_all.py --dry-run
     python tools/frm_deep_read_all.py --only Form1.frm
+    python tools/frm_deep_read_all.py --only Widget.cls
 """
 
 from __future__ import annotations
@@ -75,7 +76,7 @@ def key_for(name: str) -> str:
 def main(argv: list[str] | None = None) -> int:
     enable_utf8_stdio()
     ap = argparse.ArgumentParser(
-        description="Regenerate deep_read reports / skeletons for every .frm"
+        description="Regenerate deep_read reports / skeletons for every .frm/.bas/.cls"
     )
     ap.add_argument(
         "--extract",
@@ -84,18 +85,21 @@ def main(argv: list[str] | None = None) -> int:
         help="Extracted project dir (default: sole folder under working/extracts/)",
     )
     ap.add_argument(
-        "--only", action="append", default=None, help=".frm filename (repeatable)"
+        "--only", action="append", default=None, help="filename (repeatable; .frm/.bas/.cls)"
     )
     ap.add_argument("--dry-run", action="store_true")
     args = ap.parse_args(argv)
 
     extract = resolve_extract(args.extract)
-    frms = sorted(p for p in extract.glob("*.frm"))
+    suffixes = {".frm", ".bas", ".cls"}
+    frms = sorted(
+        p for p in extract.iterdir() if p.is_file() and p.suffix.lower() in suffixes
+    )
     if args.only:
         wanted = {o.lower() for o in args.only}
         frms = [p for p in frms if p.name.lower() in wanted]
     if not frms:
-        raise SystemExit(f"no .frm found under {extract}")
+        raise SystemExit(f"no .frm/.bas/.cls found under {extract}")
 
     failed = 0
     for frm in frms:
@@ -133,7 +137,14 @@ def main(argv: list[str] | None = None) -> int:
             print(proc.stdout)
             print(proc.stderr, file=sys.stderr)
 
-    print(f"\n{len(frms)} .frm processed, {failed} failed")
+    kinds = {".frm": 0, ".bas": 0, ".cls": 0}
+    for frm in frms:
+        kinds[frm.suffix.lower()] = kinds.get(frm.suffix.lower(), 0) + 1
+    print(
+        f"\n{len(frms)} files processed "
+        f"(frm={kinds['.frm']} bas={kinds['.bas']} cls={kinds['.cls']}), "
+        f"{failed} failed"
+    )
     return 1 if failed else 0
 
 

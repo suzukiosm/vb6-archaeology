@@ -186,6 +186,45 @@ class CatalogExtractTests(unittest.TestCase):
         self.assertIn("`Module1.bas`", md)
         self.assertIn("`Form_Load`", md)
 
+    def test_module_skeleton_file_field_attaches(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            extract = root / "demo"
+            extract.mkdir()
+            (extract / "Module1.bas").write_text(
+                'Attribute VB_Name = "Module1"\n'
+                "Public Sub SkipOpen()\n"
+                "    GoTo AfterSkip\n"
+                '    Open "modskip.dat" For Input As #3\n'
+                "AfterSkip:\n"
+                "End Sub\n",
+                encoding="utf-8",
+            )
+            skel = root / "skeletons"
+            skel.mkdir()
+            (skel / "module1-skeleton.json").write_text(
+                json.dumps({
+                    "kind": "module",
+                    "file": "Module1.bas",
+                    "vb_name": "Module1",
+                    "goto_skipped_stmts": [
+                        {
+                            "sub": "SkipOpen",
+                            "goto_line": 3,
+                            "label": "AfterSkip",
+                            "stmt_line": 4,
+                            "stmt_kind": "open",
+                        }
+                    ],
+                }),
+                encoding="utf-8",
+            )
+            data = build_catalog(extract, skeletons_dir=skel, repo_root=root)
+        skipped = [e for e in data["entries"] if e["goto_skip"]]
+        self.assertEqual(len(skipped), 1)
+        self.assertEqual(skipped[0]["file"], "Module1.bas")
+        self.assertEqual(skipped[0]["goto_skip"]["sub"], "SkipOpen")
+
 
 if __name__ == "__main__":
     unittest.main()

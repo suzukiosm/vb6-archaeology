@@ -69,6 +69,7 @@ class TestStatusEmpty(unittest.TestCase):
         self.assertIn("verify=not persisted", lines[2])
         self.assertIn("io=no", lines[2])
         self.assertIn("show=not persisted", lines[2])
+        self.assertIn("mod-read=0/0", lines[1])
 
 
 class TestStatusArtifacts(unittest.TestCase):
@@ -140,6 +141,7 @@ class TestStatusArtifacts(unittest.TestCase):
         text = format_status_lines(data)
         self.assertIn("io=yes", text)
         self.assertIn("deep-read=1/2", text)
+        self.assertIn("mod-read=0/1", text)
         self.assertIn("ticks=2/4", text)
         self.assertIn("verify=ok", text)
         self.assertTrue(data["verify_show"]["persisted"])

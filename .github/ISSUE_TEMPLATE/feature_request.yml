@@ -7,6 +7,8 @@ body:
       value: |
         本キットのゴールは **正確な理解と再現可能な調査**です。
         アプリ固有ロジック（特定の伝票形式・特定 Form 等）はキットには入れず、消費者リポの `tools/` に置きます。
+        キット保守の未採用案の正は [`docs/kit-improvement-ideas.md`](../docs/kit-improvement-ideas.md)
+        （`python -m tools ideas`）。Issue は受付口。採用するまで実装しない。
   - type: textarea
     id: problem
     attributes:

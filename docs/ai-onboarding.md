@@ -76,7 +76,7 @@ hooks（`.cursor/hooks/`）が書込ツールと破壊的 shell を阻む。
     → extract          → working/extracts/<stem>/
     → inventory        → working/reports/<stem>_inventory.{json,md,html}
     → verify           → count mismatches: none
-    → deep-read        → *_deep_read.md + skeletons
+    → deep-read        → *_deep_read.md + skeletons（.frm および .bas/.cls 表面）
     → layout           → runtime_layout.md + runtime-layout.json
     → comprehend       → <stem>_comprehension.html（骨格・tick 枠はツール、中身は人手+証拠。--unticked / --suggest は一覧のみ）
     → verify-names     → name mismatches: none

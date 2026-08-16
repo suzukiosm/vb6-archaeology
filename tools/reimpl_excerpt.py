@@ -75,6 +75,10 @@ def load_goto_counts(skeletons: Path) -> dict[str, dict[str, int]]:
             data = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError):
             continue
+        if str(data.get("kind") or "").lower() in {"module", "class"}:
+            continue
+        if not data.get("form") and not data.get("show_style"):
+            continue
         form = (data.get("form") or {}).get("name") or path.stem.replace(
             "-skeleton", ""
         )
@@ -97,6 +101,8 @@ def load_show_rows(skeletons: Path, vb_names: set[str]) -> list[dict]:
         try:
             data = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError):
+            continue
+        if str(data.get("kind") or "").lower() in {"module", "class"}:
             continue
         form = (data.get("form") or {}).get("name") or path.stem.replace(
             "-skeleton", ""

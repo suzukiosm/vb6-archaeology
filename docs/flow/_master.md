@@ -23,7 +23,7 @@
 3. 正本配置（`source/`）
 4. VBP 抽出
 5. inventory + verify
-6. Startup / 主要 Form の deep-read（GoTo 飛び越え候補・ラベル地図を含む）
+6. Startup / 主要 Form の deep-read（GoTo 飛び越え候補・ラベル地図を含む）。`.bas`/`.cls` は表面レポート
 7. runtime layout（`/runtime-layout`）— デザイナ座標だけで確定しない
 8. comprehension ticks（層 A→E。枠は `python -m tools comprehend --add-tick`。未 tick は `--unticked` / `--suggest`）
 9. 名前集合の照合（`python -m tools verify-names`）

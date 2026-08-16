@@ -56,11 +56,11 @@ COMMANDS: dict[str, Command] = {
     ),
     "deep-read": Command(
         "tools.frm_deep_read",
-        "Deep-read one .frm into a report plus a live-control skeleton",
+        "Deep-read one .frm, or a .bas/.cls surface report + skeleton",
     ),
     "deep-read-all": Command(
         "tools.frm_deep_read_all",
-        "Run deep-read across every .frm in an extract",
+        "Run deep-read across every .frm / .bas / .cls in an extract",
     ),
     "layout": Command(
         "tools.runtime_layout",
@@ -81,6 +81,10 @@ COMMANDS: dict[str, Command] = {
     "status": Command(
         "tools.status",
         "Print facts-only pipeline status from existing artifacts",
+    ),
+    "ideas": Command(
+        "tools.ideas",
+        "List remaining items in docs/kit-improvement-ideas.md (kit backlog)",
     ),
     "lines": Command(
         "tools.frm_lines",

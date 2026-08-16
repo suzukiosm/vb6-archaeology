@@ -28,8 +28,8 @@ python -m tools --version
 | `verify` | `verify_inventory.py` | End 文カウント照合 | stdout JSON + `count mismatches: none` |
 | `verify-names` | `verify_report_names.py` | inventory 名集合 ↔ レポート言及照合 | stdout JSON + `name mismatches: none` |
 | `verify-show` | `verify_show.py` | inventory と deep-read の `show_style` 照合（どちらが正かは決めない） | stdout JSON + `<stem>_verify_show.json` |
-| `deep-read` | `frm_deep_read.py` | .frm 深読み（単体解析。`ancestor_hidden` · `menu_tree` 付与。出力キーは VB_Name） | `<out_key>_deep_read.md` + `working/skeletons/<out_key>-skeleton.json` |
-| `deep-read-all` | `frm_deep_read_all.py` | 抽出内の全 .frm を一括 deep-read | 同上（キーは VB_Name 小文字 / `deep_read_name_map`） |
+| `deep-read` | `frm_deep_read.py` | .frm 深読み、または .bas/.cls 表面レポート（Implements · GoTo · Show 文面。Form chrome なし） | `<out_key>_deep_read.md` + `working/skeletons/<out_key>-skeleton.json` |
+| `deep-read-all` | `frm_deep_read_all.py` | 抽出内の全 .frm / .bas / .cls を一括 deep-read | 同上（キーは VB_Name 小文字 / `deep_read_name_map`） |
 | `layout` | `runtime_layout.py` | コード部の実行時座標（`.frm` / `.bas` / `.cls`） | `runtime_layout.md` / `runtime-layout.json` |
 | `comprehend` | `comprehension_scaffold.py` | 理解レポートの骨格生成・tick 追記（inventory 外の名前は拒否）。`--unticked` / `--suggest` は一覧のみ（自動 tick しない） | `working/reports/<stem>_comprehension.html`（一覧時は書込なし） |
 | `lines` | `frm_lines.py` | CP932 ソースの行番号つき表示 | stdout |
@@ -37,6 +37,7 @@ python -m tools --version
 | `excerpt` | `reimpl_excerpt.py` | 再実装向け抜粋 HTML（Form · Module/Class · Show · Show転置 · 未 tick） | `working/reports/<stem>_reimpl_excerpt.html` |
 | `io-catalog` | `io_catalog.py` | extract の Open / Kill / Name / Get / Put（事実のみ。GoTo 飛び越えと突合） | `working/reports/<stem>_io_catalog.{json,md}` |
 | `status` | `status.py` | 既存成果物の有無・件数だけ（推定なし） | stdout 3 行 + JSON |
+| `ideas` | `ideas.py` | キットバックログ（`kit-improvement-ideas.md`）の open/adopted 集計 | stdout 5 行 + JSON |
 | `serve` | `serve_reports.py` | `/` ランディング + レポート配信 + `/excerpt` 動的抜粋（`file://` 不可）。`--live-get` は一時ポートで 200 確認 | 127.0.0.1:`reports_http_port` |
 | `fixture` | `make_fixture.py` | スモーク用ミニ VBP（CP932） | `source/mini_vbp/` |
 | `smoke` | `kit_smoke.py` | キット自己点検（パイプライン + unittest）。`--kit-only` は消費者拡張時にキット層だけ回すフラグ（キット本体では既定と同じ） | stdout（失敗時非ゼロ） |
@@ -62,6 +63,8 @@ python -m tools verify
 python -m tools verify-names --inventory working\reports\mini_vbp_inventory.json
 python -m tools verify-show --inventory working\reports\mini_vbp_inventory.json
 python -m tools deep-read Form1.frm --extract working\extracts\mini_vbp
+python -m tools deep-read Widget.cls --extract working\extracts\mini_vbp
+python -m tools ideas
 python -m tools layout --extract working\extracts\mini_vbp
 python -m tools comprehend --add-tick Command1_Click@Form1.frm --layer C
 python -m tools comprehend --unticked
@@ -152,7 +155,8 @@ python -m unittest discover -s tools -p "test_*.py" -v
 - `test_hooks.py` — 保護 hooks の deny / ask / allowlist / 偽陽性（`resources` を `source` と誤認しない）
 - `test_console.py` — cp1252 コンソール（英語 Windows 相当）でも日本語 Caption を出力して落ちない
 - `test_runtime_layout.py` — Show 経路の文脈解決・Sub 境界で `recent_shows` クリア · `.cls` 走査（合成データ）
-- `test_frm_deep_read.py` — `ancestor_hidden`（死んだ非表示コンテナ配下）· `menu_tree`（デザイナ親子）
+- `test_frm_deep_read.py` — `ancestor_hidden`（死んだ非表示コンテナ配下）· `menu_tree`（デザイナ親子）· `.cls` 表面
+- `test_ideas.py` — `kit-improvement-ideas.md` の open/adopted 集計
 - `test_show_style.py` — show_style ヒューリスティック · Show 転置 · excerpt 配線
 - `test_verify_report_names.py` — inventory 名集合照合（偽 Sub で fail / 既知名で pass）
 - `test_verify_show.py` — inventory vs deep-read show_style（self/call 食い違いは hard、inventory_only は警告）

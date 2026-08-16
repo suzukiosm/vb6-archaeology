@@ -1,9 +1,10 @@
 ---
 name: vb6-frm-deep-read
 description: >-
-  Deep-reads a VB6 .frm to produce live-control skeletons and deep-read
-  reports. Use when analyzing form controls, dead code, offscreen widgets, Show
-  maps, or regenerating skeletons after tool changes.
+  Deep-reads a VB6 .frm (live controls) or .bas/.cls (surface facts) to
+  produce reports and skeletons. Use when analyzing form controls, module
+  Implements/GoTo, dead code, offscreen widgets, Show maps, or regenerating
+  skeletons after tool changes.
 ---
 
 # vb6-frm-deep-read
@@ -12,6 +13,7 @@ description: >-
 
 ```powershell
 python -m tools deep-read <File>.frm --extract working\extracts\<stem>
+python -m tools deep-read <File>.bas --extract working\extracts\<stem>
 python -m tools deep-read-all --extract working\extracts\<stem>
 ```
 
@@ -36,5 +38,6 @@ python -m tools deep-read-all --extract working\extracts\<stem>
 - GoTo 飛び越え候補をデッド確定にしない。`On Error GoTo` / `GoSub` はラベル地図の候補（スパンは作らない）
 - `show_style` はヒューリスティック候補（`vbModal`→`modal_overlay` / `MDIChild`→`mdi_child`）。断定しない
 - `menu_tree` はデザイナ値（親子・Caption・Visible/Enabled）。実行時の `Enabled =` は `/runtime-layout`（混ぜない）
+- `.bas` / `.cls` は表面レポート（Implements / GoTo / Show 文面）。メニュー・Ctrl・ライブ/デッドは出さない
 - 保護ディレクトリには書かない
 - 横断の短い抜粋: `python -m tools excerpt` · serve `/excerpt`
