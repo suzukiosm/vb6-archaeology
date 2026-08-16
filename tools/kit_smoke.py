@@ -76,11 +76,12 @@ def run_pipeline() -> None:
     )
     run_step("excerpt", ["excerpt", "--inventory", str(INV_JSON)])
     run_step("io-catalog", ["io-catalog", "--extract", str(EXTRACT)])
+    # Skeletons exist after deep-read; persist show_style compare before status reads it.
+    run_step("verify-show", ["verify-show", "--inventory", str(INV_JSON)])
     run_step("status", ["status", "--extract", str(EXTRACT), "--json-only"])
     # Reports are only trustworthy if every name in them exists in the inventory,
     # so the name check runs after every report has been generated.
     run_step("verify-names", ["verify-names", "--inventory", str(INV_JSON)])
-    run_step("verify-show", ["verify-show", "--inventory", str(INV_JSON)])
     run_step("serve --check", ["serve", "--check"])
     run_step("serve --live-get", ["serve", "--live-get"])
     run_step("scan-chars", ["scan-chars"])
