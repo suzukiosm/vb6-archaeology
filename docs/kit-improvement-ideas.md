@@ -1,6 +1,6 @@
 # キット改良アイデア（提案・未採用）
 
-**これは提案。** 採用するまで実装しない（P0 · P1 · P2-G〜J は 2026-08-16 採用済）。1 テーマ 1 PR。  
+**これは提案。** 採用するまで実装しない（P0 · P1 · P2-G〜K は 2026-08-16 採用済）。1 テーマ 1 PR。  
 消費者アプリのセッション事実ではない。キット保守用。現状の正は [`kit-dev-context.md`](kit-dev-context.md)。
 
 方針は変えない: 事実と推定を混ぜない · 正規表現一括の callgraph は作らない · 標準ライブラリのみ · アプリ固有は消費者へ。
@@ -29,7 +29,7 @@
 | F1 | ~~`extract` は extra キーをコピーするが inventory は Form/Module/Class だけ~~ **採用済 2026-08-16** | `vb6_inventory.parse_vbp` · [`reference/vbp-keys.md`](reference/vbp-keys.md) |
 | F2 | 同伴コピーは `.frm`→`.frx` のみ。`.ctl` の `.ctx` 等は見ない | `extract_vbp.companion_frx` |
 | F3 | `deep-read` は `.frm` 単体。`.cls` / `.bas` に同等の表面レポートが無い | `frm_deep_read` の範囲注記 · `methodology.md` |
-| F4 | `layout` は `.frm` + `.bas`。`.cls` は走査しない | `runtime_layout.py` 末尾の glob |
+| F4 | ~~`layout` は `.frm` + `.bas`。`.cls` は走査しない~~ **採用済 2026-08-16** | `runtime_layout.py` · `iter_module_paths` |
 | F5 | 前方 GoTo 飛び越えは一般化済。~~`On Error GoTo` / `GoSub` は対象外~~ **採用済 2026-08-16**（ラベル地図）。後方 GoTo は対象外 | `frm_deep_read` · [`anti-patterns.md`](reference/anti-patterns.md) 9e |
 | F6 | ~~メニューは警告のみ。木構造は skeleton の一級市民ではない~~ **採用済 2026-08-16** `menu_tree` | `analyze_menus` · `build_menu_tree` |
 | F7 | ~~`serve` に目次が無い~~ **採用済 2026-08-16** `/` ランディング | `serve_reports.py` |
@@ -95,9 +95,9 @@ inventory ファイル節 + excerpt に `Implements` / `WithEvents` / `Instancin
 
 skeleton `menu_tree` + deep-read「メニュー木（デザイナ値）」。親子・Caption・Visible/Enabled は Begin 値。`has_click` は `Name_Click` の有無（事実）。実行時 `Enabled =` は layout（混ぜない）。警告 `menu_warnings` は維持。fixture `mnuFile` / `mnuOpen` / `mnuHidden`。
 
-#### K. layout が `.cls` も見る
+#### K. layout が `.cls` も見る — **採用済 2026-08-16**
 
-F4 の対称。幾何代入は稀でも、見ないことをやめる。
+`.bas` と同じく `.cls` を走査（`iter_module_paths`）。VB_Name があればそれを `file_vb` にする。幾何代入は稀でも見ないことをやめる。fixture `Widget.PlaceHost` が `Form1.Left = 50`。`.ctl` は対象外。
 
 #### L. 同伴 `.ctx` / デザイナ同伴
 
@@ -144,4 +144,4 @@ UserControl 1 つ · `On Error GoTo` 1 本 · 前方 GoTo 既存に加えて `Go
 3. 採用したら [`kit-dev-context.md`](kit-dev-context.md) の「次手」に「採用済」と日付を足し、本ファイルの該当節を短くする
 4. 捨てる案は「やらない」表へ移す（消して忘れない）
 
-P0 · P1 · P2-G〜J は採用済。次の候補は P2-K（layout が `.cls` も見る）。
+P0 · P1 · P2-G〜K は採用済。次の候補は P2-L（同伴 `.ctx` / デザイナ同伴）。

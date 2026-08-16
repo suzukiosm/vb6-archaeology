@@ -212,6 +212,10 @@ End Property
 Public Function Ping(ByVal x As Long) As Long
     Ping = x
 End Function
+
+Public Sub PlaceHost()
+    Form1.Left = 50
+End Sub
 """
 
 CTL = """\

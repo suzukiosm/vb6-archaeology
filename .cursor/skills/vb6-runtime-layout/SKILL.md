@@ -14,7 +14,7 @@ description: >-
 
 ## 前提
 
-- 対象は `working/extracts/<stem>/` に抽出済み
+- 対象は `working/extracts/<stem>/` に抽出済み（`.frm` / `.bas` / `.cls`。`.ctl` は見ない）
 - deep-read 済みだと突き合わせが早い（必須ではない）
 
 ## 手順

@@ -11,6 +11,7 @@ description: Catalog runtime Left/Top/Width/Height/Visible assignments so form g
 
 - 実行: `python -m tools layout --extract working\extracts\<stem>`
 - 出力: `working/reports/runtime_layout.md` · `<skeletons_dir>/runtime-layout.json`
+- 走査は `.frm` / `.bas` / `.cls`（`.ctl` は見ない）
 - deep-read（`.frm` 単体のデザイナ値）とは別レイヤ。**両方見るまで座標を確定しない**
 - 開経路スコアは `layout_sub_scores`。アプリ固有の開経路 Sub は消費者 config にだけ書く
 - MDI chrome は `mdi_chrome`（`shell_forms` / `control_names`）。キット既定は空

@@ -5,6 +5,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
+import tools.runtime_layout as runtime_layout
 from tools.runtime_layout import (
     BUILTIN_LAYOUT_SUB_SCORES,
     GAP_STATUS_UNREVIEWED,
@@ -16,7 +17,9 @@ from tools.runtime_layout import (
     existing_gap_status,
     extract_file,
     is_mdi_chrome_target,
+    iter_module_paths,
     mdi_chrome_settings,
+    module_file_vb,
     resolve_picture1_form,
 )
 
@@ -512,5 +515,60 @@ End Sub
         self.assertIn("FormX", left_rows[0]["near_show"])
 
 
+class ScanClsTests(unittest.TestCase):
+    def test_iter_module_paths_includes_cls_not_frm(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "Module1.bas").write_text(
+                'Attribute VB_Name = "Module1"\n', encoding="utf-8"
+            )
+            (root / "Widget.cls").write_text(
+                'Attribute VB_Name = "Widget"\n', encoding="utf-8"
+            )
+            (root / "Form1.frm").write_text(
+                'Attribute VB_Name = "Form1"\n', encoding="utf-8"
+            )
+            names = [p.name for p in iter_module_paths(root)]
+        self.assertEqual(names, ["Module1.bas", "Widget.cls"])
+
+    def test_module_file_vb_prefers_attribute(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "Alias.cls"
+            path.write_text('Attribute VB_Name = "Widget"\n', encoding="utf-8")
+            self.assertEqual(module_file_vb(path), "Widget")
+
+    def test_cls_form_geometry_is_extracted(self) -> None:
+        src = (
+            "VERSION 1.0 CLASS\n"
+            "BEGIN\n"
+            "  MultiUse = -1\n"
+            "END\n"
+            'Attribute VB_Name = "Widget"\n'
+            "Option Explicit\n"
+            "\n"
+            "Public Sub PlaceHost()\n"
+            "    Form1.Left = 50\n"
+            "End Sub\n"
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "Widget.cls"
+            path.write_text(src, encoding="utf-8")
+            saved = runtime_layout.KNOWN_FORMS
+            runtime_layout.KNOWN_FORMS = {"Form1"}
+            try:
+                rows = extract_file(path, module_file_vb(path))
+            finally:
+                runtime_layout.KNOWN_FORMS = saved
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["file"], "Widget.cls")
+        self.assertEqual(rows[0]["file_vb"], "Widget")
+        self.assertEqual(rows[0]["sub"], "PlaceHost")
+        self.assertEqual(rows[0]["object"], "Form1")
+        self.assertEqual(rows[0]["prop"], "Left")
+        self.assertEqual(rows[0]["value"], 50)
+        self.assertEqual(rows[0]["kind"], "form_place")
+
+
 if __name__ == "__main__":
     unittest.main()
+

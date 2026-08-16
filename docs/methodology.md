@@ -45,6 +45,7 @@
 - 同一 Sub 内で前方 `GoTo` が注目文（`Open` / ファイル I/O / `Call` 等）を飛び越す場合、deep-read が到達不能**候補**として出す（静的近似。ソース順＝実行順と読まない。デッド確定にしない）
 - extract 横断の `Open` / `Kill` / `Name` / `Get` / `Put` 位置は `python -m tools io-catalog`（業務意味は書かない。飛び越えは skeleton と file+line 突合）
 - メニュー木は skeleton `menu_tree`（デザイナの親子・Visible/Enabled）。実行時の `Enabled =` は layout（混ぜない）
+- 実行時座標の走査は `.frm` / `.bas` / `.cls`（`.ctl` は見ない）
 - Sub 内の GoTo / On Error GoTo / GoSub / ラベル地図も deep-read に出す（事実のみ。飛び越えスパンは前方 GoTo のみ）
 
 ## 再実装消費者向け（任意・1段落）

@@ -9,6 +9,7 @@ Versions are exposed by `python -m tools --version` (`tools/__init__.py`).
 
 ### Added
 
+- `runtime_layout` が `.cls` も走査（`.bas` と同列）。fixture `Widget.PlaceHost` が `Form1.Left = 50`
 - deep-read skeleton `menu_tree` — メニューの親子・Caption・Visible/Enabled（デザイナ値）。実行時 `Enabled =` は layout（混ぜない）。`menu_warnings` は維持。fixture `mnuFile` / `mnuOpen` / `mnuHidden`
 - `python -m tools io-catalog` — extract 内の `Open` / `Kill` / `Name` / `Get` / `Put` を file:line で列挙（業務意味なし）。既存 skeleton の `goto_skipped_stmts` と突合。fixture `IoDemo` + `Form_Load` 前方 GoTo 越し `Open`
 - deep-read ラベル地図に `On Error GoTo` / `GoSub`（kind `on_error` / `gosub`）。飛び越えスパンは前方 GoTo のみ。デッド確定しない

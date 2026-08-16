@@ -29,7 +29,7 @@ python -m tools --version
 | `verify-names` | `verify_report_names.py` | inventory 名集合 ↔ レポート言及照合 | stdout JSON + `name mismatches: none` |
 | `deep-read` | `frm_deep_read.py` | .frm 深読み（単体解析。`ancestor_hidden` · `menu_tree` 付与。出力キーは VB_Name） | `<out_key>_deep_read.md` + `working/skeletons/<out_key>-skeleton.json` |
 | `deep-read-all` | `frm_deep_read_all.py` | 抽出内の全 .frm を一括 deep-read | 同上（キーは VB_Name 小文字 / `deep_read_name_map`） |
-| `layout` | `runtime_layout.py` | コード部の実行時座標 | `runtime_layout.md` / `runtime-layout.json` |
+| `layout` | `runtime_layout.py` | コード部の実行時座標（`.frm` / `.bas` / `.cls`） | `runtime_layout.md` / `runtime-layout.json` |
 | `comprehend` | `comprehension_scaffold.py` | 理解レポートの骨格生成・tick 追記（inventory 外の名前は拒否）。`--unticked` / `--suggest` は一覧のみ（自動 tick しない） | `working/reports/<stem>_comprehension.html`（一覧時は書込なし） |
 | `lines` | `frm_lines.py` | CP932 ソースの行番号つき表示 | stdout |
 | `scan-chars` | `scan_control_chars.py` | PS バッククォート由来の制御文字検出 | stdout（hits=0 で exit 0） |
@@ -149,7 +149,7 @@ python -m unittest discover -s tools -p "test_*.py" -v
 - `test_comprehension_scaffold.py` — 骨格の冪等性、人手記述の保全、inventory 外の名前を拒否
 - `test_hooks.py` — 保護 hooks の deny / ask / allowlist / 偽陽性（`resources` を `source` と誤認しない）
 - `test_console.py` — cp1252 コンソール（英語 Windows 相当）でも日本語 Caption を出力して落ちない
-- `test_runtime_layout.py` — Show 経路の文脈解決・Sub 境界で `recent_shows` クリア（合成データ）
+- `test_runtime_layout.py` — Show 経路の文脈解決・Sub 境界で `recent_shows` クリア · `.cls` 走査（合成データ）
 - `test_frm_deep_read.py` — `ancestor_hidden`（死んだ非表示コンテナ配下）· `menu_tree`（デザイナ親子）
 - `test_show_style.py` — show_style ヒューリスティック · Show 転置 · excerpt 配線
 - `test_verify_report_names.py` — inventory 名集合照合（偽 Sub で fail / 既知名で pass）

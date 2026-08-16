@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""全 .frm/.bas の実行時 Left/Top/Width/Height/Visible 代入をカタログ化する。
+"""全 .frm/.bas/.cls の実行時 Left/Top/Width/Height/Visible 代入をカタログ化する。
 
 設計時座標（Begin..End）とは別。Show / Form_Load 前後で書き換える実行時 Move /
 Visible を証拠つきで抽出し、再実装受け渡し用 JSON も出す。
@@ -334,6 +334,26 @@ def classify(
         if value is None:
             return "control_expr"
     return "control_move"
+
+
+MODULE_SUFFIXES = (".bas", ".cls")
+
+
+def module_file_vb(path: pathlib.Path) -> str:
+    """VB_Name if present, else the file stem (same fallback as .bas)."""
+    text = read_cp932(path)
+    match = VB_NAME_RE.search(text)
+    if match:
+        return match.group(1)
+    return path.stem
+
+
+def iter_module_paths(extract: pathlib.Path) -> list[pathlib.Path]:
+    """`.bas` then `.cls`, each suffix sorted. Does not include `.frm`."""
+    out: list[pathlib.Path] = []
+    for suffix in MODULE_SUFFIXES:
+        out.extend(sorted(extract.glob(f"*{suffix}")))
+    return out
 
 
 def discover_forms(extract: pathlib.Path) -> dict[str, str]:
@@ -1003,7 +1023,7 @@ def write_reports(
     md: list[str] = []
     md.append("# 実行時座標カタログ（全フォーム）\n\n")
     md.append("ツール: `tools/runtime_layout.py`\n")
-    md.append(f"抽出: `{extract_label}/*.frm`（+ 参照用 .bas）\n")
+    md.append(f"抽出: `{extract_label}/*.frm`（+ 参照用 .bas / .cls）\n")
     md.append(
         "設計時座標（skeleton / Begin プロパティ）とは別。"
         "**Form コード部**（`Attribute VB_Name` 以降）の "
@@ -1237,9 +1257,9 @@ def main(argv: list[str] | None = None) -> int:
         path = extract / fname
         assignments.extend(extract_file(path, vb))
 
-    # also scan .bas for form geometry (rare)
-    for path in sorted(extract.glob("*.bas")):
-        assignments.extend(extract_file(path, path.stem))
+    # also scan .bas / .cls for form geometry (rare, but do not skip)
+    for path in iter_module_paths(extract):
+        assignments.extend(extract_file(path, module_file_vb(path)))
 
     global _EXTRACT_LABEL
     try:
