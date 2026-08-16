@@ -9,6 +9,7 @@ Versions are exposed by `python -m tools --version` (`tools/__init__.py`).
 
 ### Added
 
+- `python -m tools comprehend --unticked` / `--suggest` — 未 tick の CLI 一覧。`--suggest` はヒューリスティック（自動 tick しない）。空なら「未 tick 0」
 - inventory が `UserControl=` / `PropertyPage=` / `UserDocument=` / `Designer=` / `RelatedDoc=` / `ResFile32=` を棚卸し（PARSER_VERSION inv-6）。`.ctl` 等はデザイナ解析、`.res` は一覧のみ。fixture `MiniCtl.ctl`
 - inventory / excerpt の「Show 文の転置（事実）」— 既存 `show_calls` の逆引き。inventory に無いターゲットは `unresolved`。呼び出しグラフではない
 - `python -m tools status` — 既存成果物の有無・件数（3 行 + JSON）。推定・次手は出さない。sessionStart が同じ 3 行を出す

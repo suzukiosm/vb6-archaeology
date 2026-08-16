@@ -9,9 +9,12 @@ inventory name set, so every tick heading is anchored to a real procedure.
     python -m tools comprehend
     python -m tools comprehend --add-tick Form_Load
     python -m tools comprehend --add-tick Command1_Click@Form1.frm --layer C
+    python -m tools comprehend --unticked
+    python -m tools comprehend --suggest
 
 Existing prose is never rewritten: new ticks are inserted just before the
-`<!-- TICKS:END -->` marker.
+`<!-- TICKS:END -->` marker. ``--unticked`` / ``--suggest`` only list names
+and never write the report or add ticks.
 """
 
 from __future__ import annotations
@@ -32,6 +35,16 @@ from lib.console import enable_utf8_stdio  # noqa: E402
 TICKS_BEGIN = "<!-- TICKS -->"
 TICKS_END = "<!-- TICKS:END -->"
 TICK_ATTR_RE = re.compile(r'data-tick="(\d+)"')
+TICK_TARGET_RE = re.compile(
+    r'data-target="([^"#]+)#([^"]+)"',
+    re.IGNORECASE,
+)
+STARTUP_LOAD_NAMES = ("Form_Load", "MDIForm_Load")
+SUGGEST_CAPTION = "ヒューリスティック（自動 tick しない）"
+SUGGEST_REASON_STARTUP = "startup_load"
+SUGGEST_REASON_SHOW_TARGET = "show_target_load"
+SUGGEST_REASON_PUBLIC_SUB = "public_sub"
+FORMISH_SUFFIXES = {".frm"}
 
 LAYERS: dict[str, tuple[str, tuple[str, ...]]] = {
     "A": (
@@ -136,6 +149,172 @@ def load_inventory(path: Path) -> dict:
     if not isinstance(data, dict) or "files" not in data:
         raise SystemExit(f"not an inventory JSON: {path}")
     return data
+
+
+def load_ticked_targets(report: Path) -> set[tuple[str, str]]:
+    """Return (file, proc) pairs from existing tick ``data-target`` attributes."""
+    if not report.is_file():
+        return set()
+    text = report.read_text(encoding="utf-8", errors="replace")
+    return {(m.group(1), m.group(2)) for m in TICK_TARGET_RE.finditer(text)}
+
+
+def _proc_key(file_name: str, proc_name: str) -> tuple[str, str]:
+    return (Path(file_name).name.lower(), str(proc_name).strip().lower())
+
+
+def _is_formish(entry: dict) -> bool:
+    kind = str(entry.get("type") or "").strip().lower()
+    if kind:
+        return kind == "form"
+    return Path(str(entry.get("file") or "")).suffix.lower() in FORMISH_SUFFIXES
+
+
+def _lookup_form(data: dict, name: str) -> dict | None:
+    """Match one inventory Form by vb_name, else unique file stem.
+
+    Missing or ambiguous names return None (no invented edge).
+    """
+    wanted = str(name or "").strip().strip('"')
+    if not wanted:
+        return None
+    files = [f for f in (data.get("files") or []) if _is_formish(f)]
+    by_vb = [
+        f
+        for f in files
+        if str(f.get("vb_name") or "").strip().lower() == wanted.lower()
+    ]
+    if len(by_vb) == 1:
+        return by_vb[0]
+    if len(by_vb) > 1:
+        return None
+    by_stem = [
+        f
+        for f in files
+        if Path(str(f.get("file") or "")).stem.lower() == wanted.lower()
+    ]
+    if len(by_stem) == 1:
+        return by_stem[0]
+    return None
+
+
+def _file_name(entry: dict) -> str:
+    return Path(str(entry.get("file") or "")).name
+
+
+def _proc_record(entry: dict, record: dict) -> dict:
+    return {
+        "file": _file_name(entry),
+        "name": str(record.get("name") or ""),
+        "kind": str(record.get("kind") or ""),
+        "visibility": str(record.get("visibility") or "Public"),
+        "line_start": record.get("line_start"),
+        "line_end": record.get("line_end"),
+    }
+
+
+def iter_inventory_procedures(data: dict) -> list[dict]:
+    rows: list[dict] = []
+    for entry in data.get("files") or []:
+        for record in entry.get("procedures") or []:
+            row = _proc_record(entry, record)
+            if row["name"]:
+                rows.append(row)
+    return rows
+
+
+def list_unticked(data: dict, ticked: set[tuple[str, str]]) -> list[dict]:
+    """Inventory procedures that have no comprehension tick (inventory order)."""
+    seen = {_proc_key(f, n) for f, n in ticked}
+    return [
+        row
+        for row in iter_inventory_procedures(data)
+        if _proc_key(row["file"], row["name"]) not in seen
+    ]
+
+
+def suggest_unticked(data: dict, unticked: list[dict]) -> list[dict]:
+    """Rank unticked names. Heuristic only — does not add ticks.
+
+    Order: Startup Form_Load / MDIForm_Load → that form's outbound
+    ``show_calls`` targets' Form_Load → remaining unticked public Subs.
+    Unresolved Show targets are skipped (no invented edge).
+    """
+    by_key = {_proc_key(row["file"], row["name"]): row for row in unticked}
+    ranked: list[dict] = []
+    used: set[tuple[str, str]] = set()
+
+    def take(file_name: str, proc_name: str, reason: str) -> None:
+        key = _proc_key(file_name, proc_name)
+        if key in used or key not in by_key:
+            return
+        used.add(key)
+        ranked.append({**by_key[key], "reason": reason})
+
+    startup = str((data.get("meta") or {}).get("Startup") or "").strip().strip('"')
+    startup_form = _lookup_form(data, startup)
+    if startup_form is not None:
+        start_file = _file_name(startup_form)
+        for load_name in STARTUP_LOAD_NAMES:
+            take(start_file, load_name, SUGGEST_REASON_STARTUP)
+        for call in startup_form.get("show_calls") or []:
+            target = str(call.get("target") or "").strip()
+            dest = _lookup_form(data, target)
+            if dest is None:
+                continue
+            take(_file_name(dest), "Form_Load", SUGGEST_REASON_SHOW_TARGET)
+
+    for row in unticked:
+        if str(row.get("kind") or "").lower() != "sub":
+            continue
+        if str(row.get("visibility") or "Public").lower() != "public":
+            continue
+        take(row["file"], row["name"], SUGGEST_REASON_PUBLIC_SUB)
+    return ranked
+
+
+def _ref(row: dict) -> str:
+    return f"{row['file']}#{row['name']}"
+
+
+def emit_listing(
+    data: dict,
+    report: Path,
+    *,
+    show_unticked: bool,
+    show_suggest: bool,
+    json_only: bool,
+) -> int:
+    unticked = list_unticked(data, load_ticked_targets(report))
+    suggested = suggest_unticked(data, unticked) if show_suggest else []
+    payload: dict = {}
+    if show_unticked:
+        payload["unticked"] = unticked
+    if show_suggest:
+        payload["suggest"] = suggested
+        payload["caption"] = SUGGEST_CAPTION
+
+    if json_only:
+        print(json.dumps(payload, ensure_ascii=False, indent=2))
+        return 0
+
+    listing_empty = (show_unticked and not unticked) or (
+        show_suggest and not show_unticked and not suggested
+    )
+    if listing_empty:
+        print("未 tick 0")
+        return 0
+
+    parts: list[str] = []
+    if show_unticked:
+        parts.extend(_ref(row) for row in unticked)
+    if show_suggest and suggested:
+        if parts:
+            parts.append("")
+        parts.append(SUGGEST_CAPTION)
+        parts.extend(f"{row['reason']}\t{_ref(row)}" for row in suggested)
+    print("\n".join(parts))
+    return 0
 
 
 def find_procedure(data: dict, proc: str, file_hint: str | None) -> dict:
@@ -294,11 +473,31 @@ def main(argv: list[str] | None = None) -> int:
     )
     ap.add_argument("--layer", choices=sorted(LAYERS), default="A")
     ap.add_argument(
+        "--unticked",
+        action="store_true",
+        help="List inventory procedures that have no tick (does not write)",
+    )
+    ap.add_argument(
+        "--suggest",
+        action="store_true",
+        help="Print a labeled heuristic ranking (does not add ticks)",
+    )
+    ap.add_argument(
+        "--json-only",
+        action="store_true",
+        help="Print --unticked / --suggest as JSON only",
+    )
+    ap.add_argument(
         "--force",
         action="store_true",
         help="Overwrite an existing report skeleton (discards written prose)",
     )
     args = ap.parse_args(argv)
+
+    if args.json_only and not (args.unticked or args.suggest):
+        raise SystemExit("--json-only requires --unticked and/or --suggest")
+    if args.add_tick and (args.unticked or args.suggest):
+        raise SystemExit("--add-tick cannot be combined with --unticked / --suggest")
 
     inventory_path = resolve_inventory(args.inventory)
     data = load_inventory(inventory_path)
@@ -306,6 +505,15 @@ def main(argv: list[str] | None = None) -> int:
     report = args.out or (reports_root() / f"{stem}_comprehension.html")
     if not report.is_absolute():
         report = REPO_ROOT / report
+
+    if args.unticked or args.suggest:
+        return emit_listing(
+            data,
+            report,
+            show_unticked=args.unticked,
+            show_suggest=args.suggest,
+            json_only=args.json_only,
+        )
 
     report.parent.mkdir(parents=True, exist_ok=True)
     created = False

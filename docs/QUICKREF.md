@@ -7,7 +7,7 @@
 | 新しい .vbp | `/vb6-extract` → `/vb6-inventory` |
 | Form を知る | `/frm-deep-read` |
 | 座標が合わない | `/runtime-layout`（デザイナ値だけで決めない。MDI chrome は config `mdi_chrome`） |
-| 挙動を理解 | `/vb6-comprehend`（1 tick） |
+| 挙動を理解 | `/vb6-comprehend`（1 tick。未 tick は `--unticked` / `--suggest`） |
 | 報告書 | `/vb6-report` → `/vb6-verify-reports` |
 | HTML を見る | `/serve-reports`（`file://` は不可） |
 | 再実装の短い抜粋 | `python -m tools excerpt` · serve `/excerpt` |

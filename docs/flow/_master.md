@@ -25,7 +25,7 @@
 5. inventory + verify
 6. Startup / 主要 Form の deep-read（GoTo 飛び越え候補・ラベル地図を含む）
 7. runtime layout（`/runtime-layout`）— デザイナ座標だけで確定しない
-8. comprehension ticks（層 A→E。枠は `python -m tools comprehend --add-tick`）
+8. comprehension ticks（層 A→E。枠は `python -m tools comprehend --add-tick`。未 tick は `--unticked` / `--suggest`）
 9. 名前集合の照合（`python -m tools verify-names`）
 10. 再実装向け抜粋（`python -m tools excerpt` · serve `/excerpt`）
 11. パイプライン進捗（`python -m tools status`。成果物の有無・件数のみ）

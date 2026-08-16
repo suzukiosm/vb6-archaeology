@@ -66,6 +66,14 @@ def run_pipeline() -> None:
             "C",
         ],
     )
+    run_step(
+        "comprehend unticked",
+        ["comprehend", "--inventory", str(INV_JSON), "--unticked", "--json-only"],
+    )
+    run_step(
+        "comprehend suggest",
+        ["comprehend", "--inventory", str(INV_JSON), "--suggest"],
+    )
     run_step("excerpt", ["excerpt", "--inventory", str(INV_JSON)])
     run_step("status", ["status", "--extract", str(EXTRACT), "--json-only"])
     # Reports are only trustworthy if every name in them exists in the inventory,

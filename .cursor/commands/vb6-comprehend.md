@@ -11,6 +11,8 @@ description: Advance comprehension of an extracted VB6 project by one evidence-b
 
 - 前提: `<stem>_inventory.*` が存在すること
 - 骨格生成（初回のみ）: `python -m tools comprehend`
+- 未 tick 一覧: `python -m tools comprehend --unticked`（書込しない）
+- 次候補（ヒューリスティック）: `python -m tools comprehend --suggest`（自動 tick しない。層・業務意味は付けない）
 - tick 追加: `python -m tools comprehend --add-tick <Proc>[@<File>] --layer <A-E>`
   - inventory に無い名前は拒否される。拒否されたら名前を疑う（レポートを手で書き足さない）
   - 追記後に本文を Read し、CP932 で読んだ事実・証拠を埋める

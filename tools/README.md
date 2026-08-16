@@ -30,7 +30,7 @@ python -m tools --version
 | `deep-read` | `frm_deep_read.py` | .frm 深読み（単体解析。`ancestor_hidden` 付与。出力キーは VB_Name） | `<out_key>_deep_read.md` + `working/skeletons/<out_key>-skeleton.json` |
 | `deep-read-all` | `frm_deep_read_all.py` | 抽出内の全 .frm を一括 deep-read | 同上（キーは VB_Name 小文字 / `deep_read_name_map`） |
 | `layout` | `runtime_layout.py` | コード部の実行時座標 | `runtime_layout.md` / `runtime-layout.json` |
-| `comprehend` | `comprehension_scaffold.py` | 理解レポートの骨格生成・tick 追記（inventory 外の名前は拒否） | `working/reports/<stem>_comprehension.html` |
+| `comprehend` | `comprehension_scaffold.py` | 理解レポートの骨格生成・tick 追記（inventory 外の名前は拒否）。`--unticked` / `--suggest` は一覧のみ（自動 tick しない） | `working/reports/<stem>_comprehension.html`（一覧時は書込なし） |
 | `lines` | `frm_lines.py` | CP932 ソースの行番号つき表示 | stdout |
 | `scan-chars` | `scan_control_chars.py` | PS バッククォート由来の制御文字検出 | stdout（hits=0 で exit 0） |
 | `excerpt` | `reimpl_excerpt.py` | 再実装向け抜粋 HTML（Form · Show · Show転置 · 未 tick） | `working/reports/<stem>_reimpl_excerpt.html` |
@@ -61,6 +61,8 @@ python -m tools verify-names --inventory working\reports\mini_vbp_inventory.json
 python -m tools deep-read Form1.frm --extract working\extracts\mini_vbp
 python -m tools layout --extract working\extracts\mini_vbp
 python -m tools comprehend --add-tick Command1_Click@Form1.frm --layer C
+python -m tools comprehend --unticked
+python -m tools comprehend --suggest
 python -m tools lines working\extracts\mini_vbp\Form1.frm 1-20
 python -m tools scan-chars
 python -m tools status

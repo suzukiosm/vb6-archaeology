@@ -13,7 +13,7 @@
 | Show 転置 | 既存 `show_calls` の逆引き（誰がこの Form を Show しているか）。未解決は `unresolved`。呼び出しグラフではない |
 | excerpt | Form · Show · GoTo件数 · 未 tick の短い HTML（`python -m tools excerpt` · serve `/excerpt`） |
 | status | 既存成果物の有無・件数（`python -m tools status`）。推定も次手も出さない |
-| tick | 理解の最小単位（主要 Sub 1 つの精読） |
+| tick | 理解の最小単位（主要 Sub 1 つの精読）。未 tick 一覧は `comprehend --unticked`。`--suggest` はヒューリスティックで自動 tick しない |
 | GoTo 飛び越え候補 | 前方 GoTo が飛び越す I/O·Call 等。候補のまま。デッド確定にしない |
 | 到達不能 | UI から開けない / 死んだメニュー等（証拠必須） |
 | 保護ディレクトリ | hooks が書込を拒否するパス。キット既定名は `source/`（`archaeology.config.json` の `protected_source_dirs` で変更） |

@@ -1,6 +1,6 @@
 # キット改良アイデア（提案・未採用）
 
-**これは提案。** 採用するまで実装しない（P0-A ファイル種棚卸し · P0-B Show 転置 · P0-C `status` は 2026-08-16 採用済）。1 テーマ 1 PR。  
+**これは提案。** 採用するまで実装しない（P0-A / P0-B / P0-C · P1-D `comprehend --unticked` は 2026-08-16 採用済）。1 テーマ 1 PR。  
 消費者アプリのセッション事実ではない。キット保守用。現状の正は [`kit-dev-context.md`](kit-dev-context.md)。
 
 方針は変えない: 事実と推定を混ぜない · 正規表現一括の callgraph は作らない · 標準ライブラリのみ · アプリ固有は消費者へ。
@@ -63,15 +63,9 @@ inventory / excerpt に「Show 文の転置（事実）」を出す。既存 `sh
 
 ### P1 — エージェントの次手
 
-#### D. `comprehend --unticked` / `--suggest`
+#### D. `comprehend --unticked` / `--suggest` — **採用済 2026-08-16**
 
-excerpt が既に持つ「未 tick」を CLI でも出す。`--suggest` は **ヒューリスティックと明記**し、次の順で候補を並べるだけ（自動 tick しない）:
-
-1. VBP `Startup=` の Form の `Form_Load` / `MDIForm_Load`
-2. その Form の outbound `show_calls` 先の `Form_Load`
-3. 未 tick のままの公開 Sub（inventory の手続き一覧）
-
-層や業務意味は付けない。候補が空なら「未 tick 0」だけ。
+`python -m tools comprehend --unticked`（`--json-only` 可）。`--suggest` はヒューリスティックと明記し、Startup `Form_Load`/`MDIForm_Load` → その Form の outbound `show_calls` 先の `Form_Load` → 残り公開 Sub の順。自動 tick しない。未解決 Show は載せない。空なら「未 tick 0」。
 
 #### E. `serve` ランディング
 
@@ -150,4 +144,4 @@ UserControl 1 つ · `On Error GoTo` 1 本 · 前方 GoTo 既存に加えて `Go
 3. 採用したら [`kit-dev-context.md`](kit-dev-context.md) の「次手」に「採用済」と日付を足し、本ファイルの該当節を短くする
 4. 捨てる案は「やらない」表へ移す（消して忘れない）
 
-P0-A / P0-B / P0-C は採用済。次の候補は P1（`comprehend --unticked` 等）。
+P0 と P1-D は採用済。次の候補は P1-E（`serve` ランディング）または P1-F（excerpt Module/Class 表面）。

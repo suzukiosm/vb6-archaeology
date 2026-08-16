@@ -64,7 +64,7 @@ COMMANDS: dict[str, Command] = {
     ),
     "comprehend": Command(
         "tools.comprehension_scaffold",
-        "Create the comprehension report skeleton and append evidence ticks",
+        "Scaffold ticks, or list --unticked / --suggest (heuristic, no auto-tick)",
     ),
     "excerpt": Command(
         "tools.reimpl_excerpt",

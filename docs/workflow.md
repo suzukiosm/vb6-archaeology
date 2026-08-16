@@ -81,6 +81,8 @@ MDI シェル名・chrome コントロールは消費者 config の `mdi_chrome`
 
 ```powershell
 python -m tools comprehend                                   # 骨格（初回のみ）
+python -m tools comprehend --unticked                        # 未 tick 一覧（書込なし）
+python -m tools comprehend --suggest                         # ヒューリスティック（自動 tick しない）
 python -m tools comprehend --add-tick <Proc>[@<File>] --layer C
 ```
 

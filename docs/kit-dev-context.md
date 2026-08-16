@@ -26,7 +26,8 @@ VB6 を壊さず理解するための汎用 OS（docs / .cursor / tools）を維
 - （採用済 2026-08-16 · extra VBP files）inventory が `UserControl=` / `PropertyPage=` / `UserDocument=` / `Designer=` / `RelatedDoc=` / `ResFile32=` を棚卸し。`.ctl` 等は解析、`.res` は一覧のみ。fixture `MiniCtl.ctl`
 - （採用済 2026-08-16 · Show 転置）既存 `show_calls` の逆引きを inventory / excerpt に出す。未解決ターゲットは `unresolved`。呼び出しグラフではない
 - （採用済 2026-08-16 · status）`python -m tools status` — 既存成果物の有無・件数（JSON + 3 行）。sessionStart が同じ 3 行を出す。`verify` は `<stem>_verify.json` を残す。推定・次手は出さない
-- （提案 2026-08-16）未採用バックログ: [`kit-improvement-ideas.md`](kit-improvement-ideas.md)。P0 は採用済。次の候補は P1。完全 callgraph / Next / 業種は引き続きやらない
+- （採用済 2026-08-16 · comprehend --unticked）`python -m tools comprehend --unticked` / `--suggest`。既存 tick の欠を一覧。`--suggest` はヒューリスティック（Startup Load → Show 先 Load → 公開 Sub）。自動 tick しない
+- （提案 2026-08-16）未採用バックログ: [`kit-improvement-ideas.md`](kit-improvement-ideas.md)。P0 と P1-D は採用済。次の候補は P1-E / P1-F。完全 callgraph / Next / 業種は引き続きやらない
 - （採用済 2026-08-06 · mdi_chrome）`shell_forms` / `control_names` を config 化。`MDIForm1`·Picture1/FG1/fg2 のハードコードを撤去
 - （採用済 2026-08-06 · GoTo）飛び越え候補の一般化 + ラベル地図 + tick/frm-audit 手順。デッド確定はしない
 - （採用済 2026-08-06 · delivery_slip 実戦）inventory `show_style`/`show_calls` · 再実装ハンドオフ · `product_ui_notes` · CURRENT · data-guards · `smoke --kit-only` · deep-read `show_style` · `excerpt`/`serve /excerpt`。**未採用**: Show 完全 callgraph · Next/UI 同梱
