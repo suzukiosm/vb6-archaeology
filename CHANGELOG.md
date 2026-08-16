@@ -9,6 +9,7 @@ Versions are exposed by `python -m tools --version` (`tools/__init__.py`).
 
 ### Added
 
+- deep-read ラベル地図に `On Error GoTo` / `GoSub`（kind `on_error` / `gosub`）。飛び越えスパンは前方 GoTo のみ。デッド確定しない
 - inventory / excerpt の Module/Class 表面 — Implements · WithEvents · Instancing（生整数）· 公開 Property。PARSER_VERSION inv-7。deep-read は複製しない
 - excerpt の Module / Class 表面 — 未 tick の `.bas`/`.cls` と `Declare` 件数（DLL 意味は書かない）
 - `serve` の `/` ランディング — inventory · comprehension · excerpt · layout · deep-read へのリンク + ディレクトリ一覧。`file://` 禁止は維持

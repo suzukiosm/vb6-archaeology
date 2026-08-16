@@ -477,6 +477,15 @@ _COND_GOTO_RE = re.compile(
     r"\b(?:Then|Else)\s+GoTo\s+(\w+)\b", re.IGNORECASE
 )
 _ON_ERROR_GOTO_RE = re.compile(r"\bOn\s+Error\s+GoTo\b", re.IGNORECASE)
+_ON_ERROR_GOTO_TARGET_RE = re.compile(
+    r"^On\s+Error\s+GoTo\s+(\w+)\s*('.*)?$", re.IGNORECASE
+)
+_GOSUB_RE = re.compile(r"^GoSub\s+(\w+)\s*('.*)?$", re.IGNORECASE)
+_COND_GOSUB_RE = re.compile(
+    r"\b(?:Then|Else)\s+GoSub\s+(\w+)\b", re.IGNORECASE
+)
+# Only these kinds open a skip span. on_error / gosub stay on the label map.
+SKIP_SPAN_GOTO_KINDS = frozenset({"unconditional", "conditional"})
 
 # Statements worth flagging when skipped by a forward GoTo (I/O · Call · Load).
 # Assignments / Dim are omitted to avoid flooding; tick still reads the span.
@@ -495,6 +504,7 @@ _SKIP_STMT_RULES: list[tuple[str, re.Pattern[str]]] = [
     ("unload", re.compile(r"\bUnload\b", re.IGNORECASE)),
     ("load", re.compile(r"^Load\s+\w+", re.IGNORECASE)),
     ("msgbox", re.compile(r"\bMsgBox\b", re.IGNORECASE)),
+    ("gosub", _GOSUB_RE),
 ]
 
 
@@ -540,13 +550,19 @@ def _scan_sub_gotos_and_labels(
         s = raw.strip()
         if not s or s.startswith("'"):
             continue
-        if _ON_ERROR_GOTO_RE.search(s):
-            continue
         lm = _LABEL_RE.match(s)
         if lm:
             name = lm.group(1)
             if name.lower() not in _GOTO_RESERVED_LABELS:
                 labels.setdefault(name.lower(), ln)
+            continue
+        oem = _ON_ERROR_GOTO_TARGET_RE.match(s)
+        if oem:
+            gotos.append((ln, oem.group(1), "on_error"))
+            continue
+        gsm = _GOSUB_RE.match(s)
+        if gsm:
+            gotos.append((ln, gsm.group(1), "gosub"))
             continue
         um = _UNCOND_GOTO_RE.match(s)
         if um:
@@ -558,6 +574,10 @@ def _scan_sub_gotos_and_labels(
         cm = _COND_GOTO_RE.search(code_only)
         if cm:
             gotos.append((ln, cm.group(1), "conditional"))
+            continue
+        cgs = _COND_GOSUB_RE.search(code_only)
+        if cgs:
+            gotos.append((ln, cgs.group(1), "gosub_conditional"))
     return labels, gotos
 
 
@@ -603,8 +623,11 @@ def find_goto_skipped_stmts(
     Interesting kinds: file I/O (Open/Close/Kill/Print#/…), Call, Shell,
     Load/Unload, MsgBox. Dim/assignments are omitted.
 
-    Not modeled: GoSub/Return, jump *into* the span, Resume, multi-label
-    graphs, backward GoTo. ``On Error GoTo`` is ignored.
+    ``On Error GoTo`` and ``GoSub`` are recorded on the label map but do
+    not open a skip span (the Open still runs; Return comes back).
+
+    Not modeled: jump *into* the span, Resume, multi-label graphs,
+    backward GoTo.
     """
     if events is None:
         events = extract_events(lines)
@@ -621,6 +644,8 @@ def find_goto_skipped_stmts(
         labels, gotos = _scan_sub_gotos_and_labels(lines, start, end)
 
         for goto_line, label_name, kind in gotos:
+            if kind not in SKIP_SPAN_GOTO_KINDS:
+                continue
             label_line = labels.get(label_name.lower())
             if label_line is None or label_line <= goto_line:
                 continue
@@ -959,6 +984,7 @@ def write_report(
         md.append(f"\n## GoTo / ラベル地図（{len(with_goto)} Sub）\n\n")
         md.append(
             "> 事実のみ（行と名前）。到達可能性の証明ではない。"
+            " `GoTo` / `On Error GoTo` / `GoSub` を kind 付きで載せる。"
             " tick 精読前に「この Sub に飛びはあるか」を確認する入口。\n\n"
         )
         for g in with_goto[:20]:
@@ -988,8 +1014,10 @@ def write_report(
             "> - **unconditional**: 素の `GoTo` — フォールスルーではその文に届かない候補\n"
             "> - **conditional**: `If … Then GoTo` / `Else GoTo` — その分岐では飛ばす。"
             "別分岐では到達しうるため候補扱い\n"
-            "> - **未対応**: `GoSub`/`Return`、スパン内への別ラベル入口、`Resume`、"
-            "後方 GoTo、複数入口の証明。`On Error GoTo` は対象外\n\n"
+            "> - **on_error / gosub**: ラベル地図の候補。飛び越えスパンは作らない"
+            "（エラー時だけ飛ぶ / `Return` で戻る）。デッド確定しない\n"
+            "> - **未対応**: スパン内への別ラベル入口、`Resume`、後方 GoTo、"
+            "複数入口の証明\n\n"
         )
         md.append(
             "| Sub | GoTo | 種別 | Label | kind | 文 | 断片 |\n"

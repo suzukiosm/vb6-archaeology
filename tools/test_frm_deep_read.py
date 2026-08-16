@@ -266,6 +266,37 @@ class GotoSkippedOpenTests(unittest.TestCase):
         self.assertEqual(maps[0]["gotos"][0]["target"], "Done")
         self.assertEqual(maps[0]["labels"][0]["name"], "done")
 
+    def test_label_map_lists_on_error_and_gosub(self) -> None:
+        lines = _frm_lines(
+            "Private Sub Form_Load()",
+            "    On Error GoTo ErrH",
+            "    GoSub Prep",
+            '    Open App.Path & "\\x.dat" For Input As #1',
+            "    Exit Sub",
+            "Prep:",
+            "    Return",
+            "ErrH:",
+            "End Sub",
+        )
+        maps = collect_goto_label_maps(lines)
+        kinds = {g["kind"]: g["target"] for g in maps[0]["gotos"]}
+        self.assertEqual(kinds["on_error"], "ErrH")
+        self.assertEqual(kinds["gosub"], "Prep")
+        self.assertEqual(find_goto_skipped_opens(lines), [])
+
+    def test_gosub_does_not_open_skip_span(self) -> None:
+        lines = _frm_lines(
+            "Private Sub Form_Load()",
+            "    GoSub Prep",
+            '    Open App.Path & "\\x.dat" For Input As #1',
+            "    Exit Sub",
+            "Prep:",
+            "    Return",
+            "End Sub",
+        )
+        self.assertEqual(find_goto_skipped_opens(lines), [])
+        self.assertEqual(find_goto_skipped_stmts(lines), [])
+
 
 if __name__ == "__main__":
     unittest.main()

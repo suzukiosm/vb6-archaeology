@@ -33,7 +33,7 @@ python -m tools deep-read-all --extract working\extracts\<stem>
 - 設計時座標（Begin）と実行時座標（`/runtime-layout`）は別物
 - イベント 0 件を孤立と即断しない（`.frm` 単体解析。外部からの参照は見えない）
 - Open 列挙をソース順＝実行順と読まない（「GoTo で飛び越えられる文（候補）」「GoTo / ラベル地図」）
-- GoTo 飛び越え候補をデッド確定にしない（条件分岐・On Error 未対応）
+- GoTo 飛び越え候補をデッド確定にしない。`On Error GoTo` / `GoSub` はラベル地図の候補（スパンは作らない）
 - `show_style` はヒューリスティック候補（`vbModal`→`modal_overlay` / `MDIChild`→`mdi_child`）。断定しない
 - 保護ディレクトリには書かない
 - 横断の短い抜粋: `python -m tools excerpt` · serve `/excerpt`

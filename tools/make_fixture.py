@@ -128,7 +128,13 @@ Private Sub Form_Load()
 End Sub
 
 Private Sub Command1_Click()
+    On Error GoTo ErrH
     Form12.Show vbModal
+    GoSub AfterShow
+    Exit Sub
+AfterShow:
+    Return
+ErrH:
 End Sub
 """
 
