@@ -32,6 +32,7 @@ python -m tools layout --extract working\extracts\mini_vbp
 
 ```powershell
 python -m tools serve
+# http://127.0.0.1:8765/          （目次: inventory · excerpt · layout · deep-read）
 # http://127.0.0.1:8765/mini_vbp_inventory.html
 # http://127.0.0.1:8765/excerpt   （再実装向け抜粋。静的生成は python -m tools excerpt）
 ```

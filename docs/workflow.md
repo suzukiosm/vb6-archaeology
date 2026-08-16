@@ -112,7 +112,7 @@ python -m tools verify-names --inventory working\reports\<stem>_inventory.json
 python -m tools status
 ```
 
-閲覧は `python -m tools serve`（`file://` は使わない）。  
+閲覧は `python -m tools serve`（`file://` は使わない。`/` が目次）。  
 再実装向けの短い抜粋（Form · Show · 未 tick）:
 
 ```powershell

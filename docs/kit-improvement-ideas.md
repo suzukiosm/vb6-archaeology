@@ -1,6 +1,6 @@
 # キット改良アイデア（提案・未採用）
 
-**これは提案。** 採用するまで実装しない（P0-A / P0-B / P0-C · P1-D `comprehend --unticked` は 2026-08-16 採用済）。1 テーマ 1 PR。  
+**これは提案。** 採用するまで実装しない（P0-A / P0-B / P0-C · P1-D · P1-E `serve` ランディングは 2026-08-16 採用済）。1 テーマ 1 PR。  
 消費者アプリのセッション事実ではない。キット保守用。現状の正は [`kit-dev-context.md`](kit-dev-context.md)。
 
 方針は変えない: 事実と推定を混ぜない · 正規表現一括の callgraph は作らない · 標準ライブラリのみ · アプリ固有は消費者へ。
@@ -32,7 +32,7 @@
 | F4 | `layout` は `.frm` + `.bas`。`.cls` は走査しない | `runtime_layout.py` 末尾の glob |
 | F5 | 前方 GoTo 飛び越えは一般化済。`On Error GoTo` / 後方 GoTo / `GoSub` は対象外 | `frm_deep_read` · [`anti-patterns.md`](reference/anti-patterns.md) 9e |
 | F6 | メニューは「死んでる / Click 無し」警告のみ。木構造（親子・Enabled/Visible）は skeleton の一級市民ではない | `analyze_menus` |
-| F7 | `serve` に目次が無い。ディレクトリ一覧 + `/excerpt` だけ | `serve_reports.py` |
+| F7 | ~~`serve` に目次が無い~~ **採用済 2026-08-16** `/` ランディング | `serve_reports.py` |
 | F8 | `smoke` の `/excerpt` live GET は意図的未実装 | `CHANGELOG` Deferred |
 | F9 | バージョン表示は `0.1.0` のまま。`[Unreleased]` に 0.1.0 以降の機能が厚い | `tools/__init__.py` · `CHANGELOG.md` |
 | F10 | フィクスチャに ~~UserControl~~ / `On Error` / `GoSub` が無い（UserControl は 2026-08-16 追加） | `source/mini_vbp/` |
@@ -67,9 +67,9 @@ inventory / excerpt に「Show 文の転置（事実）」を出す。既存 `sh
 
 `python -m tools comprehend --unticked`（`--json-only` 可）。`--suggest` はヒューリスティックと明記し、Startup `Form_Load`/`MDIForm_Load` → その Form の outbound `show_calls` 先の `Form_Load` → 残り公開 Sub の順。自動 tick しない。未解決 Show は載せない。空なら「未 tick 0」。
 
-#### E. `serve` ランディング
+#### E. `serve` ランディング — **採用済 2026-08-16**
 
-`/` に inventory · comprehension · excerpt · layout · deep-read へのリンクを出す。`file://` 禁止は維持。ディレクトリ生一覧は残してよい。
+`/` に inventory · comprehension · excerpt · layout · deep-read へのリンク（存在する成果物のみ。無い種類は「なし」）。`/excerpt` は常に出す。`file://` 禁止は維持。ページ下部にディレクトリ生一覧。
 
 #### F. excerpt に Module / Class 表面
 
@@ -144,4 +144,4 @@ UserControl 1 つ · `On Error GoTo` 1 本 · 前方 GoTo 既存に加えて `Go
 3. 採用したら [`kit-dev-context.md`](kit-dev-context.md) の「次手」に「採用済」と日付を足し、本ファイルの該当節を短くする
 4. 捨てる案は「やらない」表へ移す（消して忘れない）
 
-P0 と P1-D は採用済。次の候補は P1-E（`serve` ランディング）または P1-F（excerpt Module/Class 表面）。
+P0 と P1-D / P1-E は採用済。次の候補は P1-F（excerpt Module/Class 表面）。

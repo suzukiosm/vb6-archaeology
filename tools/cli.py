@@ -88,7 +88,7 @@ COMMANDS: dict[str, Command] = {
     ),
     "serve": Command(
         "tools.serve_reports",
-        "Serve working/reports over local HTTP (file:// does not work)",
+        "Serve reports: / landing, static files, /excerpt (file:// does not work)",
     ),
     "fixture": Command(
         "tools.make_fixture",

@@ -35,7 +35,7 @@ python -m tools --version
 | `scan-chars` | `scan_control_chars.py` | PS バッククォート由来の制御文字検出 | stdout（hits=0 で exit 0） |
 | `excerpt` | `reimpl_excerpt.py` | 再実装向け抜粋 HTML（Form · Show · Show転置 · 未 tick） | `working/reports/<stem>_reimpl_excerpt.html` |
 | `status` | `status.py` | 既存成果物の有無・件数だけ（推定なし） | stdout 3 行 + JSON |
-| `serve` | `serve_reports.py` | レポート配信 + `/excerpt` 動的抜粋（`file://` 不可） | 127.0.0.1:`reports_http_port` |
+| `serve` | `serve_reports.py` | `/` ランディング + レポート配信 + `/excerpt` 動的抜粋（`file://` 不可） | 127.0.0.1:`reports_http_port` |
 | `fixture` | `make_fixture.py` | スモーク用ミニ VBP（CP932） | `source/mini_vbp/` |
 | `smoke` | `kit_smoke.py` | キット自己点検（パイプライン + unittest）。`--kit-only` は消費者拡張時にキット層だけ回すフラグ（キット本体では既定と同じ） | stdout（失敗時非ゼロ） |
 
