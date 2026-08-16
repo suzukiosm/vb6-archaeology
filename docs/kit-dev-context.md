@@ -13,7 +13,7 @@ VB6 を壊さず理解するための汎用 OS（docs / .cursor / tools）を維
 - 単一入口: `python -m tools <command>`（`tools/cli.py` の `COMMANDS` が正。個別 `python tools/<name>.py` も維持）
 - コアツール: extract / inventory / verify_inventory / verify_report_names / frm_deep_read / runtime_layout / comprehension_scaffold / reimpl_excerpt / io_catalog / status
 - 設定検証: `schema/archaeology.config.schema.json` + `lib/config_schema.py`（stdlib のみ）
-- 自己点検: `kit_smoke.py`（config-check → fixture パイプライン → comprehend → excerpt → io-catalog → verify-names → scan-chars + unittest）· CI: ubuntu/windows × Python 3.10/3.13
+- 自己点検: `kit_smoke.py`（config-check → fixture パイプライン → comprehend → excerpt → io-catalog → verify-names → serve --check · --live-get → scan-chars + unittest）· CI: ubuntu/windows × Python 3.10/3.13
 - 補助: `frm_lines.py` · `scan_control_chars.py` · `frm_deep_read_all.py`（`deep_read_name_map`）
 - `frm_deep_read`: .frm 単体解析注記、`show_style`、GoTo 飛び越え文候補（I/O·Call 等）+ ラベル地図、`menu_tree`（デザイナ値。実行時 Enabled は layout）、`ancestor_hidden`（静的近似・断定しない）
 - `runtime_layout`: `.frm` + `.bas` + `.cls` を走査。Show 文脈は Sub 境界で `recent_shows` クリア。開経路スコアは `layout_sub_scores`（既定 `form_load` / `mdiform_load` のみ）。MDI chrome は `mdi_chrome`（キット既定空）
@@ -35,7 +35,8 @@ VB6 を壊さず理解するための汎用 OS（docs / .cursor / tools）を維
 - （採用済 2026-08-16 · メニュー木）skeleton `menu_tree` — 親子・Caption・Visible/Enabled（デザイナ値）。実行時 Enabled は layout。警告は維持
 - （採用済 2026-08-16 · layout `.cls`）`runtime_layout` が `.bas` に加えて `.cls` を走査。fixture `PlaceHost`
 - （採用済 2026-08-16 · 同伴バイナリ）extract が同 stem の `.frx` / `.ctx` / `.pgx` / `.dox` / `.dsx` をコピー。中身は解析しない。fixture `MiniCtl.ctx`
-- （提案 2026-08-16）未採用バックログ: [`kit-improvement-ideas.md`](kit-improvement-ideas.md)。P0 · P1 · P2 は採用済。次の候補は P3-M。完全 callgraph / Next / 業種は引き続きやらない
+- （採用済 2026-08-16 · serve live-get）`python -m tools serve --live-get` — 一時ポートで `/` と `/excerpt` を GET。smoke が実行
+- （提案 2026-08-16）未採用バックログ: [`kit-improvement-ideas.md`](kit-improvement-ideas.md)。P0 · P1 · P2 · P3-M は採用済。次の候補は P3-N。完全 callgraph / Next / 業種は引き続きやらない
 - （採用済 2026-08-06 · mdi_chrome）`shell_forms` / `control_names` を config 化。`MDIForm1`·Picture1/FG1/fg2 のハードコードを撤去
 - （採用済 2026-08-06 · GoTo）飛び越え候補の一般化 + ラベル地図 + tick/frm-audit 手順。デッド確定はしない
 - （採用済 2026-08-06 · delivery_slip 実戦）inventory `show_style`/`show_calls` · 再実装ハンドオフ · `product_ui_notes` · CURRENT · data-guards · `smoke --kit-only` · deep-read `show_style` · `excerpt`/`serve /excerpt`。**未採用**: Show 完全 callgraph · Next/UI 同梱

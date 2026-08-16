@@ -7,6 +7,7 @@ through a loopback HTTP server.
     python -m tools serve
     python -m tools serve --port 8790
     python -m tools serve --check      # validate directory, print URL, exit
+    python -m tools serve --live-get   # ephemeral port; GET / and /excerpt; expect 200
 
     http://127.0.0.1:8765/             # landing (inventory / excerpt / io-catalog / …)
     http://127.0.0.1:8765/excerpt
@@ -17,10 +18,14 @@ from __future__ import annotations
 
 import argparse
 import html
+import json
 import sys
+import urllib.error
+import urllib.request
 from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from threading import Thread
 from urllib.parse import parse_qs, urlparse
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -40,10 +45,55 @@ LAYOUT_NAMES = frozenset(
     {"runtime_layout.md", "runtime_layout.json", "form_layout_gap.md"}
 )
 FILE_URI_NOTE = "file:// では開きません。この HTTP サーバ経由で開いてください。"
+DEFAULT_LIVE_GETS = ("/", "/excerpt")
 
 
 def _esc(value: object) -> str:
     return html.escape(str(value if value is not None else ""), quote=True)
+
+
+def live_get(
+    root: Path,
+    paths: tuple[str, ...] = DEFAULT_LIVE_GETS,
+    timeout: float = 10,
+) -> dict:
+    """Bind an ephemeral loopback port and GET each path. Does not keep serving."""
+    handler = partial(ReportsHandler, directory=str(root))
+    httpd = ThreadingHTTPServer(("127.0.0.1", 0), handler)
+    port = int(httpd.server_address[1])
+    thread = Thread(target=httpd.serve_forever, daemon=True)
+    thread.start()
+    gets: list[dict] = []
+    try:
+        for path in paths:
+            url = f"http://127.0.0.1:{port}{path}"
+            try:
+                with urllib.request.urlopen(url, timeout=timeout) as resp:
+                    body = resp.read()
+                    gets.append({
+                        "path": path,
+                        "status": int(resp.status),
+                        "bytes": len(body),
+                    })
+            except urllib.error.HTTPError as exc:
+                gets.append({
+                    "path": path,
+                    "status": int(exc.code),
+                    "bytes": 0,
+                })
+            except urllib.error.URLError as exc:
+                gets.append({
+                    "path": path,
+                    "status": 0,
+                    "bytes": 0,
+                    "error": str(exc.reason if getattr(exc, "reason", None) else exc),
+                })
+        ok = bool(gets) and all(item.get("status") == 200 for item in gets)
+        return {"ok": ok, "port": port, "gets": gets}
+    finally:
+        httpd.shutdown()
+        thread.join(timeout=5)
+        httpd.server_close()
 
 
 def classify_report(name: str) -> str | None:
@@ -226,6 +276,11 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="Validate the directory and print the URL without serving",
     )
+    ap.add_argument(
+        "--live-get",
+        action="store_true",
+        help="Bind an ephemeral port, GET / and /excerpt, expect 200, then exit",
+    )
     args = ap.parse_args(argv)
 
     root = args.directory or reports_root()
@@ -240,6 +295,14 @@ def main(argv: list[str] | None = None) -> int:
     print(f"serving {root} at {url}")
     print(f"landing: {url}")
     print(f"reimpl excerpt: {url}excerpt")
+    if args.live_get:
+        result = live_get(root)
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+        if not result.get("ok"):
+            print("live-get: failed (expected HTTP 200 for / and /excerpt)", file=sys.stderr)
+            return 1
+        print("live-get: ok")
+        return 0
     if args.check:
         return 0
 

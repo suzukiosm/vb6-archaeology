@@ -81,6 +81,7 @@ def run_pipeline() -> None:
     # so the name check runs after every report has been generated.
     run_step("verify-names", ["verify-names", "--inventory", str(INV_JSON)])
     run_step("serve --check", ["serve", "--check"])
+    run_step("serve --live-get", ["serve", "--live-get"])
     run_step("scan-chars", ["scan-chars"])
 
 

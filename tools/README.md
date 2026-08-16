@@ -36,7 +36,7 @@ python -m tools --version
 | `excerpt` | `reimpl_excerpt.py` | 再実装向け抜粋 HTML（Form · Module/Class · Show · Show転置 · 未 tick） | `working/reports/<stem>_reimpl_excerpt.html` |
 | `io-catalog` | `io_catalog.py` | extract の Open / Kill / Name / Get / Put（事実のみ。GoTo 飛び越えと突合） | `working/reports/<stem>_io_catalog.{json,md}` |
 | `status` | `status.py` | 既存成果物の有無・件数だけ（推定なし） | stdout 3 行 + JSON |
-| `serve` | `serve_reports.py` | `/` ランディング + レポート配信 + `/excerpt` 動的抜粋（`file://` 不可） | 127.0.0.1:`reports_http_port` |
+| `serve` | `serve_reports.py` | `/` ランディング + レポート配信 + `/excerpt` 動的抜粋（`file://` 不可）。`--live-get` は一時ポートで 200 確認 | 127.0.0.1:`reports_http_port` |
 | `fixture` | `make_fixture.py` | スモーク用ミニ VBP（CP932） | `source/mini_vbp/` |
 | `smoke` | `kit_smoke.py` | キット自己点検（パイプライン + unittest）。`--kit-only` は消費者拡張時にキット層だけ回すフラグ（キット本体では既定と同じ） | stdout（失敗時非ゼロ） |
 
@@ -159,6 +159,7 @@ python -m unittest discover -s tools -p "test_*.py" -v
 - `test_build_report.py` — 並列＝逐次の一致・VBP 順維持・HTML 検索 TOC
 - `test_status.py` — 成果物の有無・件数、複数 extract、`default_extract`、verify 永続化
 - `test_io_catalog.py` — I/O 5 種の分類、コメント/`GetTickCount`/`Name =` 除外、GoTo 飛び越え突合
+- `test_serve_reports.py` — ランディング分類 + `--live-get`（`/` と `/excerpt` が 200）
 - `test_extract_vbp.py` — 同 stem 同伴（`.frx` / `.ctx` 等）。中身は解析しない
 
 いずれも特定顧客アプリの正本は不要（合成データ／一時ディレクトリ）。

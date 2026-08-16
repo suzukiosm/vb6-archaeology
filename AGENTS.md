@@ -39,7 +39,7 @@ python -m tools smoke --kit-only
 ```
 
 フィクスチャパイプライン（config-check → extract → inventory → verify → deep-read →
-layout → comprehend → excerpt → io-catalog → status → verify-names → scan-chars）＋ `tools/` 配下の unittest。
+layout → comprehend → excerpt → io-catalog → status → verify-names → serve --live-get → scan-chars）＋ `tools/` 配下の unittest。
 詳細は `CONTRIBUTING.md` · `tools/README.md`。
 再実装の製品面チェック: `docs/reimplementation-handoff.md`。
 

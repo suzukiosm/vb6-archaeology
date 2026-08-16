@@ -15,6 +15,7 @@ from tools.serve_reports import (
     FILE_URI_NOTE,
     ReportsHandler,
     classify_report,
+    live_get,
     render_landing,
 )
 
@@ -84,6 +85,45 @@ class ServeLandingTests(unittest.TestCase):
                     self.assertIn("inventory-ok", resp.read().decode("utf-8"))
             finally:
                 httpd.shutdown()
+
+
+class LiveGetTests(unittest.TestCase):
+    def test_landing_and_excerpt_return_200(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            reports = Path(tmp)
+            (reports / "demo_inventory.json").write_text(
+                json.dumps({
+                    "stem": "demo",
+                    "proc_total": 0,
+                    "files": [
+                        {
+                            "file": "Form1.frm",
+                            "vb_name": "Form1",
+                            "form_kind": "VB.Form",
+                            "type": "form",
+                            "control_count": 0,
+                            "procedures": [],
+                            "show_style": {"show_style": "unknown"},
+                            "show_calls": [],
+                        }
+                    ],
+                }),
+                encoding="utf-8",
+            )
+            result = live_get(reports, timeout=5)
+        self.assertTrue(result["ok"])
+        paths = {item["path"]: item["status"] for item in result["gets"]}
+        self.assertEqual(paths.get("/"), 200)
+        self.assertEqual(paths.get("/excerpt"), 200)
+
+    def test_excerpt_without_inventory_is_not_ok(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            reports = Path(tmp)
+            (reports / "notes.txt").write_text("x", encoding="utf-8")
+            result = live_get(reports, timeout=5)
+        self.assertFalse(result["ok"])
+        excerpt = next(item for item in result["gets"] if item["path"] == "/excerpt")
+        self.assertNotEqual(excerpt["status"], 200)
 
 
 if __name__ == "__main__":

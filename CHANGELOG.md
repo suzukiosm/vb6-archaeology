@@ -9,6 +9,7 @@ Versions are exposed by `python -m tools --version` (`tools/__init__.py`).
 
 ### Added
 
+- `python -m tools serve --live-get` — 一時ポートで `/` と `/excerpt` を GET（200 必須）。smoke が `serve --check` の次に実行
 - extract の同伴コピーを一般化（`.frm`→`.frx` · `.ctl`→`.ctx` · `.pag`→`.pgx` · `.dob`→`.dox` · `.dsr`→`.dsx`）。中身は解析しない。fixture `MiniCtl.ctx`
 - `runtime_layout` が `.cls` も走査（`.bas` と同列）。fixture `Widget.PlaceHost` が `Form1.Left = 50`
 - deep-read skeleton `menu_tree` — メニューの親子・Caption・Visible/Enabled（デザイナ値）。実行時 `Enabled =` は layout（混ぜない）。`menu_warnings` は維持。fixture `mnuFile` / `mnuOpen` / `mnuHidden`
@@ -60,7 +61,6 @@ Versions are exposed by `python -m tools --version` (`tools/__init__.py`).
 
 - inventory 横断の「誰が誰を Show するか」完全グラフ（Form 単位の show_style/show_calls 事実スキャンは採用済）
 - Next.js / デザインシステム / 業種ドメインの同梱
-- smoke での serve `/excerpt` live GET（unittest のみ）
 
 ## [0.1.0] - 2026-08-05
 

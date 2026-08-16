@@ -92,7 +92,7 @@ COMMANDS: dict[str, Command] = {
     ),
     "serve": Command(
         "tools.serve_reports",
-        "Serve reports: / landing, static files, /excerpt (file:// does not work)",
+        "Serve reports: / landing, static files, /excerpt; --live-get probes 200",
     ),
     "fixture": Command(
         "tools.make_fixture",
