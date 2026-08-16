@@ -9,6 +9,8 @@ Versions are exposed by `python -m tools --version` (`tools/__init__.py`).
 
 ### Added
 
+- `test_make_fixture.py` — mini_vbp の回帰契約（UserControl · `On Error GoTo` · `GoSub` · 前方 GoTo 越し Open · I/O 5 種）。temp へ書いてパーサで見る（`source/` は触らない）
+
 ### Changed
 
 ### Fixed
