@@ -1,6 +1,6 @@
 # キット改良アイデア（提案・未採用）
 
-**これは提案。** 採用するまで実装しない。1 テーマ 1 PR。  
+**これは提案。** 採用するまで実装しない（P0-C `status` は 2026-08-16 採用済）。1 テーマ 1 PR。  
 消費者アプリのセッション事実ではない。キット保守用。現状の正は [`kit-dev-context.md`](kit-dev-context.md)。
 
 方針は変えない: 事実と推定を混ぜない · 正規表現一括の callgraph は作らない · 標準ライブラリのみ · アプリ固有は消費者へ。
@@ -37,7 +37,7 @@
 | F9 | バージョン表示は `0.1.0` のまま。`[Unreleased]` に 0.1.0 以降の機能が厚い | `tools/__init__.py` · `CHANGELOG.md` |
 | F10 | フィクスチャに UserControl / `On Error` / `GoSub` が無い | `source/mini_vbp/`（Form · Module · Class のみ） |
 | F11 | GitHub Issues は空。改善テンプレはあるがバックログの置き場が無い | `gh issue list` · `.github/ISSUE_TEMPLATE/feature_request.yml` |
-| F12 | パイプライン進捗を出すコマンドが無い。エージェントは複数レポートを手で突合する | `cli.py` の `COMMANDS` に status 相当なし |
+| F12 | ~~パイプライン進捗を出すコマンドが無い~~ **採用済 2026-08-16** `python -m tools status` | `tools/status.py` |
 
 `show_calls`（Form 単位の出方向事実）は採用済。無いのは **入方向の転置** と **進捗の機械集計**。
 
@@ -61,12 +61,9 @@
 置き場の候補: inventory HTML の既存 Show 表の隣、または `excerpt`。  
 「完全グラフ」とは呼ばない。キャプションは「Show 文の転置（事実）」。
 
-#### C. `python -m tools status`
+#### C. `python -m tools status` — **採用済 2026-08-16**
 
-extract / inventory / verify 最終結果 / deep-read 数÷Form 数 / tick 数÷プロシージャ数 / excerpt 有無を JSON + 数行テキストで出す。推定も優先順位も付けない。
-
-- sessionStart hook が 3 行出せると、起動時の手探りが減る
-- 複数 extract があるときは `default_extract` を使う（既存契約）
+`python -m tools status`（`--json-only` 可）。extract / inventory / `<stem>_verify.json` / deep-read 数÷Form 数 / tick 数÷プロシージャ数 / excerpt / layout の有無を JSON + 3 行で出す。推定も次手も付けない。sessionStart が同じ 3 行を出す。複数 extract は `default_extract`（既存契約）。
 
 ---
 
@@ -159,4 +156,4 @@ UserControl 1 つ · `On Error GoTo` 1 本 · 前方 GoTo 既存に加えて `Go
 3. 採用したら [`kit-dev-context.md`](kit-dev-context.md) の「次手」に「採用済」と日付を足し、本ファイルの該当節を短くする
 4. 捨てる案は「やらない」表へ移す（消して忘れない）
 
-推奨する最初の 1 本: **P0-C `status`**（既存成果物を読むだけ。パーサ契約を増やさない）または **P0-B Show 転置**（既に持っている `show_calls` だけ使う）。
+P0-C は採用済。次の 1 本の候補: **P0-B Show 転置**（既に持っている `show_calls` だけ使う）。

@@ -11,6 +11,7 @@
 | mdi_chrome | config キー。MDI シェル VB_Name（`shell_forms`）と chrome コントロール名（`control_names`）。キット既定は空 |
 | show_style | Show / MDIChild から出す再実装向け候補（`mdi_child` / `modal_overlay` / `unknown` 等）。機械は `navigate` を出さない |
 | excerpt | Form · Show · GoTo件数 · 未 tick の短い HTML（`python -m tools excerpt` · serve `/excerpt`） |
+| status | 既存成果物の有無・件数（`python -m tools status`）。推定も次手も出さない |
 | tick | 理解の最小単位（主要 Sub 1 つの精読） |
 | GoTo 飛び越え候補 | 前方 GoTo が飛び越す I/O·Call 等。候補のまま。デッド確定にしない |
 | 到達不能 | UI から開けない / 死んだメニュー等（証拠必須） |

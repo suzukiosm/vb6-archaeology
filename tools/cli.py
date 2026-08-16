@@ -70,6 +70,10 @@ COMMANDS: dict[str, Command] = {
         "tools.reimpl_excerpt",
         "Build a short reimplementation excerpt (forms / Show / unticked)",
     ),
+    "status": Command(
+        "tools.status",
+        "Print facts-only pipeline status from existing artifacts",
+    ),
     "lines": Command(
         "tools.frm_lines",
         "Print CP932 source lines with physical line numbers",

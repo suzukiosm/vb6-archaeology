@@ -34,6 +34,7 @@ python -m tools --version
 | `lines` | `frm_lines.py` | CP932 ソースの行番号つき表示 | stdout |
 | `scan-chars` | `scan_control_chars.py` | PS バッククォート由来の制御文字検出 | stdout（hits=0 で exit 0） |
 | `excerpt` | `reimpl_excerpt.py` | 再実装向け抜粋 HTML（Form · Show · 未 tick） | `working/reports/<stem>_reimpl_excerpt.html` |
+| `status` | `status.py` | 既存成果物の有無・件数だけ（推定なし） | stdout 3 行 + JSON |
 | `serve` | `serve_reports.py` | レポート配信 + `/excerpt` 動的抜粋（`file://` 不可） | 127.0.0.1:`reports_http_port` |
 | `fixture` | `make_fixture.py` | スモーク用ミニ VBP（CP932） | `source/mini_vbp/` |
 | `smoke` | `kit_smoke.py` | キット自己点検（パイプライン + unittest）。`--kit-only` は消費者拡張時にキット層だけ回すフラグ（キット本体では既定と同じ） | stdout（失敗時非ゼロ） |
@@ -62,7 +63,10 @@ python -m tools layout --extract working\extracts\mini_vbp
 python -m tools comprehend --add-tick Command1_Click@Form1.frm --layer C
 python -m tools lines working\extracts\mini_vbp\Form1.frm 1-20
 python -m tools scan-chars
+python -m tools status
 ```
+
+`verify` は照合結果を `working/reports/<stem>_verify.json` に残す（`status` が読む。無ければ `not persisted`）。
 
 検証の順: まず `verify`（End 数）→ 次に `verify-names`（名前集合）。  
 名前照合の足りない抽出は本ツールを改定する（`working/_verify_*.py` を増やさない）。
@@ -147,6 +151,7 @@ python -m unittest discover -s tools -p "test_*.py" -v
 - `test_inventory.py` — proc/Declare/Property シグネチャ、Const/Enum/Type/Event、Class=/Object=/meta、`warnings`、`--skip-parent-common`、End 数不変条件
 - `test_cache.py` — 内容ハッシュキー・保存/読込
 - `test_build_report.py` — 並列＝逐次の一致・VBP 順維持・HTML 検索 TOC
+- `test_status.py` — 成果物の有無・件数、複数 extract、`default_extract`、verify 永続化
 
 いずれも特定顧客アプリの正本は不要（合成データ／一時ディレクトリ）。
 

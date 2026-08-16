@@ -9,6 +9,8 @@ Versions are exposed by `python -m tools --version` (`tools/__init__.py`).
 
 ### Added
 
+- `python -m tools status` — 既存成果物の有無・件数（3 行 + JSON）。推定・次手は出さない。sessionStart が同じ 3 行を出す
+- `verify` が `working/reports/<stem>_verify.json` を残す（status が読む。再実行はしない）
 - `docs/kit-improvement-ideas.md` — キット保守の未採用バックログ（事実の穴 + 優先提案。完全 callgraph / Next / 業種は対象外のまま）
 - `mdi_chrome` — `shell_forms` / `control_names` を config 化（キット既定は空）。layout の MDI chrome 分類・Bare 正規化・`mdiDefaults` フォールバックシェルを消費者 config だけで合わせられる
 - `docs/reimplementation-handoff.md` — 調査完了と製品 UI 完了のギャップ用チェックリスト · `show_style`（`mdi_child` / `modal_overlay` / `navigate`）の精読メモ規約

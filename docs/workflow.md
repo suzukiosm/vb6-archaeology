@@ -103,6 +103,12 @@ inventory に無い名前は拒否される。拒否されたら名前を疑う�
 python -m tools verify-names --inventory working\reports\<stem>_inventory.json
 ```
 
+いつでも進捗だけ見る（再実行しない）:
+
+```powershell
+python -m tools status
+```
+
 閲覧は `python -m tools serve`（`file://` は使わない）。  
 再実装向けの短い抜粋（Form · Show · 未 tick）:
 

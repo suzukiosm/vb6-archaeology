@@ -143,6 +143,10 @@ class TestSessionContext(unittest.TestCase):
         self.assertIn("/runtime-layout", ctx)
         self.assertIn("excerpt", ctx)
         self.assertIn("AGENTS.md", ctx)
+        self.assertIn("python -m tools status", ctx)
+        self.assertIn("stem=", ctx)
+        self.assertIn("deep-read=", ctx)
+        self.assertIn("verify=", ctx)
 
 
 if __name__ == "__main__":

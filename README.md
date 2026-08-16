@@ -21,6 +21,7 @@ python -m tools fixture
 python -m tools extract "source\mini_vbp\mini_vbp.vbp"
 python -m tools inventory working\extracts\mini_vbp
 python -m tools verify working\reports\mini_vbp_inventory.json
+python -m tools status
 python -m tools deep-read Form1.frm --extract working\extracts\mini_vbp
 python -m tools layout --extract working\extracts\mini_vbp
 ```

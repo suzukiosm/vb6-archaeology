@@ -52,11 +52,11 @@ def main(argv: list[str] | None = None) -> int:
         inv_path = REPO_ROOT / inv_path
 
     data = json.loads(inv_path.read_text(encoding="utf-8"))
+    stem = data.get("stem") or inv_path.name.replace("_inventory.json", "")
     extract_dir = args.extract
     if extract_dir is None and data.get("extract_dir"):
         extract_dir = Path(data["extract_dir"])
     elif extract_dir is None:
-        stem = data.get("stem") or inv_path.name.replace("_inventory.json", "")
         extract_dir = REPO_ROOT / "working" / "extracts" / stem
     if not extract_dir.is_absolute():
         extract_dir = (REPO_ROOT / extract_dir).resolve()
@@ -88,8 +88,19 @@ def main(argv: list[str] | None = None) -> int:
         "extract_dir": str(extract_dir),
         "files_checked": len(files),
         "mismatches": mismatches,
+        "ok": not mismatches,
     }
     print(json.dumps(result, ensure_ascii=False, indent=2))
+    verify_path = reports_root() / f"{stem}_verify.json"
+    try:
+        verify_path.parent.mkdir(parents=True, exist_ok=True)
+        verify_path.write_text(
+            json.dumps(result, ensure_ascii=False, indent=2) + "\n",
+            encoding="utf-8",
+        )
+        result["persisted"] = str(verify_path)
+    except OSError:
+        pass
     if mismatches:
         print("count mismatches: FOUND", file=sys.stderr)
         return 1
