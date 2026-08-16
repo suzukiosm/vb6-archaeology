@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Build a short reimplementation excerpt HTML from existing reports.
 
-Surfaces: Form list, Show relations, GoTo skip counts (from skeletons),
-unticked procedures. Agents use this instead of pasting entire
-inventory/deep-read into chat.
+Surfaces: Form list, Module/Class (unticked + Declare counts), Show
+relations, GoTo skip counts (from skeletons), unticked procedures.
+Agents use this instead of pasting entire inventory/deep-read into chat.
 
     python -m tools excerpt
     python -m tools excerpt --inventory working/reports/mini_vbp_inventory.json
@@ -29,6 +29,8 @@ TICK_TARGET_RE = re.compile(
     r'data-target="([^"#]+)#([^"]+)"',
     re.IGNORECASE,
 )
+MODULE_CLASS_TYPES = frozenset({"module", "class"})
+MODULE_CLASS_SUFFIXES = {".bas", ".cls"}
 
 
 def _esc(value: object) -> str:
@@ -217,6 +219,45 @@ def inbound_from_inventory(inventory: dict) -> tuple[list[dict], list[dict]]:
     return inbound, unresolved
 
 
+def is_module_or_class(entry: dict) -> bool:
+    """True for inventory Module/Class files (type, else .bas/.cls suffix)."""
+    kind = str(entry.get("type") or "").strip().lower()
+    if kind:
+        return kind in MODULE_CLASS_TYPES
+    return Path(str(entry.get("file") or "")).suffix.lower() in MODULE_CLASS_SUFFIXES
+
+
+def module_class_surface(
+    inventory: dict, ticked: set[tuple[str, str]]
+) -> list[dict]:
+    """Per-file Module/Class facts: proc / Declare counts and unticked names."""
+    rows: list[dict] = []
+    for entry in inventory.get("files") or []:
+        if not is_module_or_class(entry):
+            continue
+        file_name = str(entry.get("file") or "")
+        procs = entry.get("procedures") or []
+        declares = entry.get("declares") or []
+        suffix = Path(file_name).suffix.lower().lstrip(".")
+        kind = str(entry.get("type") or suffix or "")
+        unticked = [
+            str(proc.get("name") or "")
+            for proc in procs
+            if proc.get("name") and (file_name, proc.get("name")) not in ticked
+        ]
+        rows.append(
+            {
+                "file": file_name,
+                "vb_name": entry.get("vb_name") or "",
+                "type": kind,
+                "proc_count": len(procs),
+                "declare_count": len(declares),
+                "unticked": unticked,
+            }
+        )
+    return rows
+
+
 def merge_show_rows(skeleton_rows: list[dict], inventory_rows: list[dict]) -> list[dict]:
     """Prefer skeleton (live-filtered) Show rows; keep inventory self styles as fill."""
     if not skeleton_rows:
@@ -247,6 +288,7 @@ def build_excerpt_html(
     unresolved_rows: list[dict] | None = None,
 ) -> str:
     forms = [f for f in inventory.get("files") or [] if f.get("type") == "form"]
+    surfaces = module_class_surface(inventory, ticked)
     goto_counts = goto_counts or {}
 
     form_rows = []
@@ -287,6 +329,23 @@ def build_excerpt_html(
             f"<td>{deep_link}</td>"
             f"<td>{_esc(f.get('control_count'))}</td>"
             f"<td>{_esc(len(f.get('procedures') or []))}</td>"
+            "</tr>"
+        )
+
+    surface_rows = []
+    for row in surfaces:
+        if row["unticked"]:
+            names = ", ".join(f"<code>{_esc(n)}</code>" for n in row["unticked"])
+        else:
+            names = "—"
+        surface_rows.append(
+            "<tr>"
+            f"<td>{_esc(row['file'])}</td>"
+            f"<td><code>{_esc(row['vb_name'])}</code></td>"
+            f"<td>{_esc(row['type'])}</td>"
+            f"<td>{_esc(row['proc_count'])}</td>"
+            f"<td>{_esc(row['declare_count'])}</td>"
+            f"<td>{names}</td>"
             "</tr>"
         )
 
@@ -369,7 +428,7 @@ def build_excerpt_html(
 </head>
 <body>
 <h1>再実装向け抜粋 — <code>{_esc(stem)}</code></h1>
-<p class="meta">Form 一覧 · Show 関係 · Show 転置 · GoTo 飛び越え件数 · 未 tick。詳細は inventory / deep-read / comprehension を正とする。</p>
+<p class="meta">Form 一覧 · Module/Class 表面 · Show 関係 · Show 転置 · GoTo 飛び越え件数 · 未 tick。詳細は inventory / deep-read / comprehension を正とする。</p>
 <p class="note">調査完了 ≠ 製品 UI 完了。出荷前は
 <code>docs/reimplementation-handoff.md</code> を通す。<br/>
 <code>show_style</code> はヒューリスティック候補（断定しない）。
@@ -382,6 +441,15 @@ GoTo 列は skeleton の飛び越え<strong>候補</strong>件数（デッド確
 <thead><tr><th>file</th><th>VB_Name</th><th>kind</th><th>self show_style</th><th>GoTo</th><th>詳細</th><th>Ctrl</th><th>Proc</th></tr></thead>
 <tbody>
 {''.join(form_rows) or '<tr><td colspan="8">（form なし）</td></tr>'}
+</tbody>
+</table>
+
+<h2>Module / Class 表面（{len(surfaces)}）</h2>
+<p class="meta">未 tick の <code>.bas</code> / <code>.cls</code> と <code>Declare</code> 件数。DLL の意味は書かない。詳細は inventory。</p>
+<table>
+<thead><tr><th>file</th><th>VB_Name</th><th>type</th><th>Proc</th><th>Declare</th><th>未 tick</th></tr></thead>
+<tbody>
+{''.join(surface_rows) or '<tr><td colspan="6">（module / class なし）</td></tr>'}
 </tbody>
 </table>
 

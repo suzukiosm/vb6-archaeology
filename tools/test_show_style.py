@@ -20,7 +20,12 @@ from tools.lib.show_style import (
     invert_show_calls,
     parse_show_calls_in_line,
 )
-from tools.reimpl_excerpt import build_excerpt_html, load_goto_counts, write_excerpt
+from tools.reimpl_excerpt import (
+    build_excerpt_html,
+    load_goto_counts,
+    module_class_surface,
+    write_excerpt,
+)
 from tools.serve_reports import ReportsHandler
 
 
@@ -383,6 +388,66 @@ class ExcerptTests(unittest.TestCase):
         self.assertIn("Form12", text)
         self.assertIn("Form1", text)
         self.assertNotIn("unresolved</h3>", text)
+
+    def test_excerpt_module_class_surface_and_declare_counts(self) -> None:
+        inventory = {
+            "stem": "demo",
+            "proc_total": 3,
+            "files": [
+                {
+                    "file": "Form1.frm",
+                    "vb_name": "Form1",
+                    "type": "form",
+                    "procedures": [{"name": "Form_Load"}],
+                    "declares": [],
+                },
+                {
+                    "file": "Module1.bas",
+                    "vb_name": "Module1",
+                    "type": "module",
+                    "procedures": [
+                        {"name": "AddOne"},
+                        {"name": "Hidden"},
+                    ],
+                    "declares": [
+                        {"name": "GetTickCount", "kind": "Function", "lib": "kernel32"}
+                    ],
+                },
+                {
+                    "file": "Widget.cls",
+                    "vb_name": "Widget",
+                    "type": "class",
+                    "procedures": [{"name": "Ping"}],
+                    "declares": [],
+                },
+                {
+                    "file": "MiniCtl.ctl",
+                    "vb_name": "MiniCtl",
+                    "type": "usercontrol",
+                    "procedures": [{"name": "Ping"}],
+                    "declares": [],
+                },
+            ],
+        }
+        ticked = {("Module1.bas", "Hidden")}
+        rows = module_class_surface(inventory, ticked)
+        self.assertEqual([r["file"] for r in rows], ["Module1.bas", "Widget.cls"])
+        self.assertEqual(rows[0]["declare_count"], 1)
+        self.assertEqual(rows[0]["unticked"], ["AddOne"])
+        self.assertEqual(rows[1]["declare_count"], 0)
+        self.assertEqual(rows[1]["unticked"], ["Ping"])
+        html = build_excerpt_html(
+            inventory,
+            ticked=ticked,
+            show_rows=[],
+            stem="demo",
+        )
+        self.assertIn("Module / Class 表面", html)
+        self.assertIn("Module1.bas", html)
+        self.assertIn("Widget.cls", html)
+        self.assertIn("AddOne", html)
+        self.assertNotIn("MiniCtl.ctl", html.split("未 tick プロシージャ")[0])
+        self.assertNotIn("GetTickCount", html)
 
 
 class ServeExcerptTests(unittest.TestCase):

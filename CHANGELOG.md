@@ -9,6 +9,7 @@ Versions are exposed by `python -m tools --version` (`tools/__init__.py`).
 
 ### Added
 
+- excerpt の Module / Class 表面 — 未 tick の `.bas`/`.cls` と `Declare` 件数（DLL 意味は書かない）
 - `serve` の `/` ランディング — inventory · comprehension · excerpt · layout · deep-read へのリンク + ディレクトリ一覧。`file://` 禁止は維持
 - `python -m tools comprehend --unticked` / `--suggest` — 未 tick の CLI 一覧。`--suggest` はヒューリスティック（自動 tick しない）。空なら「未 tick 0」
 - inventory が `UserControl=` / `PropertyPage=` / `UserDocument=` / `Designer=` / `RelatedDoc=` / `ResFile32=` を棚卸し（PARSER_VERSION inv-6）。`.ctl` 等はデザイナ解析、`.res` は一覧のみ。fixture `MiniCtl.ctl`

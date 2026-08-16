@@ -11,7 +11,7 @@
 | mdi_chrome | config キー。MDI シェル VB_Name（`shell_forms`）と chrome コントロール名（`control_names`）。キット既定は空 |
 | show_style | Show / MDIChild から出す再実装向け候補（`mdi_child` / `modal_overlay` / `unknown` 等）。機械は `navigate` を出さない |
 | Show 転置 | 既存 `show_calls` の逆引き（誰がこの Form を Show しているか）。未解決は `unresolved`。呼び出しグラフではない |
-| excerpt | Form · Show · GoTo件数 · 未 tick の短い HTML（`python -m tools excerpt` · serve `/excerpt`） |
+| excerpt | Form · Module/Class（未 tick · Declare件数）· Show · GoTo件数 · 未 tick の短い HTML（`python -m tools excerpt` · serve `/excerpt`） |
 | serve ランディング | `serve` の `/`。inventory · comprehension · excerpt · layout · deep-read へのリンク + ディレクトリ一覧 |
 | status | 既存成果物の有無・件数（`python -m tools status`）。推定も次手も出さない |
 | tick | 理解の最小単位（主要 Sub 1 つの精読）。未 tick 一覧は `comprehend --unticked`。`--suggest` はヒューリスティックで自動 tick しない |

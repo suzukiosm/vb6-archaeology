@@ -1,6 +1,6 @@
 # キット改良アイデア（提案・未採用）
 
-**これは提案。** 採用するまで実装しない（P0-A / P0-B / P0-C · P1-D · P1-E `serve` ランディングは 2026-08-16 採用済）。1 テーマ 1 PR。  
+**これは提案。** 採用するまで実装しない（P0 と P1-D / P1-E / P1-F は 2026-08-16 採用済）。1 テーマ 1 PR。  
 消費者アプリのセッション事実ではない。キット保守用。現状の正は [`kit-dev-context.md`](kit-dev-context.md)。
 
 方針は変えない: 事実と推定を混ぜない · 正規表現一括の callgraph は作らない · 標準ライブラリのみ · アプリ固有は消費者へ。
@@ -71,9 +71,9 @@ inventory / excerpt に「Show 文の転置（事実）」を出す。既存 `sh
 
 `/` に inventory · comprehension · excerpt · layout · deep-read へのリンク（存在する成果物のみ。無い種類は「なし」）。`/excerpt` は常に出す。`file://` 禁止は維持。ページ下部にディレクトリ生一覧。
 
-#### F. excerpt に Module / Class 表面
+#### F. excerpt に Module / Class 表面 — **採用済 2026-08-16**
 
-Form 中心の抜粋に、未 tick の `.bas`/`.cls` と `Declare` 件数を足す。再実装で「画面以外の入口」を見落とすのを防ぐ。
+excerpt に未 tick の `.bas`/`.cls` と `Declare` 件数の節を追加。DLL 意味は書かない。`.ctl` は含めない（P2-G の範囲）。
 
 ---
 
@@ -144,4 +144,4 @@ UserControl 1 つ · `On Error GoTo` 1 本 · 前方 GoTo 既存に加えて `Go
 3. 採用したら [`kit-dev-context.md`](kit-dev-context.md) の「次手」に「採用済」と日付を足し、本ファイルの該当節を短くする
 4. 捨てる案は「やらない」表へ移す（消して忘れない）
 
-P0 と P1-D / P1-E は採用済。次の候補は P1-F（excerpt Module/Class 表面）。
+P0 と P1 は採用済。次の候補は P2（`.cls`/`.bas` 表面レポート、On Error/GoSub、I/O カタログ等）。

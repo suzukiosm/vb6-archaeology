@@ -33,7 +33,7 @@ python -m tools --version
 | `comprehend` | `comprehension_scaffold.py` | 理解レポートの骨格生成・tick 追記（inventory 外の名前は拒否）。`--unticked` / `--suggest` は一覧のみ（自動 tick しない） | `working/reports/<stem>_comprehension.html`（一覧時は書込なし） |
 | `lines` | `frm_lines.py` | CP932 ソースの行番号つき表示 | stdout |
 | `scan-chars` | `scan_control_chars.py` | PS バッククォート由来の制御文字検出 | stdout（hits=0 で exit 0） |
-| `excerpt` | `reimpl_excerpt.py` | 再実装向け抜粋 HTML（Form · Show · Show転置 · 未 tick） | `working/reports/<stem>_reimpl_excerpt.html` |
+| `excerpt` | `reimpl_excerpt.py` | 再実装向け抜粋 HTML（Form · Module/Class · Show · Show転置 · 未 tick） | `working/reports/<stem>_reimpl_excerpt.html` |
 | `status` | `status.py` | 既存成果物の有無・件数だけ（推定なし） | stdout 3 行 + JSON |
 | `serve` | `serve_reports.py` | `/` ランディング + レポート配信 + `/excerpt` 動的抜粋（`file://` 不可） | 127.0.0.1:`reports_http_port` |
 | `fixture` | `make_fixture.py` | スモーク用ミニ VBP（CP932） | `source/mini_vbp/` |

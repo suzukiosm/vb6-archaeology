@@ -68,7 +68,7 @@ COMMANDS: dict[str, Command] = {
     ),
     "excerpt": Command(
         "tools.reimpl_excerpt",
-        "Build a short reimplementation excerpt (forms / Show / unticked)",
+        "Build a short reimplementation excerpt (forms / modules / Show / unticked)",
     ),
     "status": Command(
         "tools.status",
