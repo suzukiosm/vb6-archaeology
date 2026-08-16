@@ -820,15 +820,13 @@ def _format_inbound_bits(calls: list[dict], *, html_mode: bool = False) -> str:
 
 
 def _has_surface_facts(surf: dict) -> bool:
+    """True when a non-module/class file still has G-facts worth showing."""
     if not surf:
         return False
     return bool(
         surf.get("implements")
         or surf.get("with_events")
         or surf.get("instancing") is not None
-        or surf.get("vb_creatable") is not None
-        or surf.get("vb_exposed") is not None
-        or surf.get("vb_global_name_space") is not None
     )
 
 
