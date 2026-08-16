@@ -81,7 +81,7 @@ def parse_ideas(text: str) -> dict:
             if not match:
                 continue
             item, reason = match.group(1).strip(), match.group(2).strip()
-            item = item.strip("`")
+            item = item.replace("`", "")
             if item in {"案", "対象"}:
                 continue
             bucket = deferred if section == "deferred" else wont

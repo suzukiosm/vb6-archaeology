@@ -57,6 +57,7 @@ class IdeasParseTests(unittest.TestCase):
         self.assertEqual([r["id"] for r in data["proposals_open"]], ["Q"])
         self.assertEqual([r["id"] for r in data["proposals_adopted"]], ["A"])
         self.assertEqual(data["deferred"][0]["id"], ".vbg")
+        self.assertNotIn("`", data["deferred"][0]["id"])
         self.assertEqual(len(data["wont"]), 2)
         text = format_ideas(data)
         self.assertIn("open holes=1 (F3)", text)
