@@ -6,7 +6,7 @@
 | 抽出 / extract | `working/extracts/<stem>/` の分析用コピー |
 | inventory | VBP→ファイル→プロシージャの事実レポート |
 | deep-read | `.frm` のライブ Ctrl・イベント・データパス等の機械+整理 |
-| skeleton | 再実装用の Form コントロール座標 JSON |
+| skeleton | 再実装用の Form コントロール座標 JSON（`menu_tree` = デザイナのメニュー親子） |
 | runtime_layout | コード部が書き換える Left/Top/Visible 等のカタログ |
 | mdi_chrome | config キー。MDI シェル VB_Name（`shell_forms`）と chrome コントロール名（`control_names`）。キット既定は空 |
 | show_style | Show / MDIChild から出す再実装向け候補（`mdi_child` / `modal_overlay` / `unknown` 等）。機械は `navigate` を出さない |

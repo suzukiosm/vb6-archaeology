@@ -3,7 +3,7 @@
 | # | アンチパターン | 代わりに |
 |---|---|---|
 | 1 | 正本を「整理」する | `working/extracts/` にコピーしてから触る |
-| 2 | Caption だけで遷移を実装 | Show / Load / メニュー Enabled を精読 |
+| 2 | Caption だけで遷移を実装 | Show / Load を精読。メニューは skeleton `menu_tree`（デザイナ Visible/Enabled）と layout の実行時 `Enabled =` を**混ぜない** |
 | 3 | 正規表現 callgraph を自動生成 | 読んだ Sub の呼び出しだけ記載。Show は既存 `show_calls` の転置まで（`unresolved` をエッジにしない） |
 | 4 | inventory に無い Sub 名をレポートに書く | 先に inventory 更新 or 記述削除 |
 | 5 | 「100%理解した」と宣言 | チェックリスト達成率だけ言う |

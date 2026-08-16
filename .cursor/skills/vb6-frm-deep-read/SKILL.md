@@ -22,7 +22,7 @@ python -m tools deep-read-all --extract working\extracts\<stem>
 出力キー `out_key` = `deep_read_name_map[VB_Name]` または **VB_Name の小文字**（ファイル stem ではない）。
 
 - `working/reports/<out_key>_deep_read.md`
-- `working/skeletons/<out_key>-skeleton.json`（`show_style` · `show_map[].calls` を含む）
+- `working/skeletons/<out_key>-skeleton.json`（`show_style` · `show_map[].calls` · `menu_tree` を含む）
 
 例: `BackupDay.frm` で `Attribute VB_Name = "Form12"` → `form12_deep_read.md` / `form12-skeleton.json`。
 
@@ -35,5 +35,6 @@ python -m tools deep-read-all --extract working\extracts\<stem>
 - Open 列挙をソース順＝実行順と読まない（「GoTo で飛び越えられる文（候補）」「GoTo / ラベル地図」）
 - GoTo 飛び越え候補をデッド確定にしない。`On Error GoTo` / `GoSub` はラベル地図の候補（スパンは作らない）
 - `show_style` はヒューリスティック候補（`vbModal`→`modal_overlay` / `MDIChild`→`mdi_child`）。断定しない
+- `menu_tree` はデザイナ値（親子・Caption・Visible/Enabled）。実行時の `Enabled =` は `/runtime-layout`（混ぜない）
 - 保護ディレクトリには書かない
 - 横断の短い抜粋: `python -m tools excerpt` · serve `/excerpt`

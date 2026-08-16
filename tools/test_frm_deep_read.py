@@ -6,9 +6,12 @@ from pathlib import Path
 
 from tools.frm_deep_read import (
     annotate_hidden_ancestor,
+    build_menu_tree,
     collect_goto_label_maps,
+    extract_controls,
     find_goto_skipped_opens,
     find_goto_skipped_stmts,
+    flatten_menu_tree,
     resolve_deep_read_out_key,
     write_report,
 )
@@ -298,5 +301,103 @@ class GotoSkippedOpenTests(unittest.TestCase):
         self.assertEqual(find_goto_skipped_stmts(lines), [])
 
 
+class MenuTreeTests(unittest.TestCase):
+    def test_nested_designer_values_and_has_click(self) -> None:
+        lines = [
+            "VERSION 5.00",
+            "Begin VB.Form Form1",
+            '   Caption         =   "t"',
+            "   Begin VB.Menu mnuFile",
+            '      Caption         =   "File"',
+            "      Begin VB.Menu mnuOpen",
+            '         Caption         =   "Open"',
+            "      End",
+            "      Begin VB.Menu mnuHidden",
+            '         Caption         =   "Hide"',
+            "         Visible         =   0   'False",
+            "      End",
+            "      Begin VB.Menu mnuOff",
+            '         Caption         =   "Off"',
+            "         Enabled         =   0   'False",
+            "      End",
+            "   End",
+            "End",
+            'Attribute VB_Name = "Form1"',
+        ]
+        form_info, controls = extract_controls(lines)
+        self.assertEqual(form_info["name"], "Form1")
+        menus = [c for c in controls if c["kind"] == "VB.Menu"]
+        self.assertEqual([c["name"] for c in menus], ["mnuOpen", "mnuHidden", "mnuOff", "mnuFile"])
+        by_name = {c["name"]: c for c in menus}
+        self.assertEqual(by_name["mnuOpen"]["parent"], "mnuFile")
+        self.assertEqual(by_name["mnuFile"]["parent"], "Form1")
+        self.assertFalse(by_name["mnuHidden"]["visible"])
+        self.assertFalse(by_name["mnuOff"]["enabled"])
+
+        events = [{"name": "mnuOpen_Click"}]
+        tree = build_menu_tree(controls, events)
+        self.assertEqual(len(tree), 1)
+        root = tree[0]
+        self.assertEqual(root["name"], "mnuFile")
+        self.assertEqual(root["caption"], "File")
+        self.assertFalse(root["has_click"])
+        self.assertEqual(root["parent"], "Form1")
+        child_names = [c["name"] for c in root["children"]]
+        self.assertEqual(child_names, ["mnuOpen", "mnuHidden", "mnuOff"])
+        self.assertTrue(root["children"][0]["has_click"])
+        self.assertFalse(root["children"][1]["visible"])
+        self.assertFalse(root["children"][2]["enabled"])
+        self.assertEqual(root["children"][0]["parent"], "mnuFile")
+
+    def test_empty_controls_yield_empty_tree(self) -> None:
+        self.assertEqual(build_menu_tree([ctrl("Label1")], []), [])
+
+    def test_report_separates_tree_from_runtime_enabled(self) -> None:
+        tree = [{
+            "name": "mnuFile",
+            "caption": "File",
+            "line": 10,
+            "visible": True,
+            "enabled": True,
+            "has_click": False,
+            "parent": "Form1",
+            "children": [{
+                "name": "mnuOpen",
+                "caption": "Open",
+                "line": 12,
+                "visible": True,
+                "enabled": True,
+                "has_click": True,
+                "parent": "mnuFile",
+                "children": [],
+            }],
+        }]
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "out.md"
+            write_report(
+                path,
+                "T.frm",
+                {"name": "FormTest", "caption": "t"},
+                [],
+                [],
+                {},
+                [],
+                20,
+                [],
+                [],
+                menu_tree=tree,
+            )
+            text = path.read_text(encoding="utf-8")
+        self.assertIn("メニュー木（デザイナ値）", text)
+        self.assertIn("layout を見る（混ぜない）", text)
+        self.assertIn("`mnuFile`", text)
+        self.assertIn("`mnuOpen`", text)
+        self.assertIn("`Form1`", text)
+        rows = flatten_menu_tree(tree)
+        self.assertEqual([r["name"] for r in rows], ["mnuFile", "mnuOpen"])
+        self.assertEqual(rows[1]["depth"], 1)
+
+
 if __name__ == "__main__":
     unittest.main()
+

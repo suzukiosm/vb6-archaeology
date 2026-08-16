@@ -9,6 +9,7 @@ Versions are exposed by `python -m tools --version` (`tools/__init__.py`).
 
 ### Added
 
+- deep-read skeleton `menu_tree` — メニューの親子・Caption・Visible/Enabled（デザイナ値）。実行時 `Enabled =` は layout（混ぜない）。`menu_warnings` は維持。fixture `mnuFile` / `mnuOpen` / `mnuHidden`
 - `python -m tools io-catalog` — extract 内の `Open` / `Kill` / `Name` / `Get` / `Put` を file:line で列挙（業務意味なし）。既存 skeleton の `goto_skipped_stmts` と突合。fixture `IoDemo` + `Form_Load` 前方 GoTo 越し `Open`
 - deep-read ラベル地図に `On Error GoTo` / `GoSub`（kind `on_error` / `gosub`）。飛び越えスパンは前方 GoTo のみ。デッド確定しない
 - inventory / excerpt の Module/Class 表面 — Implements · WithEvents · Instancing（生整数）· 公開 Property。PARSER_VERSION inv-7。deep-read は複製しない

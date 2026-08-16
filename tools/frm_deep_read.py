@@ -281,6 +281,79 @@ def analyze_menus(controls: list[dict], events: list[dict]):
     return findings
 
 
+def _menu_has_click(name: str, event_names: set[str]) -> bool:
+    return f"{name}_Click".lower() in event_names
+
+
+def _count_menu_nodes(tree: list[dict]) -> int:
+    return sum(1 + _count_menu_nodes(n.get("children") or []) for n in tree)
+
+
+def flatten_menu_tree(tree: list[dict], depth: int = 0) -> list[dict]:
+    """Depth-first rows for reports. Does not mutate the tree."""
+    rows: list[dict] = []
+    for node in tree:
+        rows.append({
+            "name": node.get("name") or "",
+            "caption": node.get("caption") or "",
+            "line": node.get("line"),
+            "visible": node.get("visible", True),
+            "enabled": node.get("enabled", True),
+            "has_click": bool(node.get("has_click")),
+            "parent": node.get("parent") or "",
+            "depth": depth,
+            "index": node.get("index"),
+        })
+        rows.extend(flatten_menu_tree(node.get("children") or [], depth + 1))
+    return rows
+
+
+def build_menu_tree(controls: list[dict], events: list[dict] | None = None) -> list[dict]:
+    """Designer menu tree: parent/child, Caption, Visible/Enabled.
+
+    Designer values only. Runtime ``Enabled =`` / ``Visible =`` belong in
+    layout and are not mixed in. Every ``VB.Menu`` is included (not just
+    warnings). ``has_click`` is a fact (``Name_Click`` exists), not a warn.
+    """
+    menus = [c for c in controls if c.get("kind") == "VB.Menu"]
+    if not menus:
+        return []
+    event_names = {e["name"].lower() for e in (events or []) if e.get("name")}
+    nodes: list[dict] = []
+    for c in menus:
+        node = {
+            "name": c.get("name") or "",
+            "caption": c.get("caption") or "",
+            "line": c.get("line"),
+            "visible": c.get("visible", True),
+            "enabled": c.get("enabled", True),
+            "has_click": _menu_has_click(str(c.get("name") or ""), event_names),
+            "parent": c.get("parent") or "",
+            "children": [],
+        }
+        if c.get("index") is not None:
+            node["index"] = c["index"]
+        nodes.append(node)
+
+    by_name: dict[str, list[dict]] = {}
+    for node in nodes:
+        by_name.setdefault(str(node["name"]).lower(), []).append(node)
+
+    roots: list[dict] = []
+    for node in nodes:
+        pname = str(node.get("parent") or "").lower()
+        candidates = [
+            p for p in by_name.get(pname, [])
+            if (p.get("line") or 0) < (node.get("line") or 0)
+        ]
+        if candidates:
+            parent = max(candidates, key=lambda p: p.get("line") or 0)
+            parent["children"].append(node)
+        else:
+            roots.append(node)
+    return roots
+
+
 def extract_show_map(events: list[dict]):
     rows = []
     for e in events:
@@ -818,6 +891,7 @@ def write_report(
     show_style=None,
     goto_skipped_stmts=None,
     goto_label_maps=None,
+    menu_tree=None,
 ):
     live = [c for c in controls if c.get("live")]
     dead = [c for c in controls if not c.get("live")]
@@ -868,6 +942,29 @@ def write_report(
     if form_info.get("kind"):
         md.append(f"- `Begin` kind: `{form_info['kind']}`\n")
     md.append("\n")
+
+    tree = list(menu_tree or [])
+    if tree:
+        md.append("## メニュー木（デザイナ値）\n\n")
+        md.append(
+            "> 親子・Caption・Visible/Enabled は Begin ブロックの値。"
+            "実行時の `Enabled =` / `Visible =` は layout を見る（混ぜない）。\n\n"
+        )
+        md.append(
+            "| name | parent | Caption | Vis | En | Click | L |\n"
+            "|---|---|---|---|---|---|---|\n"
+        )
+        for row in flatten_menu_tree(tree):
+            indent = "—" * row["depth"]
+            name = f"{indent}`{row['name']}`" if indent else f"`{row['name']}`"
+            parent = f"`{row['parent']}`" if row["parent"] else "—"
+            md.append(
+                f"| {name} | {parent} | {row['caption'] or '（空）'} | "
+                f"{'Y' if row['visible'] else 'N'} | "
+                f"{'Y' if row['enabled'] else 'N'} | "
+                f"{'Y' if row['has_click'] else 'N'} | {row['line']} |\n"
+            )
+        md.append("\n")
 
     if menu_findings:
         md.append("## メニュー警告（Invisible / Disabled / Click 無し）\n\n")
@@ -1160,6 +1257,7 @@ def main(argv: list[str] | None = None) -> int:
     controls = annotate_offscreen(form_info, controls)
     controls = annotate_hidden_ancestor(controls)
     menu_findings = analyze_menus(controls, events)
+    menu_tree = build_menu_tree(controls, events)
     show_map = extract_show_map(events)
     goto_skipped_stmts = find_goto_skipped_stmts(lines, events)
     goto_label_maps = collect_goto_label_maps(lines, events)
@@ -1175,7 +1273,11 @@ def main(argv: list[str] | None = None) -> int:
     print(f"Lines: {len(lines)}")
     print(f"Controls: {len(controls)} total -> {len(live_ctrls)} live, {len(dead_ctrls)} dead")
     print(f"Events: {len(events)} total -> {len(live_events)} live, {len(dead_events)} dead")
-    print(f"Menu warnings: {len(menu_findings)} / Show+PARA map rows: {len(show_map)}")
+    print(
+        f"Menu tree: {_count_menu_nodes(menu_tree)} "
+        f"(roots={len(menu_tree)}) / warnings: {len(menu_findings)} "
+        f"/ Show+PARA map rows: {len(show_map)}"
+    )
     if hidden_n:
         print(f"Ancestor-hidden controls: {hidden_n}")
 
@@ -1219,6 +1321,8 @@ def main(argv: list[str] | None = None) -> int:
         skel = build_skeleton(form_info, controls)
         style_block = form_show_style_block(form_info)
         skel["show_style"] = style_block
+        if menu_tree:
+            skel["menu_tree"] = menu_tree
         if menu_findings:
             skel["menu_warnings"] = menu_findings
         if show_map:
@@ -1255,6 +1359,7 @@ def main(argv: list[str] | None = None) -> int:
             goto_skipped_stmts=goto_skipped_stmts,
             goto_label_maps=goto_label_maps,
             show_style=form_show_style_block(form_info),
+            menu_tree=menu_tree,
         )
         print(f"Report  -> {report_path}")
 

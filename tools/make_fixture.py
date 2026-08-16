@@ -113,6 +113,16 @@ Begin VB.Form Form1
          Width           =   1500
       End
    End
+   Begin VB.Menu mnuFile
+      Caption         =   "ファイル"
+      Begin VB.Menu mnuOpen
+         Caption         =   "開く"
+      End
+      Begin VB.Menu mnuHidden
+         Caption         =   "隠す"
+         Visible         =   0   'False
+      End
+   End
 End
 Attribute VB_Name = "Form1"
 Attribute VB_GlobalNameSpace = False
@@ -138,6 +148,9 @@ Private Sub Command1_Click()
 AfterShow:
     Return
 ErrH:
+End Sub
+
+Private Sub mnuOpen_Click()
 End Sub
 """
 

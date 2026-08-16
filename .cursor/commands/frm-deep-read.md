@@ -17,4 +17,5 @@ description: Deep-read a VB6 .frm into a report plus a live-control skeleton, se
   python -m tools deep-read-all --extract working\extracts\<stem>
   ```
 - 実行時座標は別ステップ（`/runtime-layout`）。ここでは扱わない
+- skeleton `menu_tree` はデザイナのメニュー親子（実行時 Enabled は layout）
 - ツール改定後は影響 Form を再生成する
