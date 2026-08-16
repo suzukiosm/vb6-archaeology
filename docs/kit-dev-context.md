@@ -13,7 +13,7 @@ VB6 を壊さず理解するための汎用 OS（docs / .cursor / tools）を維
 - 単一入口: `python -m tools <command>`（`tools/cli.py` の `COMMANDS` が正。個別 `python tools/<name>.py` も維持）
 - コアツール: extract / inventory / verify_inventory / verify_report_names / verify_show / frm_deep_read / runtime_layout / comprehension_scaffold / reimpl_excerpt / io_catalog / status
 - 設定検証: `schema/archaeology.config.schema.json` + `lib/config_schema.py`（stdlib のみ）
-- 自己点検: `kit_smoke.py`（config-check → fixture パイプライン → comprehend → excerpt → io-catalog → verify-names → verify-show → serve --check · --live-get → scan-chars + unittest）· CI: ubuntu/windows × Python 3.10/3.13
+- 自己点検: `kit_smoke.py`（config-check → fixture パイプライン → comprehend → excerpt → io-catalog → verify-show → status → verify-names → serve --check · --live-get → scan-chars + unittest）· CI: ubuntu/windows × Python 3.10/3.13
 - 補助: `frm_lines.py` · `scan_control_chars.py` · `frm_deep_read_all.py`（`deep_read_name_map`）
 - `frm_deep_read`: .frm 単体解析注記、`show_style`、GoTo 飛び越え文候補（I/O·Call 等）+ ラベル地図、`menu_tree`（デザイナ値。実行時 Enabled は layout）、`ancestor_hidden`（静的近似・断定しない）
 - `runtime_layout`: `.frm` + `.bas` + `.cls` を走査。Show 文脈は Sub 境界で `recent_shows` クリア。開経路スコアは `layout_sub_scores`（既定 `form_load` / `mdiform_load` のみ）。MDI chrome は `mdi_chrome`（キット既定空）
