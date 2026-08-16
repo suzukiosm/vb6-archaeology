@@ -109,6 +109,6 @@ deep-read / inventory と突合。死んだプロシージャは「デッド」�
 
 ## 6. 参照（機械出力）
 
-- inventory 照合: `python -m tools verify` → `python -m tools verify-names`
+- inventory 照合: `python -m tools verify` → `python -m tools verify-names` → `python -m tools verify-show`
 - 深読み再生成: `python -m tools deep-read 〈file.frm〉 --extract working/extracts/〈stem〉`
 - 行引用: `python -m tools lines working/extracts/〈stem〉/〈file.frm〉 〈start〉-〈end〉`

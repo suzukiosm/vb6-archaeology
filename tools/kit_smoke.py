@@ -80,6 +80,7 @@ def run_pipeline() -> None:
     # Reports are only trustworthy if every name in them exists in the inventory,
     # so the name check runs after every report has been generated.
     run_step("verify-names", ["verify-names", "--inventory", str(INV_JSON)])
+    run_step("verify-show", ["verify-show", "--inventory", str(INV_JSON)])
     run_step("serve --check", ["serve", "--check"])
     run_step("serve --live-get", ["serve", "--live-get"])
     run_step("scan-chars", ["scan-chars"])

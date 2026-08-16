@@ -80,6 +80,7 @@ hooks（`.cursor/hooks/`）が書込ツールと破壊的 shell を阻む。
     → layout           → runtime_layout.md + runtime-layout.json
     → comprehend       → <stem>_comprehension.html（骨格・tick 枠はツール、中身は人手+証拠。--unticked / --suggest は一覧のみ）
     → verify-names     → name mismatches: none
+    → verify-show      → show_style 照合（範囲差は警告。どちらが正かは決めない）
     → excerpt          → <stem>_reimpl_excerpt.html（Form · Module/Class · Show · GoTo件数 · 未 tick）
     → io-catalog       → <stem>_io_catalog.{json,md}（Open / Kill / Name / Get / Put。業務意味なし）
     → status           → 既存成果物の有無・件数（再実行しない）
@@ -111,7 +112,7 @@ hooks（`.cursor/hooks/`）が書込ツールと破壊的 shell を阻む。
 1. 抽出が足りない・誤検知 → **ワンショットを増やさず** `tools/` を直す
 2. 直したら影響レポート / skeleton を再生成する
 3. `tools/README.md` と `tools/cli.py` の COMMANDS 表を更新する
-4. 定型検証は `python -m tools verify`（End 数）と `python -m tools verify-names`（名前集合）。足りなければこれらを改定する（`working/_verify_*.py` を増やさない）
+4. 定型検証は `python -m tools verify`（End 数）と `python -m tools verify-names`（名前集合）と `python -m tools verify-show`（show_style。どちらが正かは決めない）。足りなければこれらを改定する（`working/_verify_*.py` を増やさない）
 
 ---
 

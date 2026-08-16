@@ -27,6 +27,7 @@ python -m tools --version
 | `inventory` | `vb6_inventory.py` | 構成事実のみ（Module/Class 表面: Implements / WithEvents / Instancing） | `working/reports/<stem>_inventory.{json,md,html}` |
 | `verify` | `verify_inventory.py` | End 文カウント照合 | stdout JSON + `count mismatches: none` |
 | `verify-names` | `verify_report_names.py` | inventory 名集合 ↔ レポート言及照合 | stdout JSON + `name mismatches: none` |
+| `verify-show` | `verify_show.py` | inventory と deep-read の `show_style` 照合（どちらが正かは決めない） | stdout JSON + `<stem>_verify_show.json` |
 | `deep-read` | `frm_deep_read.py` | .frm 深読み（単体解析。`ancestor_hidden` · `menu_tree` 付与。出力キーは VB_Name） | `<out_key>_deep_read.md` + `working/skeletons/<out_key>-skeleton.json` |
 | `deep-read-all` | `frm_deep_read_all.py` | 抽出内の全 .frm を一括 deep-read | 同上（キーは VB_Name 小文字 / `deep_read_name_map`） |
 | `layout` | `runtime_layout.py` | コード部の実行時座標（`.frm` / `.bas` / `.cls`） | `runtime_layout.md` / `runtime-layout.json` |
@@ -59,6 +60,7 @@ python -m tools extract "source\mini_vbp\mini_vbp.vbp"
 python -m tools inventory working\extracts\mini_vbp
 python -m tools verify
 python -m tools verify-names --inventory working\reports\mini_vbp_inventory.json
+python -m tools verify-show --inventory working\reports\mini_vbp_inventory.json
 python -m tools deep-read Form1.frm --extract working\extracts\mini_vbp
 python -m tools layout --extract working\extracts\mini_vbp
 python -m tools comprehend --add-tick Command1_Click@Form1.frm --layer C
@@ -72,7 +74,7 @@ python -m tools status
 
 `verify` は照合結果を `working/reports/<stem>_verify.json` に残す（`status` が読む。無ければ `not persisted`）。
 
-検証の順: まず `verify`（End 数）→ 次に `verify-names`（名前集合）。  
+検証の順: まず `verify`（End 数）→ `verify-names`（名前集合）→ `verify-show`（show_style。範囲差は警告）。  
 名前照合の足りない抽出は本ツールを改定する（`working/_verify_*.py` を増やさない）。
 
 ## 改定ルール
@@ -153,6 +155,7 @@ python -m unittest discover -s tools -p "test_*.py" -v
 - `test_frm_deep_read.py` — `ancestor_hidden`（死んだ非表示コンテナ配下）· `menu_tree`（デザイナ親子）
 - `test_show_style.py` — show_style ヒューリスティック · Show 転置 · excerpt 配線
 - `test_verify_report_names.py` — inventory 名集合照合（偽 Sub で fail / 既知名で pass）
+- `test_verify_show.py` — inventory vs deep-read show_style（self/call 食い違いは hard、inventory_only は警告）
 - `test_vbparse.py` — 行連結畳み込みと物理行番号の保持
 - `test_inventory.py` — proc/Declare/Property シグネチャ、Const/Enum/Type/Event、Class=/Object=/meta、`warnings`、`--skip-parent-common`、End 数不変条件
 - `test_cache.py` — 内容ハッシュキー・保存/読込

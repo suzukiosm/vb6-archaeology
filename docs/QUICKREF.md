@@ -8,7 +8,7 @@
 | Form を知る | `/frm-deep-read` |
 | 座標が合わない | `/runtime-layout`（デザイナ値だけで決めない。MDI chrome は config `mdi_chrome`） |
 | 挙動を理解 | `/vb6-comprehend`（1 tick。未 tick は `--unticked` / `--suggest`） |
-| 報告書 | `/vb6-report` → `/vb6-verify-reports` |
+| 報告書 | `/vb6-report` → `/vb6-verify-reports`（End / 名前 / show_style） |
 | HTML を見る | `/serve-reports`（`/` が目次。`file://` は不可） |
 | 再実装の短い抜粋 | `python -m tools excerpt` · serve `/excerpt` |
 | 設定を変えた | `python -m tools config-check` |

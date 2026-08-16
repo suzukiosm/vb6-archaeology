@@ -14,7 +14,8 @@ flowchart TD
   D -->|none| F[deep-read / layout]
   F --> G[comprehend ticks]
   G --> H[verify-names]
-  H --> J[excerpt]
+  H --> HS[verify-show]
+  HS --> J[excerpt]
   J --> I[optional reimplementation / handoff]
 ```
 
@@ -105,7 +106,10 @@ inventory に無い名前は拒否される。拒否されたら名前を疑う�
 
 ```powershell
 python -m tools verify-names --inventory working\reports\<stem>_inventory.json
+python -m tools verify-show --inventory working\reports\<stem>_inventory.json
 ```
+
+`verify-show` は inventory（全文）と deep-read（ライブ Sub）の `show_style` を並べる。食い違いは警告。どちらが正かは決めない。
 
 ファイル I/O の位置（業務意味は書かない。GoTo 飛び越えは skeleton と突合）:
 

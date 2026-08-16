@@ -50,6 +50,10 @@ COMMANDS: dict[str, Command] = {
         "tools.verify_report_names",
         "Verify report file/procedure names against the inventory name set",
     ),
+    "verify-show": Command(
+        "tools.verify_show",
+        "Compare inventory vs deep-read show_style (warn; neither side is canon)",
+    ),
     "deep-read": Command(
         "tools.frm_deep_read",
         "Deep-read one .frm into a report plus a live-control skeleton",

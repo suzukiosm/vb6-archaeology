@@ -68,6 +68,7 @@ class TestStatusEmpty(unittest.TestCase):
         self.assertIn("extract=no", lines[0])
         self.assertIn("verify=not persisted", lines[2])
         self.assertIn("io=no", lines[2])
+        self.assertIn("show=not persisted", lines[2])
 
 
 class TestStatusArtifacts(unittest.TestCase):
@@ -116,6 +117,10 @@ class TestStatusArtifacts(unittest.TestCase):
                 json.dumps({"stem": "demo", "entry_count": 0, "entries": []}),
                 encoding="utf-8",
             )
+            (reports / "demo_verify_show.json").write_text(
+                json.dumps({"ok": True, "hard_count": 0, "warning_count": 0, "compared": 2}),
+                encoding="utf-8",
+            )
             data = build_status(root)
 
         self.assertEqual(data["stem"], "demo")
@@ -137,6 +142,8 @@ class TestStatusArtifacts(unittest.TestCase):
         self.assertIn("deep-read=1/2", text)
         self.assertIn("ticks=2/4", text)
         self.assertIn("verify=ok", text)
+        self.assertTrue(data["verify_show"]["persisted"])
+        self.assertIn("show=ok", text)
 
     def test_deep_read_name_map(self):
         with TempRepo({"extracts_dir": "working/extracts", "reports_dir": "working/reports",

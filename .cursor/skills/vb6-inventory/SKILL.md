@@ -26,6 +26,7 @@ description: >-
    ```powershell
    python -m tools inventory working\extracts\<stem>
    python -m tools verify working\reports\<stem>_inventory.json
+   python -m tools verify-show --inventory working\reports\<stem>_inventory.json
    ```
 
 2. レポート上の次を確認する:

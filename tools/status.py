@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Read existing pipeline artifacts and print a facts-only status.
 
-Does not run extract / inventory / verify / deep-read / io-catalog. Missing
+Does not run extract / inventory / verify / verify-show / deep-read / io-catalog. Missing
 artifacts are reported as absent. No ranking and no "what to do next".
 
     python -m tools status
@@ -224,6 +224,7 @@ def build_status(
     excerpt = reports / f"{stem}_reimpl_excerpt.html" if stem else None
     io_catalog = reports / f"{stem}_io_catalog.json" if stem else None
     verify_path = reports / f"{stem}_verify.json" if stem else None
+    verify_show_path = reports / f"{stem}_verify_show.json" if stem else None
     layout_md = reports / "runtime_layout.md"
 
     if verify_path is not None and verify_path.is_file():
@@ -248,6 +249,37 @@ def build_status(
             "files_checked": None,
         }
 
+    if verify_show_path is not None and verify_show_path.is_file():
+        try:
+            show_raw = json.loads(verify_show_path.read_text(encoding="utf-8"))
+            verify_show_info = {
+                "persisted": True,
+                "path": _rel(verify_show_path, root),
+                "ok": bool(show_raw.get("ok")),
+                "hard_count": show_raw.get("hard_count"),
+                "warning_count": show_raw.get("warning_count"),
+                "compared": show_raw.get("compared"),
+            }
+        except (OSError, json.JSONDecodeError, TypeError, ValueError):
+            verify_show_info = {
+                "persisted": False,
+                "path": _rel(verify_show_path, root),
+                "ok": None,
+                "hard_count": None,
+                "warning_count": None,
+                "compared": None,
+                "reason": "unreadable",
+            }
+    else:
+        verify_show_info = {
+            "persisted": False,
+            "path": _rel(verify_show_path, root) if verify_show_path else None,
+            "ok": None,
+            "hard_count": None,
+            "warning_count": None,
+            "compared": None,
+        }
+
     proc_total = inv_data.get("proc_total") if inv_data else None
     if proc_total is None and inv_data:
         proc_total = sum(len(f.get("procedures") or []) for f in inv_data.get("files") or [])
@@ -265,6 +297,7 @@ def build_status(
             "form_count": len(forms) if inv_data else None,
         },
         "verify": verify_info,
+        "verify_show": verify_show_info,
         "deep_read": {
             "reports": len(deep_present),
             "forms": len(forms),
@@ -322,13 +355,24 @@ def format_status_lines(data: dict) -> str:
     else:
         verify_s = "not persisted"
 
+    show = data.get("verify_show") or {}
+    if show.get("persisted"):
+        if not show.get("ok"):
+            show_s = f"mismatches={show.get('hard_count')}"
+        elif show.get("warning_count"):
+            show_s = f"warnings={show.get('warning_count')}"
+        else:
+            show_s = "ok"
+    else:
+        show_s = "not persisted"
+
     line1 = f"stem={stem} extract={extract} inventory={inventory}"
     line2 = (
         f"deep-read={deep.get('reports', 0)}/{deep.get('forms', 0)} "
         f"ticks={ticks.get('count', 0)}/{ticks.get('proc_total') if ticks.get('proc_total') is not None else 0} "
         f"excerpt={excerpt}"
     )
-    line3 = f"verify={verify_s} layout={layout} io={io_catalog}"
+    line3 = f"verify={verify_s} layout={layout} io={io_catalog} show={show_s}"
     return "\n".join((line1, line2, line3))
 
 

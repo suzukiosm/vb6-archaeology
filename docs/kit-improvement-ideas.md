@@ -1,6 +1,6 @@
 # キット改良アイデア（提案・未採用）
 
-**これは提案。** 採用するまで実装しない（P0 · P1 · P2 · P3-M · P3-N · P3-O は 2026-08-16 採用済）。1 テーマ 1 PR。  
+**これは提案。** 採用するまで実装しない（P0 · P1 · P2 · P3 は 2026-08-16 採用済）。1 テーマ 1 PR。  
 消費者アプリのセッション事実ではない。キット保守用。現状の正は [`kit-dev-context.md`](kit-dev-context.md)。
 
 方針は変えない: 事実と推定を混ぜない · 正規表現一括の callgraph は作らない · 標準ライブラリのみ · アプリ固有は消費者へ。
@@ -119,9 +119,9 @@ skeleton `menu_tree` + deep-read「メニュー木（デザイナ値）」。親
 
 `make_fixture.py` に UserControl · `On Error GoTo` · 前方 GoTo · `GoSub` · I/O 5 種（P0/P2 で追加済）。`test_make_fixture.py` が temp へ書いてパーサで契約を見る（`source/` へは書かない）。アプリ意味は載せない。
 
-#### P. inventory と deep-read の `show_style` 照合
+#### P. inventory と deep-read の `show_style` 照合 — **採用済 2026-08-16**
 
-同じ Form で食い違ったら警告（どちらが正かは決めない。範囲が違う: inventory=全文、deep-read=ライブ Sub 優先）。`verify` / `verify-names` に次ぐ第 3 レーンにするなら、名前は `verify-show` など別コマンド。
+`python -m tools verify-show`。同じ Form の self / 同行 Show が食い違ったら hard（exit 1）。inventory だけの Show（デッド Sub 等）と skeleton 欠は警告・exit 0。どちらが正かは決めない。fixture `Ghost_Click` が inventory_only の回帰。
 
 ---
 
@@ -144,4 +144,4 @@ skeleton `menu_tree` + deep-read「メニュー木（デザイナ値）」。親
 3. 採用したら [`kit-dev-context.md`](kit-dev-context.md) の「次手」に「採用済」と日付を足し、本ファイルの該当節を短くする
 4. 捨てる案は「やらない」表へ移す（消して忘れない）
 
-P0 · P1 · P2 · P3-M · P3-N · P3-O は採用済。次の候補は P3-P（inventory と deep-read の `show_style` 照合）。
+P0 · P1 · P2 · P3 は採用済。文書化された優先提案はここまで。完全 callgraph / Next / 業種は「やらない」のまま。

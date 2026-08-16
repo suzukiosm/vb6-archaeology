@@ -17,6 +17,7 @@ VBP を切り出し・棚卸し・深読み・証拠つき理解まで進める�
 | 構成レポート | `python -m tools inventory <extract_dir>` | `/vb6-inventory` |
 | End 数照合 | `python -m tools verify <inventory.json>` | `/vb6-verify-reports` |
 | 名前集合照合 | `python -m tools verify-names --inventory <inventory.json>` | `/vb6-verify-reports` |
+| show_style 照合 | `python -m tools verify-show --inventory <inventory.json>` | `/vb6-verify-reports` |
 | Form 深読み | `python -m tools deep-read <File>.frm --extract <dir>` | `/frm-deep-read` |
 | 実行時座標 | `python -m tools layout --extract <dir>` | `/runtime-layout` |
 | 理解 tick | `python -m tools comprehend --add-tick <Proc>` · `--unticked` / `--suggest` | `/vb6-comprehend` |

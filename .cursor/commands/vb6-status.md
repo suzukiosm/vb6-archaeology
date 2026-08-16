@@ -1,6 +1,6 @@
 ---
 name: vb6-status
-description: Print facts-only pipeline status from existing extract, inventory, verify, deep-read, tick, excerpt, layout, and io-catalog artifacts.
+description: Print facts-only pipeline status from existing extract, inventory, verify, verify-show, deep-read, tick, excerpt, layout, and io-catalog artifacts.
 ---
 
 # vb6-status
@@ -18,6 +18,7 @@ python -m tools status --json-only
 - extract の有無（複数なら `default_extract`。無指定かつ複数なら `multiple`）
 - inventory のファイル数 / プロシージャ数
 - `verify` の永続結果（`<stem>_verify.json`。無ければ `not persisted`）
+- `verify-show` の永続結果（`<stem>_verify_show.json`。警告は `show=warnings=N`）
 - deep-read 数 / Form 数
 - tick 数 / プロシージャ数
 - excerpt / layout / io-catalog の有無

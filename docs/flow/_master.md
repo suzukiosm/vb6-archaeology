@@ -27,10 +27,11 @@
 7. runtime layout（`/runtime-layout`）— デザイナ座標だけで確定しない
 8. comprehension ticks（層 A→E。枠は `python -m tools comprehend --add-tick`。未 tick は `--unticked` / `--suggest`）
 9. 名前集合の照合（`python -m tools verify-names`）
-10. 再実装向け抜粋（`python -m tools excerpt` · serve `/excerpt`）
-11. 横断 I/O カタログ（`python -m tools io-catalog`。業務意味なし）
-12. パイプライン進捗（`python -m tools status`。成果物の有無・件数のみ）
-13. ギャップ再監査（完了不信）· 製品面は `docs/reimplementation-handoff.md`
+10. show_style 照合（`python -m tools verify-show`。inventory=全文 / deep-read=ライブ Sub。どちらが正かは決めない）
+11. 再実装向け抜粋（`python -m tools excerpt` · serve `/excerpt`）
+12. 横断 I/O カタログ（`python -m tools io-catalog`。業務意味なし）
+13. パイプライン進捗（`python -m tools status`。成果物の有無・件数のみ）
+14. ギャップ再監査（完了不信）· 製品面は `docs/reimplementation-handoff.md`
 
 各アプリの進捗チェックリストは消費者の `docs/ai-dev-context.md` に書く（本ファイルへ長く複製しない）。
 

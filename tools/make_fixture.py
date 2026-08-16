@@ -152,6 +152,10 @@ End Sub
 
 Private Sub mnuOpen_Click()
 End Sub
+
+Private Sub Ghost_Click()
+    Form12.Show
+End Sub
 """
 
 BAS = """\

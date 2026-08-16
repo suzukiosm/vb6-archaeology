@@ -188,7 +188,7 @@ docs/templates/              # 初回コピー元
 
 納品書Ⅱ → Next.js 再実装でのフルサイクル運用から、キット境界で効いたこと:
 
-- **維持**: inventory 正 + verify-names、protect の tools/hooks 共有、CP932、comprehend の inventory 外名拒否、layout 必須
+- **維持**: inventory 正 + verify-names + verify-show、protect の tools/hooks 共有、CP932、comprehend の inventory 外名拒否、layout 必須
 - **製品面ギャップ**: tick が厚くても VB 証跡文言・拠点名・二重ステータスが製品に残る → [`reimplementation-handoff.md`](reimplementation-handoff.md)
 - **Show**: モーダル相当をフルページ遷移にすると呼び出し元が消える → `show_style` を Form ごとに明示
 - **データ**: 正本 protect に加え、本番データ書込を hooks + WriteMode で抑止（上節）
