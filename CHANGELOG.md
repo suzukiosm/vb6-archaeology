@@ -9,6 +9,17 @@ Versions are exposed by `python -m tools --version` (`tools/__init__.py`).
 
 ### Added
 
+### Changed
+
+### Fixed
+
+## [0.2.0] - 2026-08-16
+
+0.1.0 以降の調査サイクルを版にした。handoff / `show_style` / GoTo 一般化 / `mdi_chrome` / excerpt に加え、進捗・転置・追加ファイル種・I/O カタログ・メニュー木・`.cls` layout・同伴バイナリ・serve live-get を含む。`python -m tools --version` は `0.2.0`。
+
+### Added
+
+- `__version__` と `CHANGELOG.md` 最新日付見出しの照合（`tools/lib/version.py` · `test_version.py`）
 - `python -m tools serve --live-get` — 一時ポートで `/` と `/excerpt` を GET（200 必須）。smoke が `serve --check` の次に実行
 - extract の同伴コピーを一般化（`.frm`→`.frx` · `.ctl`→`.ctx` · `.pag`→`.pgx` · `.dob`→`.dox` · `.dsr`→`.dsx`）。中身は解析しない。fixture `MiniCtl.ctx`
 - `runtime_layout` が `.cls` も走査（`.bas` と同列）。fixture `Widget.PlaceHost` が `Form1.Left = 50`

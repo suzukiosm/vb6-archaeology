@@ -36,7 +36,8 @@ VB6 を壊さず理解するための汎用 OS（docs / .cursor / tools）を維
 - （採用済 2026-08-16 · layout `.cls`）`runtime_layout` が `.bas` に加えて `.cls` を走査。fixture `PlaceHost`
 - （採用済 2026-08-16 · 同伴バイナリ）extract が同 stem の `.frx` / `.ctx` / `.pgx` / `.dox` / `.dsx` をコピー。中身は解析しない。fixture `MiniCtl.ctx`
 - （採用済 2026-08-16 · serve live-get）`python -m tools serve --live-get` — 一時ポートで `/` と `/excerpt` を GET。smoke が実行
-- （提案 2026-08-16）未採用バックログ: [`kit-improvement-ideas.md`](kit-improvement-ideas.md)。P0 · P1 · P2 · P3-M は採用済。次の候補は P3-N。完全 callgraph / Next / 業種は引き続きやらない
+- （採用済 2026-08-16 · 0.2.0）`__version__` = `0.2.0`。CHANGELOG `[0.2.0] - 2026-08-16`。`test_version.py` が一致を見る。git タグは main 合流後
+- （提案 2026-08-16）未採用バックログ: [`kit-improvement-ideas.md`](kit-improvement-ideas.md)。P0 · P1 · P2 · P3-M · P3-N は採用済。次の候補は P3-O。完全 callgraph / Next / 業種は引き続きやらない
 - （採用済 2026-08-06 · mdi_chrome）`shell_forms` / `control_names` を config 化。`MDIForm1`·Picture1/FG1/fg2 のハードコードを撤去
 - （採用済 2026-08-06 · GoTo）飛び越え候補の一般化 + ラベル地図 + tick/frm-audit 手順。デッド確定はしない
 - （採用済 2026-08-06 · delivery_slip 実戦）inventory `show_style`/`show_calls` · 再実装ハンドオフ · `product_ui_notes` · CURRENT · data-guards · `smoke --kit-only` · deep-read `show_style` · `excerpt`/`serve /excerpt`。**未採用**: Show 完全 callgraph · Next/UI 同梱

@@ -1,6 +1,6 @@
 # キット改良アイデア（提案・未採用）
 
-**これは提案。** 採用するまで実装しない（P0 · P1 · P2 · P3-M は 2026-08-16 採用済）。1 テーマ 1 PR。  
+**これは提案。** 採用するまで実装しない（P0 · P1 · P2 · P3-M · P3-N は 2026-08-16 採用済）。1 テーマ 1 PR。  
 消費者アプリのセッション事実ではない。キット保守用。現状の正は [`kit-dev-context.md`](kit-dev-context.md)。
 
 方針は変えない: 事実と推定を混ぜない · 正規表現一括の callgraph は作らない · 標準ライブラリのみ · アプリ固有は消費者へ。
@@ -34,7 +34,7 @@
 | F6 | ~~メニューは警告のみ。木構造は skeleton の一級市民ではない~~ **採用済 2026-08-16** `menu_tree` | `analyze_menus` · `build_menu_tree` |
 | F7 | ~~`serve` に目次が無い~~ **採用済 2026-08-16** `/` ランディング | `serve_reports.py` |
 | F8 | ~~`smoke` の `/excerpt` live GET は意図的未実装~~ **採用済 2026-08-16** `serve --live-get` | `serve_reports.live_get` |
-| F9 | バージョン表示は `0.1.0` のまま。`[Unreleased]` に 0.1.0 以降の機能が厚い | `tools/__init__.py` · `CHANGELOG.md` |
+| F9 | ~~バージョン表示は `0.1.0` のまま。`[Unreleased]` に 0.1.0 以降の機能が厚い~~ **採用済 2026-08-16** `0.2.0` | `tools/__init__.py` · `CHANGELOG.md` · `tools/lib/version.py` |
 | F10 | フィクスチャに ~~UserControl~~ / ~~`On Error`~~ / ~~`GoSub`~~ / ~~I/O 5 種~~ が無い（2026-08-16 追加） | `source/mini_vbp/` |
 | F11 | GitHub Issues は空。改善テンプレはあるがバックログの置き場が無い | `gh issue list` · `.github/ISSUE_TEMPLATE/feature_request.yml` |
 | F12 | ~~パイプライン進捗を出すコマンドが無い~~ **採用済 2026-08-16** `python -m tools status` | `tools/status.py` |
@@ -111,9 +111,9 @@ skeleton `menu_tree` + deep-read「メニュー木（デザイナ値）」。親
 
 `python -m tools serve --live-get`。一時ポートで `/` と `/excerpt` を GET し 200 を見る。`serve --check` の次に smoke が回す。長寿命サーバは立てない。
 
-#### N. 0.2.0 タグ
+#### N. 0.2.0 タグ — **採用済 2026-08-16**
 
-`[Unreleased]` の handoff / show_style / GoTo 一般化 / `mdi_chrome` / excerpt を版にする。`__version__` と `CHANGELOG` を一致させる（既存契約）。
+`[0.2.0] - 2026-08-16`。`tools/__init__.py` `__version__` = `0.2.0`。`tools/lib/version.py` + `test_version.py` が CHANGELOG の最新日付見出しと一致を見る。git タグ `v0.2.0` は main 合流後。
 
 #### O. fixture を薄く厚くする
 
@@ -144,4 +144,4 @@ UserControl 1 つ · `On Error GoTo` 1 本 · 前方 GoTo 既存に加えて `Go
 3. 採用したら [`kit-dev-context.md`](kit-dev-context.md) の「次手」に「採用済」と日付を足し、本ファイルの該当節を短くする
 4. 捨てる案は「やらない」表へ移す（消して忘れない）
 
-P0 · P1 · P2 · P3-M は採用済。次の候補は P3-N（0.2.0 タグ）。
+P0 · P1 · P2 · P3-M · P3-N は採用済。次の候補は P3-O（fixture を薄く厚くする。P0/P2 で大半は既にある）。

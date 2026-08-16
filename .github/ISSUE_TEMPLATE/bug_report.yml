@@ -12,7 +12,7 @@ body:
     attributes:
       label: バージョン
       description: "`python -m tools --version` の出力、またはコミット SHA"
-      placeholder: vb6-archaeology 0.1.0
+      placeholder: vb6-archaeology 0.2.0
     validations:
       required: true
   - type: input

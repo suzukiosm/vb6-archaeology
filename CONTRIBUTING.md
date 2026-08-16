@@ -20,7 +20,7 @@
 1. 変更は 1 テーマに絞る（ツール改定とドキュメント整理を混ぜない）
 2. `python -m tools smoke` を緑にしてから出す
 3. `.github/PULL_REQUEST_TEMPLATE.md` のチェックを埋める（不変条件・検証・ドキュメント同期）
-4. 挙動が変わるなら `CHANGELOG.md` の `[Unreleased]` に追記する
+4. 挙動が変わるなら `CHANGELOG.md` の `[Unreleased]` に追記する。版を切るときは `[Unreleased]` を `## [X.Y.Z] - YYYY-MM-DD` へ移し、`tools/__init__.py` の `__version__` を同じ番号にする（`test_version.py` が照合する）
 5. `AGENTS.md` · `.cursor/**` · `schema/**` · `archaeology.config.json` の変更はレビュー必須（`.github/CODEOWNERS`）
 
 ## 検証
