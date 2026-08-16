@@ -17,6 +17,7 @@ description: Generate and verify the canonical VBP to file to procedure inventor
   ```
 - 必須: `count mismatches: none`
 - 出力: `working/reports/<stem>_inventory.{json,md,html}`
+- VBP の `UserControl=` / `Designer=` 等も棚卸し（`.res` は一覧のみ）
 - Form には `show_style` / `show_calls`（`MDIChild`・`Foo.Show` の事実。呼び出しグラフではない）
 - `show_inbound` は既存 `show_calls` の転置。inventory に無いターゲットは `show_unresolved`
 - 再実装向け短い抜粋: `python -m tools excerpt` · serve `/excerpt`

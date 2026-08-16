@@ -39,7 +39,24 @@ from lib.vbparse import iter_logical_lines  # noqa: E402
 
 # Bump when parse_* output shape or semantics change (invalidates the cache).
 # Suffix is part of the key (see inventory_file): .frm vs .bas parse differently.
-PARSER_VERSION = "inv-5"
+PARSER_VERSION = "inv-6"
+
+# Designer-like text files: header + code, same family as .frm.
+DESIGNER_SUFFIXES = frozenset({".frm", ".ctl", ".pag", ".dob", ".dsr"})
+# Listed in the inventory but not parsed as VB procedures (binary / non-code).
+STUB_TYPES = frozenset({"relateddoc", "resfile32"})
+# VBP keys that use ``Ident; path`` (Module=/Class= shape). Bare path is also accepted.
+IDENT_PATH_KEYS = (
+    ("UserControl=", "usercontrol", "user_controls"),
+    ("PropertyPage=", "propertypage", "property_pages"),
+    ("UserDocument=", "userdocument", "user_documents"),
+    ("Designer=", "designer", "designers"),
+)
+# VBP keys that are a path only (Form= shape).
+BARE_PATH_KEYS = (
+    ("RelatedDoc=", "relateddoc", "related_docs"),
+    ("ResFile32=", "resfile32", "res_files"),
+)
 
 # VBP project metadata: lowercase match → canonical key for report consumers.
 VBP_META_CANON = {
@@ -109,18 +126,35 @@ def looks_like_parent_common(path: str) -> bool:
     return sum(1 for part in norm.split("\\") if part == "..") >= 2
 
 
-def parse_vbp(vbp_path: Path, *, skip_parent_common: bool = False) -> dict:
-    """Parse VBP facts: forms, modules, classes, Object= components, meta.
+def parse_ident_path(value: str) -> tuple[str, str]:
+    """Split ``Ident; path`` or a bare path. Empty path means the entry is unusable."""
+    raw = value.strip().strip('"')
+    if ";" in raw:
+        ident, _, fname = raw.partition(";")
+        return ident.strip(), fname.strip().strip('"')
+    return Path(raw).stem if raw else "", raw
 
-    ``Class=`` uses the same ``Ident; path`` shape as ``Module=``. Entries
-    without a path (no ``; file``) are omitted and recorded in ``warnings``.
-    Paths that look like shared parent-tree libs may be omitted when
-    ``skip_parent_common`` is set (recorded under ``skipped_parent_common``).
+
+def parse_vbp(vbp_path: Path, *, skip_parent_common: bool = False) -> dict:
+    """Parse VBP facts: forms, modules, classes, extra file keys, Object=, meta.
+
+    ``Class=`` / ``UserControl=`` etc. use the ``Ident; path`` shape (bare path
+    is also accepted). Entries without a path are omitted and recorded in
+    ``warnings``. Paths that look like shared parent-tree libs may be omitted
+    when ``skip_parent_common`` is set (recorded under ``skipped_parent_common``).
     """
     text = decode(vbp_path.read_bytes())
     forms: list[str] = []
     modules: list[dict] = []
     classes: list[dict] = []
+    extra: dict[str, list] = {
+        "user_controls": [],
+        "property_pages": [],
+        "user_documents": [],
+        "designers": [],
+        "related_docs": [],
+        "res_files": [],
+    }
     objects: list[dict] = []
     skipped_parent_common: list[dict] = []
     warnings: list[dict] = []
@@ -179,6 +213,28 @@ def parse_vbp(vbp_path: Path, *, skip_parent_common: bool = False) -> dict:
             if maybe_skip("class", fname, ident):
                 continue
             classes.append({"class": ident, "file": fname})
+        elif any(line.startswith(prefix) for prefix, _kind, _bucket in IDENT_PATH_KEYS):
+            prefix, kind, bucket = next(
+                item for item in IDENT_PATH_KEYS if line.startswith(item[0])
+            )
+            ident, fname = parse_ident_path(line.split("=", 1)[1])
+            if not fname:
+                warn_missing_path(kind, ident, line)
+                continue
+            if maybe_skip(kind, fname, ident):
+                continue
+            extra[bucket].append({"ident": ident, "file": fname})
+        elif any(line.startswith(prefix) for prefix, _kind, _bucket in BARE_PATH_KEYS):
+            prefix, kind, bucket = next(
+                item for item in BARE_PATH_KEYS if line.startswith(item[0])
+            )
+            fname = line.split("=", 1)[1].strip().strip('"')
+            if not fname:
+                warn_missing_path(kind, "", line)
+                continue
+            if maybe_skip(kind, fname):
+                continue
+            extra[bucket].append({"file": fname})
         elif line.startswith("Object="):
             raw = line.split("=", 1)[1].strip()
             if ";" in raw:
@@ -195,6 +251,12 @@ def parse_vbp(vbp_path: Path, *, skip_parent_common: bool = False) -> dict:
         "forms": forms,
         "modules": modules,
         "classes": classes,
+        "user_controls": extra["user_controls"],
+        "property_pages": extra["property_pages"],
+        "user_documents": extra["user_documents"],
+        "designers": extra["designers"],
+        "related_docs": extra["related_docs"],
+        "res_files": extra["res_files"],
         "objects": objects,
         "skipped_parent_common": skipped_parent_common,
         "warnings": warnings,
@@ -233,7 +295,15 @@ def file_kind_label(f: dict) -> str:
         return "Class"
     if t == "module":
         return "Module"
-    return "?"
+    labels = {
+        "usercontrol": "UserControl",
+        "propertypage": "PropertyPage",
+        "userdocument": "UserDocument",
+        "designer": "Designer",
+        "relateddoc": "RelatedDoc",
+        "resfile32": "ResFile32",
+    }
+    return labels.get(t, "?")
 
 
 def parse_form_header(lines: list[str]) -> tuple[str | None, list[dict]]:
@@ -497,7 +567,7 @@ def _parse_bytes(raw: bytes, path: Path) -> dict:
         if m:
             vb_name = m.group(1)
             break
-    is_form = path.suffix.lower() == ".frm"
+    is_form = path.suffix.lower() in DESIGNER_SUFFIXES
     form_kind, controls = parse_form_header(lines) if is_form else (None, [])
     show_facts = scan_form_show_facts(lines, form_kind) if is_form else None
     procs, declares = parse_procedures(lines)
@@ -533,11 +603,17 @@ def build_report(
 ) -> dict:
     vbp = parse_vbp(vbp_path, skip_parent_common=skip_parent_common)
     missing: list[str] = []
-    # VBP order: Form → Module → Class (same family as extract_vbp FILE_KEYS).
+    # VBP order: Form → Module → Class → extra FILE_KEYS (extract copies these too).
     ordered = (
         [(f, "form") for f in vbp["forms"]]
         + [(m["file"], "module") for m in vbp["modules"]]
         + [(c["file"], "class") for c in vbp["classes"]]
+        + [(u["file"], "usercontrol") for u in vbp.get("user_controls") or []]
+        + [(p["file"], "propertypage") for p in vbp.get("property_pages") or []]
+        + [(d["file"], "userdocument") for d in vbp.get("user_documents") or []]
+        + [(d["file"], "designer") for d in vbp.get("designers") or []]
+        + [(r["file"], "relateddoc") for r in vbp.get("related_docs") or []]
+        + [(r["file"], "resfile32") for r in vbp.get("res_files") or []]
     )
     present: list[tuple[str, str]] = []
     for fname, ftype in ordered:
@@ -547,8 +623,27 @@ def build_report(
         else:
             missing.append(fname)
 
+    def stub_file(fname: str, ftype: str) -> dict:
+        return {
+            "file": Path(fname).name,
+            "vb_name": None,
+            "form_kind": None,
+            "type": ftype,
+            "total_lines": 0,
+            "control_count": 0,
+            "controls": [],
+            "declares": [],
+            "consts": [],
+            "enums": [],
+            "types": [],
+            "events": [],
+            "procedures": [],
+        }
+
     def work(item: tuple[str, str]) -> dict:
         fname, ftype = item
+        if ftype in STUB_TYPES:
+            return stub_file(fname, ftype)
         info = inventory_file(extract_dir / fname, use_cache=use_cache)
         info["type"] = ftype
         return info
@@ -565,7 +660,16 @@ def build_report(
     extras = sorted(
         p.name
         for p in extract_dir.iterdir()
-        if p.suffix.lower() in (".frm", ".bas", ".cls") and p.name.lower() not in listed
+        if p.suffix.lower() in (
+            ".frm",
+            ".bas",
+            ".cls",
+            ".ctl",
+            ".pag",
+            ".dob",
+            ".dsr",
+        )
+        and p.name.lower() not in listed
     )
     report = {
         "vbp": vbp_path.name,
@@ -580,6 +684,12 @@ def build_report(
         "not_in_vbp": extras,
         "skipped_parent_common": vbp["skipped_parent_common"],
         "warnings": vbp.get("warnings") or [],
+        "user_controls": vbp.get("user_controls") or [],
+        "property_pages": vbp.get("property_pages") or [],
+        "user_documents": vbp.get("user_documents") or [],
+        "designers": vbp.get("designers") or [],
+        "related_docs": vbp.get("related_docs") or [],
+        "res_files": vbp.get("res_files") or [],
     }
     return attach_show_inbound(report)
 
@@ -614,7 +724,7 @@ def write_markdown(report: dict, out: Path) -> None:
         "",
         f"- Startup: `{meta.get('Startup', '?')}` / Title: `{meta.get('Title', '?')}` / Exe: `{meta.get('ExeName32', '?')}`",
         f"- Name: `{meta.get('Name', '?')}` / Version: `{ver}` / Command32: `{meta.get('Command32') or '—'}`",
-        f"- ファイル: **{report['file_count']}**（VBP 記載順 Form→Module→Class） / プロシージャ合計: **{report['proc_total']}**",
+        f"- ファイル: **{report['file_count']}**（VBP 記載順 Form→Module→Class→UserControl…） / プロシージャ合計: **{report['proc_total']}**",
         "- 行頭のプロシージャ定義のみを機械抽出（呼び出し推定なし）。行番号は抽出コピーの実ファイル基準。",
         "- Form の `show_style` / `Show` 文は事実スキャン（`MDIChild`・`Foo.Show [arg]`）。呼び出し元グラフは作らない。",
         "",
@@ -999,7 +1109,7 @@ summary{{cursor:pointer;padding:.3rem 0}}
 <h1>{e(report['vbp'])} インベントリ（VBP → ファイル → プロシージャ）</h1>
 <p class="meta">Startup: <code>{e(meta.get('Startup', '?'))}</code> ／ Title: <code>{e(meta.get('Title', '?'))}</code> ／ Exe: <code>{e(meta.get('ExeName32', '?'))}</code><br>
 Name: <code>{e(meta.get('Name', '?'))}</code> ／ Version: <code>{e(ver)}</code> ／ Command32: <code>{e(meta.get('Command32') or '—')}</code>{obj_html}<br>
-ファイル {report['file_count']}（VBP 記載順 Form→Module→Class） ／ プロシージャ合計 {report['proc_total']}。
+ファイル {report['file_count']}（VBP 記載順 Form→Module→Class→UserControl…） ／ プロシージャ合計 {report['proc_total']}。
 行頭のプロシージャ定義のみを機械抽出（呼び出し推定なし）。Form の show_style / Show 文は事実スキャン。行番号は working/extracts の実ファイル基準。</p>
 {warn_html}
 <div class="toolbar">

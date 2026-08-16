@@ -37,7 +37,7 @@ from lib.config import load_config, reports_root  # noqa: E402
 from lib.console import enable_utf8_stdio  # noqa: E402
 
 FILE_TOKEN_RE = re.compile(
-    r"\b([A-Za-z_][\w]*\.(?:frm|bas|cls))\b",
+    r"\b([A-Za-z_][\w]*\.(?:frm|bas|cls|ctl|pag|dob|dsr))\b",
     re.IGNORECASE,
 )
 BACKTICK_RE = re.compile(r"`([^`\n]{1,120})`")

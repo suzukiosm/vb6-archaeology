@@ -66,6 +66,8 @@ def main(argv: list[str] | None = None) -> int:
     mismatches: list[dict] = []
     files = data.get("files") or []
     for entry in files:
+        if str(entry.get("type") or "") in ("relateddoc", "resfile32"):
+            continue
         name = entry.get("file")
         procs = entry.get("procedures") or []
         path = extract_dir / name

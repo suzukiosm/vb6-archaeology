@@ -178,6 +178,7 @@ HELPFILE="proj.hlp"
         self.assertEqual(got["forms"], ["Form1.frm"])
         self.assertEqual(got["modules"][0]["file"], "Module1.bas")
         self.assertEqual(got["classes"], [{"class": "Widget", "file": "Widget.cls"}])
+        self.assertEqual(got["user_controls"], [])
         self.assertEqual(got["objects"][0]["file"], "ComDlg32.OCX")
         self.assertEqual(got["meta"]["MajorVer"], "1")
         self.assertEqual(got["meta"]["HelpFile"], "proj.hlp")
@@ -230,6 +231,48 @@ Module=Ok; Ok.bas
         self.assertIn(("form", "missing_path", None), reasons)
         self.assertIn(("module", "missing_path", "Orphan"), reasons)
         self.assertIn(("class", "missing_path", "Bare"), reasons)
+
+    def test_extra_file_keys(self) -> None:
+        vbp = """\
+Form=Form1.frm
+UserControl=MiniCtl; MiniCtl.ctl
+PropertyPage=PP1; PP1.pag
+UserDocument=Doc1.dob
+Designer=D1; D1.dsr
+RelatedDoc=notes.txt
+ResFile32="app.res"
+UserControl=Orphan;
+"""
+        with tempfile.TemporaryDirectory() as td:
+            path = Path(td) / "proj.vbp"
+            path.write_bytes(vbp.encode("cp932"))
+            got = inv.parse_vbp(path)
+        self.assertEqual(got["user_controls"], [{"ident": "MiniCtl", "file": "MiniCtl.ctl"}])
+        self.assertEqual(got["property_pages"], [{"ident": "PP1", "file": "PP1.pag"}])
+        self.assertEqual(got["user_documents"], [{"ident": "Doc1", "file": "Doc1.dob"}])
+        self.assertEqual(got["designers"], [{"ident": "D1", "file": "D1.dsr"}])
+        self.assertEqual(got["related_docs"], [{"file": "notes.txt"}])
+        self.assertEqual(got["res_files"], [{"file": "app.res"}])
+        reasons = {(w["kind"], w["reason"], w.get("ident")) for w in got["warnings"]}
+        self.assertIn(("usercontrol", "missing_path", "Orphan"), reasons)
+
+    def test_skip_parent_common_usercontrol(self) -> None:
+        vbp = """\
+UserControl=Local; Local.ctl
+UserControl=Remote; ..\\..\\common\\Remote.ctl
+RelatedDoc=..\\..\\docs\\notes.txt
+"""
+        with tempfile.TemporaryDirectory() as td:
+            path = Path(td) / "proj.vbp"
+            path.write_bytes(vbp.encode("cp932"))
+            skipped = inv.parse_vbp(path, skip_parent_common=True)
+        self.assertEqual(skipped["user_controls"], [{"ident": "Local", "file": "Local.ctl"}])
+        self.assertEqual(skipped["related_docs"], [])
+        skipped_files = {s["file"] for s in skipped["skipped_parent_common"]}
+        self.assertEqual(
+            skipped_files,
+            {"..\\..\\common\\Remote.ctl", "..\\..\\docs\\notes.txt"},
+        )
 
     def test_array_param_parens(self) -> None:
         params, ret = inv.extract_params_returns("(ByRef a() As Long) As Boolean")

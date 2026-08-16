@@ -21,6 +21,7 @@ Form=Form1.frm
 Form=BackupDay.frm
 Module=Module1; Module1.bas
 Class=Widget; Widget.cls
+UserControl=MiniCtl; MiniCtl.ctl
 Object={F9043C88-F6F2-101A-A3C9-08002B2F49FB}#1.2#0; ComDlg32.OCX
 Startup="Form1"
 Title="ミニ考古"
@@ -172,6 +173,23 @@ Public Function Ping(ByVal x As Long) As Long
 End Function
 """
 
+CTL = """\
+VERSION 5.00
+Begin VB.UserControl MiniCtl
+   ClientHeight    =   360
+   ClientWidth     =   1200
+End
+Attribute VB_Name = "MiniCtl"
+Attribute VB_GlobalNameSpace = False
+Attribute VB_Creatable = True
+Attribute VB_PredeclaredId = False
+Attribute VB_Exposed = False
+Option Explicit
+
+Public Sub Ping()
+End Sub
+"""
+
 
 def main(argv: list[str] | None = None) -> int:
     enable_utf8_stdio()
@@ -184,6 +202,7 @@ def main(argv: list[str] | None = None) -> int:
     (OUT / "BackupDay.frm").write_bytes(FRM_ALIAS.encode("cp932"))
     (OUT / "Module1.bas").write_bytes(BAS.encode("cp932"))
     (OUT / "Widget.cls").write_bytes(CLS.encode("cp932"))
+    (OUT / "MiniCtl.ctl").write_bytes(CTL.encode("cp932"))
     readme = REPO / "source" / "README.md"
     if not readme.is_file():
         readme.write_text(

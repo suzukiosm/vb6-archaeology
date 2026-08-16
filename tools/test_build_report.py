@@ -61,6 +61,38 @@ class BuildReportTests(unittest.TestCase):
         par = inv.build_report(self.d, self.vbp, use_cache=False, jobs=4)
         self.assertEqual(seq, par)
 
+    def test_usercontrol_is_inventoried(self) -> None:
+        ctl = """\
+VERSION 5.00
+Begin VB.UserControl MiniCtl
+End
+Attribute VB_Name = "MiniCtl"
+Public Sub Ping()
+End Sub
+"""
+        (self.d / "MiniCtl.ctl").write_bytes(ctl.encode("cp932"))
+        vbp = self.d / "with_ctl.vbp"
+        vbp.write_bytes(
+            (VBP + "UserControl=MiniCtl; MiniCtl.ctl\r\n").encode("cp932")
+        )
+        rep = inv.build_report(self.d, vbp, use_cache=False, jobs=1)
+        ctl_ent = next(f for f in rep["files"] if f["file"] == "MiniCtl.ctl")
+        self.assertEqual(ctl_ent["type"], "usercontrol")
+        self.assertEqual(ctl_ent["vb_name"], "MiniCtl")
+        self.assertEqual(ctl_ent["form_kind"], "VB.UserControl")
+        self.assertEqual(ctl_ent["procedures"][0]["name"], "Ping")
+        self.assertEqual(rep["user_controls"][0]["file"], "MiniCtl.ctl")
+
+    def test_resfile_is_listed_not_parsed(self) -> None:
+        (self.d / "app.res").write_bytes(b"\x00\x01\x02")
+        vbp = self.d / "with_res.vbp"
+        vbp.write_bytes((VBP + "ResFile32=app.res\r\n").encode("cp932"))
+        rep = inv.build_report(self.d, vbp, use_cache=False, jobs=1)
+        res = next(f for f in rep["files"] if f["file"] == "app.res")
+        self.assertEqual(res["type"], "resfile32")
+        self.assertEqual(res["procedures"], [])
+        self.assertEqual(rep["res_files"][0]["file"], "app.res")
+
     def test_vbp_order_preserved(self) -> None:
         rep = inv.build_report(self.d, self.vbp, use_cache=False, jobs=4)
         self.assertEqual(

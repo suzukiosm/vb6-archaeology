@@ -1,6 +1,6 @@
 # キット改良アイデア（提案・未採用）
 
-**これは提案。** 採用するまで実装しない（P0-B Show 転置 · P0-C `status` は 2026-08-16 採用済）。1 テーマ 1 PR。  
+**これは提案。** 採用するまで実装しない（P0-A ファイル種棚卸し · P0-B Show 転置 · P0-C `status` は 2026-08-16 採用済）。1 テーマ 1 PR。  
 消費者アプリのセッション事実ではない。キット保守用。現状の正は [`kit-dev-context.md`](kit-dev-context.md)。
 
 方針は変えない: 事実と推定を混ぜない · 正規表現一括の callgraph は作らない · 標準ライブラリのみ · アプリ固有は消費者へ。
@@ -26,7 +26,7 @@
 
 | # | 穴 | 根拠 |
 |---|---|---|
-| F1 | `extract` は `UserControl` / `PropertyPage` / `UserDocument` / `Designer` / `RelatedDoc` / `ResFile32` をコピーするが、`inventory` は `Form` / `Module` / `Class` しか棚卸ししない | `extract_vbp.FILE_KEYS` vs `vb6_inventory.parse_vbp` · [`reference/vbp-keys.md`](reference/vbp-keys.md) |
+| F1 | ~~`extract` は extra キーをコピーするが inventory は Form/Module/Class だけ~~ **採用済 2026-08-16** | `vb6_inventory.parse_vbp` · [`reference/vbp-keys.md`](reference/vbp-keys.md) |
 | F2 | 同伴コピーは `.frm`→`.frx` のみ。`.ctl` の `.ctx` 等は見ない | `extract_vbp.companion_frx` |
 | F3 | `deep-read` は `.frm` 単体。`.cls` / `.bas` に同等の表面レポートが無い | `frm_deep_read` の範囲注記 · `methodology.md` |
 | F4 | `layout` は `.frm` + `.bas`。`.cls` は走査しない | `runtime_layout.py` 末尾の glob |
@@ -35,7 +35,7 @@
 | F7 | `serve` に目次が無い。ディレクトリ一覧 + `/excerpt` だけ | `serve_reports.py` |
 | F8 | `smoke` の `/excerpt` live GET は意図的未実装 | `CHANGELOG` Deferred |
 | F9 | バージョン表示は `0.1.0` のまま。`[Unreleased]` に 0.1.0 以降の機能が厚い | `tools/__init__.py` · `CHANGELOG.md` |
-| F10 | フィクスチャに UserControl / `On Error` / `GoSub` が無い | `source/mini_vbp/`（Form · Module · Class のみ） |
+| F10 | フィクスチャに ~~UserControl~~ / `On Error` / `GoSub` が無い（UserControl は 2026-08-16 追加） | `source/mini_vbp/` |
 | F11 | GitHub Issues は空。改善テンプレはあるがバックログの置き場が無い | `gh issue list` · `.github/ISSUE_TEMPLATE/feature_request.yml` |
 | F12 | ~~パイプライン進捗を出すコマンドが無い~~ **採用済 2026-08-16** `python -m tools status` | `tools/status.py` |
 
@@ -47,12 +47,9 @@
 
 ### P0 — 事実層の一貫性（哲学に合う・すぐ価値）
 
-#### A. inventory が extract したファイル種を棚卸しする
+#### A. inventory が extract したファイル種を棚卸しする — **採用済 2026-08-16**
 
-`UserControl=` 等を `forms` / `modules` / `classes` と同型の一覧にする（Ident; path、パス欠落は `warnings`）。プロシージャ抽出は既存の `.frm`/`.bas`/`.cls` パーサを拡張するか、まず **ファイル一覧だけ** でも穴 F1 は塞がる。
-
-- やらない: OCX の中身解析、`.res` バイナリの意味付け
-- 検証: `PARSER_VERSION` を上げる · fixture にダミー `.ctl` を 1 つ
+`UserControl=` / `PropertyPage=` / `UserDocument=` / `Designer=` を Form/Module/Class と同列に棚卸し（`.ctl` 等はデザイナ解析）。`RelatedDoc=` / `ResFile32=` は一覧のみ（中身は解析しない）。fixture に `MiniCtl.ctl`。PARSER_VERSION `inv-6`。
 
 #### B. Show 逆引き（既存 `show_calls` の転置） — **採用済 2026-08-16**
 
@@ -153,4 +150,4 @@ UserControl 1 つ · `On Error GoTo` 1 本 · 前方 GoTo 既存に加えて `Go
 3. 採用したら [`kit-dev-context.md`](kit-dev-context.md) の「次手」に「採用済」と日付を足し、本ファイルの該当節を短くする
 4. 捨てる案は「やらない」表へ移す（消して忘れない）
 
-P0-B / P0-C は採用済。次の候補: **P0-A**（inventory が extract したファイル種を棚卸しする）。
+P0-A / P0-B / P0-C は採用済。次の候補は P1（`comprehend --unticked` 等）。

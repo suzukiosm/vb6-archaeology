@@ -110,7 +110,7 @@ python -m tools status
   - パーサ挙動を変えたら `vb6_inventory.PARSER_VERSION` を上げて自動無効化する。
 - `--skip-parent-common` — VBP パスが親ディレクトリを2段以上辿るもの（`..\..\` 系）をスキップ。共有ライブラリ参照を棚卸しから外す任意オプション（既定オフ）。
 - 棚卸し対象:
-  - VBP: **Form / Module / Class**、`Object=`（OCX 等）、Version / Command32 / HelpFile などメタ
+  - VBP: **Form / Module / Class / UserControl / PropertyPage / UserDocument / Designer**、`RelatedDoc=` / `ResFile32=`（一覧のみ）、`Object=`（OCX 等）、Version / Command32 / HelpFile などメタ
   - プロシージャ: Sub/Function/Property + **引数・戻り値**、Declare、モジュールレベル Const/Enum/Type/Event
 - パス欠落の `Form=` / `Module=` / `Class=` は一覧に入れず `warnings` に出す（JSON / MD / HTML / CLI サマリ）。
 - HTML レポートは検索ボックス（ファイル名 / VB_Name / プロシージャ / 宣言名）と全開閉ボタン付き。
