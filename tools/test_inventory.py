@@ -429,9 +429,27 @@ End Sub
                 out,
             )
             md = out.read_text(encoding="utf-8")
+            html_path = Path(td) / "inv.html"
+            inv.write_html(
+                {
+                    "vbp": "t.vbp",
+                    "stem": "t",
+                    "meta": {},
+                    "file_count": 1,
+                    "proc_total": 1,
+                    "objects": [],
+                    "missing_in_extract": [],
+                    "not_in_vbp": [],
+                    "files": [{**info, "type": "class"}],
+                },
+                html_path,
+            )
+            html = html_path.read_text(encoding="utf-8")
         self.assertIn("Implements / WithEvents / Instancing", md)
         self.assertIn("`IFoo`", md)
         self.assertIn("Instancing: `2`", md)
+        self.assertIn("Implements / WithEvents / Instancing", html)
+        self.assertIn("IFoo", html)
 
 
 if __name__ == "__main__":

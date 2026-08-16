@@ -891,7 +891,7 @@ def surface_html_block(entry: dict, e) -> str:
     for key, label in ATTR_BOOL_KEYS.items():
         val = surf.get(key)
         if val is not None:
-            attrs.append(f"{e(label)}={e(val)}")
+            attrs.append(f"{e(label)}={e(str(val))}")
     attr_s = ", ".join(attrs) or "—"
     return (
         "<h4>表面（Implements / WithEvents / Instancing）</h4><ul>"
