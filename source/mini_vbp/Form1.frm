@@ -40,6 +40,16 @@ Begin VB.Form Form1
          Width           =   1500
       End
    End
+   Begin VB.Menu mnuFile
+      Caption         =   "ファイル"
+      Begin VB.Menu mnuOpen
+         Caption         =   "開く"
+      End
+      Begin VB.Menu mnuHidden
+         Caption         =   "隠す"
+         Visible         =   0   'False
+      End
+   End
 End
 Attribute VB_Name = "Form1"
 Attribute VB_GlobalNameSpace = False
@@ -52,6 +62,9 @@ Private Sub Form_Load()
     Me.Left = 0
     Me.Top = 0
     Label1.Caption = "読込済"
+    GoTo AfterOpen
+    Open "skip.dat" For Input As #2
+AfterOpen:
 End Sub
 
 Private Sub Command1_Click()
@@ -62,4 +75,11 @@ Private Sub Command1_Click()
 AfterShow:
     Return
 ErrH:
+End Sub
+
+Private Sub mnuOpen_Click()
+End Sub
+
+Private Sub Ghost_Click()
+    Form12.Show
 End Sub

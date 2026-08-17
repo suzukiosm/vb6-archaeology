@@ -108,3 +108,13 @@ layout → comprehend → excerpt → io-catalog → status → verify-names →
 アプリ固有ツール（伝票 DAT・Form7 条件等）は本キットに含めない。
 利用・複製は [LICENSE](LICENSE)（source-available・許諾前提）に従う。
 キット保守・公開方針のメモは [`docs/kit-dev-context.md`](docs/kit-dev-context.md)。
+
+## Learned User Preferences
+
+- 「プッシュまで」はコミットとプッシュの両方を含む。コミット／プッシュは明示依頼があるときだけ行う。
+- キット保守中は消費者リポへ書かない。参照は読取のみ。
+
+## Learned Workspace Facts
+
+- 主な消費者リポは `Z:\_Python\VB6_source`（作業指示書）と `Z:\_Python\delivery_slip`（納品書Ⅱ）。
+- 公開リモートは `https://github.com/suzukiosm/vb6-archaeology`。
