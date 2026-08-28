@@ -44,6 +44,7 @@
 | F15 | ~~deep-read が一般 Sub を `status=dead` / `no caller` と書き 9b と矛盾。PARA / ＭＳ Ｐゴシックがキット必須指紋~~ **採用済 2026-08-29** `unobserved` · `optional_assign_markers` · `FONT_FACE_BLACKLIST` | `frm_deep_read.classify_events` · [anti-patterns 9b](reference/anti-patterns.md) |
 | F16 | ~~`Me.Show` / 単独 `Show` / `Load` / `Unload` が show_calls から落ちる~~ **採用済 2026-08-29** 文面列挙。解決しない。PARSER_VERSION inv-9 | `lib.show_style` · inventory `lifetime_calls` |
 | F17 | ~~inventory `parse_procedures` が論理行のまま verify とずれる~~ **採用済 2026-08-29** 文単位。PARSER_VERSION inv-10 | `vb6_inventory.parse_procedures` · `parse_declarations` |
+| F18 | ~~`parse_surface` が論理行。`Const A = 1, B = 2` は先頭名だけ~~ **採用済 2026-08-29** PARSER_VERSION inv-11 | `vb6_inventory.parse_surface` · `parse_const_declarators` |
 
 `show_calls`（Form 単位の出方向事実）は採用済。無いのは **入方向の転置** と **進捗の機械集計**。
 
@@ -137,7 +138,7 @@ inventory の VBP メタに `Type` / `CondComp` / `CompatibleMode` / `Compilatio
 
 #### R. コロン文分割 — **採用済 2026-08-29**
 
-`_` 折り後に `:` で文分割。文字列・コメント・ラベルを区別。到達判定なし。io-catalog / verify / layout / inventory `parse_procedures` · `parse_declarations` が採用。`parse_surface` は論理行のまま。
+`_` 折り後に `:` で文分割。文字列・コメント・ラベルを区別。到達判定なし。io-catalog / verify / layout / inventory `parse_procedures` · `parse_declarations` · `parse_surface` が採用。
 
 #### S. live/dead 正直化とキット指紋 — **採用済 2026-08-29**
 
@@ -149,7 +150,11 @@ inventory の VBP メタに `Type` / `CondComp` / `CompatibleMode` / `Compilatio
 
 #### U. parse_procedures 文単位 — **採用済 2026-08-29**
 
-inventory の `parse_procedures` / `parse_declarations` が `iter_statements` を使う。verify `count_ends` と同じ規則。`x = 1: End Sub` で照合が揃う。PARSER_VERSION `inv-10`。`parse_surface` は論理行のまま。
+inventory の `parse_procedures` / `parse_declarations` が `iter_statements` を使う。verify `count_ends` と同じ規則。`x = 1: End Sub` で照合が揃う。PARSER_VERSION `inv-10`。
+
+#### V. parse_surface 文単位と Const カンマ — **採用済 2026-08-29**
+
+`parse_surface` が `iter_statements`（Implements / WithEvents の同一行コロン）。`Const A = 1, B = 2` を複数件。文字列と括弧内のカンマは値に残す。PARSER_VERSION `inv-11`。
 
 ---
 
@@ -172,4 +177,4 @@ inventory の `parse_procedures` / `parse_declarations` が `iter_statements` �
 3. 採用したら [`kit-dev-context.md`](kit-dev-context.md) の「次手」に「採用済」と日付を足し、本ファイルの該当節を短くする
 4. 捨てる案は「やらない」表へ移す（消して忘れない）
 
-P0 · P1 · P2 · P3 · P4 と穴 F1–F17 は採用済。残るのは「後回し」表と「やらない」表。`python -m tools ideas` が機械集計する。
+P0 · P1 · P2 · P3 · P4 と穴 F1–F18 は採用済。残るのは「後回し」表と「やらない」表。`python -m tools ideas` が機械集計する。

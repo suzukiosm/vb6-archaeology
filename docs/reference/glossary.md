@@ -20,7 +20,7 @@
 | 表面（Module/Class） | inventory の Implements / WithEvents / Instancing（生整数）/ 公開 Property / `vb_predeclared_id` / `vb_user_mem_id`。deep-read ではない |
 | VB_PredeclaredId | `.frm` / `.cls` 等の `Attribute VB_PredeclaredId = True|False`。inventory 表面キー `vb_predeclared_id`（bool | null）。既定インスタンス属性の生 bool。`New` との同一視はしない |
 | VB_UserMemId | `Attribute VB_UserMemId = <整数>`。inventory 表面キー `vb_user_mem_id`（int | null。無ければ null）。デフォルトプロパティの痕跡になりうるが、その断定はしない。生整数のみ |
-| 論理行 / コロン文 | `_` 継続を折った論理行を、文字列外の `:` で文に分割する。行番号は常に物理行。ラベル `Foo:` は文ではない。inventory `parse_procedures` / verify `count_ends` は同じ規則。`parse_surface` は論理行のまま |
+| 論理行 / コロン文 | `_` 継続を折った論理行を、文字列外の `:` で文に分割する。行番号は常に物理行。ラベル `Foo:` は文ではない。inventory `parse_procedures` / `parse_surface` / verify `count_ends` は同じ規則。`Const A = 1, B = 2` はカンマ分割 |
 | serve ランディング | `serve` の `/`。inventory · comprehension · excerpt · layout · io-catalog · deep-read へのリンク + ディレクトリ一覧 |
 | io-catalog | extract 横断の `Open` / `Kill` / `Name` / `Get` / `Put`（file:line。業務意味なし。GoTo 飛び越えと突合） |
 | status | 既存成果物の有無・件数（`python -m tools status`）。推定も次手も出さない |

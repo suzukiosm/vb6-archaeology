@@ -30,7 +30,7 @@
 - 正本ディレクトリ: 読取専用（hooks）
 - 成果: `working/reports/` に JSON + MD + 必要なら HTML
 - HTML 閲覧: ローカル HTTP（`file://` 不可）
-- 論理行とコロン文。`iter_logical_lines` は空白＋末尾 `_` だけを折り、物理行番号（`phys_start` / `phys_end`）を保持する。1物理行に `:` で並んだ文は `iter_statements` が **同じ物理行番号のまま** 分割する（`If Err Then Unload Me: Exit Sub` は2文）。行番号の正は常に物理行。文字列内の `:` と `'` コメントは切らない。行ラベル `Foo:` は文ではない（`kind=label`）。到達判定はしない。`#If`・古い数値行番号・DATA 文の `:` は既知制限。inventory `parse_procedures` / `parse_declarations` と verify `count_ends` は同じ文分割。`parse_surface` は論理行のまま。
+- 論理行とコロン文。`iter_logical_lines` は空白＋末尾 `_` だけを折り、物理行番号（`phys_start` / `phys_end`）を保持する。1物理行に `:` で並んだ文は `iter_statements` が **同じ物理行番号のまま** 分割する（`If Err Then Unload Me: Exit Sub` は2文）。行番号の正は常に物理行。文字列内の `:` と `'` コメントは切らない。行ラベル `Foo:` は文ではない（`kind=label`）。到達判定はしない。`#If`・古い数値行番号・DATA 文の `:` は既知制限。inventory `parse_procedures` / `parse_declarations` / `parse_surface` と verify `count_ends` は同じ文分割。`Const A = 1, B = 2` はカンマ分割（文字列・括弧内は残す）。
 
 ## 理解度スコア
 

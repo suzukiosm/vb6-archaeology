@@ -40,11 +40,11 @@ from lib.show_style import (  # noqa: E402
     parse_show_calls_in_line,
     self_show_style,
 )
-from lib.vbparse import iter_logical_lines, iter_statements  # noqa: E402
+from lib.vbparse import iter_statements  # noqa: E402
 
 # Bump when parse_* output shape or semantics change (invalidates the cache).
 # Suffix is part of the key (see inventory_file): .frm vs .bas parse differently.
-PARSER_VERSION = "inv-10"
+PARSER_VERSION = "inv-11"
 
 # Designer-like text files: header + code, same family as .frm.
 DESIGNER_SUFFIXES = frozenset({".frm", ".ctl", ".pag", ".dob", ".dsr"})
@@ -134,8 +134,12 @@ ATTR_USER_MEM_ID_RE = re.compile(
 )
 
 # Module-level declarations (facts only; locals inside procedures are excluded)
-CONST_RE = re.compile(
-    r"^(?:(Public|Private|Global)\s+)?Const\s+([A-Za-z_]\w*)\s*=\s*(.+)$",
+CONST_HEAD_RE = re.compile(
+    r"^(?:(Public|Private|Global)\s+)?Const\s+(.+)$",
+    re.IGNORECASE,
+)
+CONST_ITEM_HEAD_RE = re.compile(
+    r"([A-Za-z_]\w*)(?:\s+As\s+.+?)?\s*=\s*",
     re.IGNORECASE,
 )
 ENUM_RE = re.compile(
@@ -151,6 +155,54 @@ END_ENUM_RE = re.compile(r"^End\s+Enum\b", re.IGNORECASE)
 END_TYPE_RE = re.compile(r"^End\s+Type\b", re.IGNORECASE)
 ENUM_MEMBER_RE = re.compile(r"^([A-Za-z_]\w*)\s*(?:=\s*(.+))?$")
 TYPE_FIELD_RE = re.compile(r"^([A-Za-z_][\w]*(?:\([^)]*\))?)\s+As\s+(.+)$", re.IGNORECASE)
+
+
+def parse_const_declarators(rest: str) -> list[tuple[str, str]]:
+    """Split ``Name [As type] = expr [, Name [As type] = expr]…`` (facts only).
+
+    Commas inside double-quoted strings and parentheses stay in the value
+    (``"a,b"``, ``Foo(1, 2)``). A following declarator is ``, Ident [As …] =``.
+    """
+    items: list[tuple[str, str]] = []
+    pos = 0
+    text = rest.strip()
+    n = len(text)
+    while pos < n:
+        while pos < n and text[pos] in " \t":
+            pos += 1
+        m = CONST_ITEM_HEAD_RE.match(text, pos)
+        if not m:
+            break
+        name = m.group(1)
+        val_start = m.end()
+        j = val_start
+        in_str = False
+        paren = 0
+        while j < n:
+            ch = text[j]
+            if ch == '"':
+                if in_str and j + 1 < n and text[j + 1] == '"':
+                    j += 2
+                    continue
+                in_str = not in_str
+                j += 1
+                continue
+            if not in_str:
+                if ch == "(":
+                    paren += 1
+                elif ch == ")":
+                    paren = max(0, paren - 1)
+                elif ch == "," and paren == 0:
+                    nxt = text[j + 1 :].lstrip()
+                    if CONST_ITEM_HEAD_RE.match(nxt):
+                        break
+            j += 1
+        items.append((name, text[val_start:j].strip()))
+        if j < n and text[j] == ",":
+            pos = j + 1
+            continue
+        break
+    return items
 
 
 def decode(raw: bytes) -> str:
@@ -469,9 +521,8 @@ def parse_declarations(lines: list[str]) -> dict:
     Declarations inside a Sub/Function/Property are excluded (locals). Enum and
     Type blocks close on ``End Enum`` / ``End Type`` (neither matches END_RE, so
     the verify_inventory proc/End invariant is unaffected). Line numbers are
-    physical. Multi-declaration single lines (``Const A = 1, B = 2``) capture the
-    first name only — noted as a known limitation. Colon-separated Consts on one
-    physical line are separate statements and are each captured.
+    physical. Colon-separated Consts on one physical line are separate statements.
+    Comma-separated ``Const A = 1, B = 2`` is split (strings and parentheses kept).
     """
     consts: list[dict] = []
     enums: list[dict] = []
@@ -558,16 +609,18 @@ def parse_declarations(lines: list[str]) -> dict:
                 }
             )
             continue
-        cm = CONST_RE.match(s)
+        cm = CONST_HEAD_RE.match(s)
         if cm:
-            consts.append(
-                {
-                    "name": cm.group(2),
-                    "visibility": (cm.group(1) or "Private").capitalize(),
-                    "value": cm.group(3).strip(),
-                    "line": stmt.phys_start,
-                }
-            )
+            vis = (cm.group(1) or "Private").capitalize()
+            for name, value in parse_const_declarators(cm.group(2)):
+                consts.append(
+                    {
+                        "name": name,
+                        "visibility": vis,
+                        "value": value,
+                        "line": stmt.phys_start,
+                    }
+                )
 
     if open_enum is not None:  # unterminated
         open_enum["unterminated"] = True
@@ -592,12 +645,19 @@ def empty_surface() -> dict:
 
 
 def parse_surface(lines: list[str]) -> dict:
-    """Collect Implements / WithEvents / Instancing / Attribute facts (no role inference)."""
+    """Collect Implements / WithEvents / Instancing / Attribute facts (no role inference).
+
+    Walks colon-split statements. Instancing / Attribute are taken in the
+    designer header too. Implements / WithEvents are module-level only.
+    """
     out = empty_surface()
-    for i, raw in enumerate(lines, start=1):
-        s = raw.strip()
-        if not s or s.startswith("'"):
+    stmts = iter_statements(lines)
+    in_header = bool(stmts) and stmts[0].text.startswith("VERSION")
+    in_proc = False
+    for stmt in stmts:
+        if stmt.kind != "stmt":
             continue
+        s = stmt.text
         im = INSTANCING_RE.match(s)
         if im:
             out["instancing"] = int(im.group(1))
@@ -612,12 +672,7 @@ def parse_surface(lines: list[str]) -> dict:
                 k for k, attr in ATTR_BOOL_KEYS.items() if attr.lower() == am.group(1).lower()
             )
             out[key] = am.group(2).lower() == "true"
-
-    logical = iter_logical_lines(lines)
-    in_header = bool(logical) and logical[0].text.startswith("VERSION")
-    in_proc = False
-    for ll in logical:
-        s = ll.text
+            continue
         if in_header:
             if VBNAME_RE.match(s):
                 in_header = False
@@ -631,11 +686,9 @@ def parse_surface(lines: list[str]) -> dict:
             if END_RE.match(s):
                 in_proc = False
             continue
-        if s.startswith("'"):
-            continue
         impl = IMPLEMENTS_RE.match(s)
         if impl:
-            out["implements"].append({"name": impl.group(1), "line": ll.phys_start})
+            out["implements"].append({"name": impl.group(1), "line": stmt.phys_start})
             continue
         we = WITHEVENTS_RE.match(s)
         if we:
@@ -647,7 +700,7 @@ def parse_surface(lines: list[str]) -> dict:
                     "name": we.group(2),
                     "as_type": we.group(3).strip(),
                     "visibility": vis,
-                    "line": ll.phys_start,
+                    "line": stmt.phys_start,
                 }
             )
     return out

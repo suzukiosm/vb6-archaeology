@@ -207,10 +207,29 @@ Public Sub Alpha(): Const LocalOnly = 5: End Sub
         self.assertEqual(len(procs), 1)
         self.assertEqual(_stmt_end_count(src.splitlines()), 1)
 
+    def test_comma_separated_module_consts(self) -> None:
+        src = """\
+Attribute VB_Name = "M"
+Public Const A = 1, B = 2
+Private Const Tag = "a,b", Other = 3
+Const Callish = Foo(1, 2)
+"""
+        d = inv.parse_declarations(src.splitlines())
+        by_name = {c["name"]: c for c in d["consts"]}
+        self.assertEqual(set(by_name), {"A", "B", "Tag", "Other", "Callish"})
+        self.assertEqual(by_name["A"]["value"], "1")
+        self.assertEqual(by_name["B"]["value"], "2")
+        self.assertEqual(by_name["A"]["visibility"], "Public")
+        self.assertEqual(by_name["B"]["visibility"], "Public")
+        self.assertEqual(by_name["Tag"]["value"], '"a,b"')
+        self.assertEqual(by_name["Other"]["value"], "3")
+        self.assertEqual(by_name["Callish"]["value"], "Foo(1, 2)")
+        self.assertEqual(by_name["A"]["line"], by_name["B"]["line"])
+
 
 class ParserVersionTests(unittest.TestCase):
-    def test_parser_version_is_inv10(self) -> None:
-        self.assertEqual(inv.PARSER_VERSION, "inv-10")
+    def test_parser_version_is_inv11(self) -> None:
+        self.assertEqual(inv.PARSER_VERSION, "inv-11")
 
 
 class DecodeTests(unittest.TestCase):
@@ -595,6 +614,19 @@ Attribute VB_UserMemId = 0
         surf = inv.parse_surface(src.splitlines())
         self.assertFalse(surf["vb_predeclared_id"])
         self.assertEqual(surf["vb_user_mem_id"], 0)
+
+    def test_colon_separated_implements_and_withevents(self) -> None:
+        src = """\
+Attribute VB_Name = "M"
+Implements IFoo: Implements IBar
+Private WithEvents Bus As AppEvents: Private WithEvents Tick As Timer
+"""
+        surf = inv.parse_surface(src.splitlines())
+        self.assertEqual([i["name"] for i in surf["implements"]], ["IFoo", "IBar"])
+        self.assertEqual(surf["implements"][0]["line"], surf["implements"][1]["line"])
+        self.assertEqual([w["name"] for w in surf["with_events"]], ["Bus", "Tick"])
+        self.assertEqual(surf["with_events"][0]["as_type"], "AppEvents")
+        self.assertEqual(surf["with_events"][1]["as_type"], "Timer")
 
     def test_withevents_inside_proc_is_ignored(self) -> None:
         src = """\

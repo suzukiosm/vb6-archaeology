@@ -121,7 +121,8 @@ python -m tools status
 - `--skip-parent-common` — VBP パスが親ディレクトリを2段以上辿るもの（`..\..\` 系）をスキップ。共有ライブラリ参照を棚卸しから外す任意オプション（既定オフ）。
 - 棚卸し対象:
   - VBP: **Form / Module / Class / UserControl / PropertyPage / UserDocument / Designer**、`RelatedDoc=` / `ResFile32=`（一覧のみ）、`Object=`（OCX 等）、Version / Command32 / HelpFile / Type / CondComp / CompatibleMode / CompilationType / CompatibleEXE32 / AutoIncrementVer などメタ（生文字列）
-  - プロシージャ: Sub/Function/Property + **引数・戻り値**、Declare、モジュールレベル Const/Enum/Type/Event（`iter_statements`。`End` 照合は verify と同じ文単位）
+  - プロシージャ: Sub/Function/Property + **引数・戻り値**、Declare、モジュールレベル Const/Enum/Type/Event（`iter_statements`。`End` 照合は verify と同じ文単位。`Const A = 1, B = 2` は複数件）
+  - 表面: Implements / WithEvents / Instancing / Attribute も `iter_statements`
 - パス欠落の `Form=` / `Module=` / `Class=` は一覧に入れず `warnings` に出す（JSON / MD / HTML / CLI サマリ）。
 - HTML レポートは検索ボックス（ファイル名 / VB_Name / プロシージャ / 宣言名）と全開閉ボタン付き。
 - Form の `show_calls`（`Foo.Show` / `Me.Show` / 単独 `Show`）を転置して `show_inbound` / `show_unresolved` を出す（新しい呼び出しは推定しない。`Me` / 空 target は unresolved）。
