@@ -4,15 +4,17 @@
 
 再実装（Next.js 等）は消費者リポの任意レーン。ここでは調査レーンを正とする。
 
-## 正典の層（矛盾時の優先）
+## 正典の層（文書が食い違うときの優先）
 
-| 優先 | 層 | 役割 | 正 |
+矛盾したら上の行を採用する。列「信頼できる情報源」がその層の正本パス。
+
+| 優先 | 目的 | 信頼できる情報源 | 補足 |
 |---|---|---|---|
-| 1 | ソース | VB6 抽出コピー | `working/extracts/<stem>/`（正本は `source/` 等） |
-| 2 | 仕様・範囲 | フェーズ・不変条件 | **本ファイル** + 消費者の plans |
-| 3 | セッション事実（消費者アプリ） | 現状・次手 | `docs/ai-dev-context.md` |
-| 4 | 入口 | パス・索引 | `AGENTS.md` |
-| 5 | 方法論 | 事実/推定・検証 | `.cursor/rules/vb6-analysis.mdc` |
+| 1 | VB6 コード事実 | `working/extracts/<stem>/` | 正本は `source/` 等・読取専用。分析は抽出コピーを見る |
+| 2 | 調査フロー・範囲 | **本ファイル** + 消費者の plans | 工程順序・不変条件 |
+| 3 | 消費者アプリのセッション事実 | `docs/ai-dev-context.md` | 現状・次手。新規は `docs/templates/` から |
+| 4 | 入口・規約・索引 | `AGENTS.md` | 長い現状は ai-dev-context へ |
+| 5 | 方法論（事実/推定の切り方） | `.cursor/rules/vb6-analysis.mdc` · `docs/methodology.md` | 手順の正は層2 |
 
 キット自体の保守メモは `docs/kit-dev-context.md`（層3ではない）。
 

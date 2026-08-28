@@ -18,7 +18,7 @@ VBP を切り出し・棚卸し・深読み・証拠つき理解まで進める�
 | End 数照合 | `python -m tools verify <inventory.json>` | `/vb6-verify-reports` |
 | 名前集合照合 | `python -m tools verify-names --inventory <inventory.json>` | `/vb6-verify-reports` |
 | show_style 照合 | `python -m tools verify-show --inventory <inventory.json>` | `/vb6-verify-reports` |
-| Form / Module 深読み | `python -m tools deep-read <File.frm\|.bas\|.cls> --extract <dir>` | `/frm-deep-read` |
+| Form / Module 深読み | `python -m tools deep-read <FILE> --extract <dir>`（`.frm` / `.bas` / `.cls`） | `/frm-deep-read` |
 | 実行時座標 | `python -m tools layout --extract <dir>` | `/runtime-layout` |
 | 理解 tick | `python -m tools comprehend --add-tick <Proc>` · `--unticked` / `--suggest` | `/vb6-comprehend` |
 | 報告書 | （skill `vb6-accurate-reports`） | `/vb6-report` |
@@ -29,6 +29,8 @@ VBP を切り出し・棚卸し・深読み・証拠つき理解まで進める�
 | レポート閲覧 | `python -m tools serve` | `/serve-reports` |
 | 設定検証 | `python -m tools config-check` | — |
 | 自己点検 | `python -m tools smoke` | `/kit-smoke` |
+
+`verify` / `verify-names` / `verify-show` は別照合（同じ `/vb6-verify-reports` から入る）。`--mode` には統合しない。
 
 ## Testing
 
@@ -42,7 +44,7 @@ python -m tools smoke --kit-only
 
 フィクスチャパイプライン（config-check → extract → inventory → verify → deep-read →
 layout → comprehend → excerpt → io-catalog → status → verify-names → serve --live-get → scan-chars）＋ `tools/` 配下の unittest。
-詳細は `CONTRIBUTING.md` · `tools/README.md`。
+失敗時は stdout のステップ名を見て `CONTRIBUTING.md` · `tools/README.md` を参照（専用ログファイルは無い）。
 再実装の製品面チェック: `docs/reimplementation-handoff.md`。
 
 ## DO NOT
@@ -58,20 +60,24 @@ layout → comprehend → excerpt → io-catalog → status → verify-names →
 
 ## セッション開始時の Read 順
 
-1. 本ファイル（`AGENTS.md`）
+毎回は 1–2。3 は対象アプリがあるとき。4 はキット保守のときだけ。詳細は `docs/ai-onboarding.md`。
+
+1. 本ファイル（`AGENTS.md`）— 入口・規約・索引
 2. [`docs/ai-onboarding.md`](docs/ai-onboarding.md)（必読・詳細）
 3. 対象アプリがあるなら消費者の `docs/ai-dev-context.md`
 4. キット自体を直すときだけ [`docs/kit-dev-context.md`](docs/kit-dev-context.md)
 
-## 正典の層（矛盾時）
+## 正典の層（文書が食い違うときの優先）
 
-| 優先 | 役割 | 正 |
-|---|---|---|
-| 1 | VB6 ソース（抽出コピー） | `working/extracts/<stem>/`（正本は `source/` 等・読取専用） |
-| 2 | フロー・範囲 | `docs/flow/_master.md` |
-| 3 | セッション事実（消費者アプリ） | `docs/ai-dev-context.md`（テンプレ: `docs/templates/`） |
-| 4 | 入口（本ファイル） | パス・規約・索引。長い現状は ai-dev-context へ |
-| 5 | 方法論 | `.cursor/rules/vb6-analysis.mdc` · `docs/methodology.md` |
+矛盾したら上の行を採用する。列「信頼できる情報源」がその層の正本パス。
+
+| 優先 | 目的 | 信頼できる情報源 | 補足 |
+|---|---|---|---|
+| 1 | VB6 コード事実 | `working/extracts/<stem>/` | 正本は `source/` 等・読取専用。分析は抽出コピーを見る |
+| 2 | 調査フロー・範囲 | `docs/flow/_master.md` | 工程順序・不変条件 |
+| 3 | 消費者アプリのセッション事実 | `docs/ai-dev-context.md` | 現状・次手。新規は `docs/templates/` から |
+| 4 | 入口・規約・索引 | 本ファイル（`AGENTS.md`） | 長い現状は ai-dev-context へ |
+| 5 | 方法論（事実/推定の切り方） | `.cursor/rules/vb6-analysis.mdc` · `docs/methodology.md` | 手順の正は層2 |
 
 キット保守メモは層3ではない → `docs/kit-dev-context.md`。
 

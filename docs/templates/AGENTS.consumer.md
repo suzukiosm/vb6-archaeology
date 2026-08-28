@@ -8,15 +8,15 @@
 
 調査 OS（方法論・汎用 tools）は `vb6-archaeology` キットに従う（利用はキット LICENSE＝許諾前提）。
 
-## 正典の層
+## 正典の層（文書が食い違うときの優先）
 
-| 優先 | 正 |
-|---|---|
-| 1 | `working/extracts/<stem>/` |
-| 2 | `docs/flow/_master.md` · plans |
-| 3 | `docs/ai-dev-context.md` |
-| 4 | 本ファイル |
-| 5 | `.cursor/rules/vb6-analysis.mdc` |
+| 優先 | 目的 | 信頼できる情報源 |
+|---|---|---|
+| 1 | VB6 コード事実 | `working/extracts/<stem>/` |
+| 2 | 調査フロー・範囲 | `docs/flow/_master.md` · plans |
+| 3 | 消費者アプリのセッション事実 | `docs/ai-dev-context.md` |
+| 4 | 入口・規約・索引 | 本ファイル |
+| 5 | 方法論 | `.cursor/rules/vb6-analysis.mdc` |
 
 ## Setup / Testing
 
