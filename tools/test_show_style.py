@@ -18,6 +18,7 @@ from tools.lib.show_style import (
     attach_show_inbound,
     classify_show_arg,
     invert_show_calls,
+    parse_lifetime_calls_in_line,
     parse_show_calls_in_line,
 )
 from tools.reimpl_excerpt import (
@@ -48,6 +49,57 @@ class ParseShowCallsTests(unittest.TestCase):
         self.assertEqual(calls[0]["arg"], "vbModal")
         self.assertEqual(calls[0]["show_style"], "modal_overlay")
         self.assertEqual(calls[0]["line"], 42)
+
+    def test_me_show_keeps_target_me(self) -> None:
+        calls = parse_show_calls_in_line("    Me.Show", 7)
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(calls[0]["target"], "Me")
+        self.assertIsNone(calls[0]["arg"])
+        self.assertEqual(calls[0]["show_style"], "unknown")
+
+    def test_bare_show_target_is_empty(self) -> None:
+        calls = parse_show_calls_in_line("Show vbModal", 3)
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(calls[0]["target"], "")
+        self.assertEqual(calls[0]["arg"], "vbModal")
+        self.assertEqual(calls[0]["show_style"], "modal_overlay")
+
+    def test_then_else_bare_show(self) -> None:
+        then_calls = parse_show_calls_in_line("If x Then Show", 4)
+        self.assertEqual(then_calls[0]["target"], "")
+        else_calls = parse_show_calls_in_line("Else Show vbModeless", 5)
+        self.assertEqual(else_calls[0]["target"], "")
+        self.assertEqual(else_calls[0]["arg"], "vbModeless")
+
+    def test_comment_and_ident_show_not_double_counted(self) -> None:
+        self.assertEqual(parse_show_calls_in_line("' Form12.Show vbModal", 1), [])
+        self.assertEqual(parse_show_calls_in_line("Rem Form12.Show", 1), [])
+        calls = parse_show_calls_in_line("Form12.Show vbModal", 2)
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(calls[0]["target"], "Form12")
+
+
+class ParseLifetimeCallsTests(unittest.TestCase):
+    def test_load_form1(self) -> None:
+        hits = parse_lifetime_calls_in_line("    Load Form1", 10)
+        self.assertEqual(len(hits), 1)
+        self.assertEqual(hits[0]["kind"], "load")
+        self.assertEqual(hits[0]["target"], "Form1")
+        self.assertEqual(hits[0]["line"], 10)
+
+    def test_unload_me(self) -> None:
+        hits = parse_lifetime_calls_in_line("    Unload Me", 11)
+        self.assertEqual(len(hits), 1)
+        self.assertEqual(hits[0]["kind"], "unload")
+        self.assertEqual(hits[0]["target"], "Me")
+
+    def test_load_control_array_keeps_subscript(self) -> None:
+        hits = parse_lifetime_calls_in_line("Load Command1(1)", 12)
+        self.assertEqual(hits[0]["target"], "Command1(1)")
+        self.assertEqual(hits[0]["kind"], "load")
+
+    def test_lifetime_skips_comment(self) -> None:
+        self.assertEqual(parse_lifetime_calls_in_line("' Load Form1", 1), [])
 
 
 class InvertShowCallsTests(unittest.TestCase):
@@ -125,6 +177,34 @@ class InvertShowCallsTests(unittest.TestCase):
         inbound, unresolved = invert_show_calls(files)
         self.assertEqual(unresolved, [])
         self.assertEqual(inbound["form12"][0]["from_file"], "Caller.frm")
+
+    def test_me_and_empty_target_stay_unresolved(self) -> None:
+        files = [
+            {
+                "file": "Form1.frm",
+                "vb_name": "Form1",
+                "type": "form",
+                "show_calls": [
+                    {
+                        "target": "Me",
+                        "arg": None,
+                        "show_style": "unknown",
+                        "line": 8,
+                    },
+                    {
+                        "target": "",
+                        "arg": "vbModal",
+                        "show_style": "modal_overlay",
+                        "line": 9,
+                    },
+                ],
+            }
+        ]
+        inbound, unresolved = invert_show_calls(files)
+        self.assertEqual(inbound["form1"], [])
+        reasons = {r["target"]: r["reason"] for r in unresolved}
+        self.assertEqual(reasons["Me"], "self")
+        self.assertEqual(reasons[""], "implicit")
 
     def test_attach_writes_fields_on_report(self) -> None:
         report = {
@@ -277,6 +357,14 @@ class ExcerptTests(unittest.TestCase):
                         "type": "form",
                         "control_count": 1,
                         "procedures": [],
+                        "lifetime_calls": [
+                            {
+                                "kind": "unload",
+                                "target": "Me",
+                                "line": 20,
+                                "text": "Unload Me",
+                            }
+                        ],
                     }
                 ],
             }
@@ -335,6 +423,7 @@ class ExcerptTests(unittest.TestCase):
             self.assertIn("候補", text)
             self.assertIn("unknown", text)
             self.assertIn("Show 文の転置（事実）", text)
+            self.assertIn("Unload Me", text)
             counts = load_goto_counts(skel)
             self.assertEqual(counts["Form1"]["skip_stmts"], 1)
 
@@ -388,6 +477,50 @@ class ExcerptTests(unittest.TestCase):
         self.assertIn("Form12", text)
         self.assertIn("Form1", text)
         self.assertNotIn("unresolved</h3>", text)
+        self.assertIn("Load/Unload 文面", text)
+
+    def test_excerpt_lists_lifetime_calls(self) -> None:
+        inventory = {
+            "stem": "demo",
+            "proc_total": 0,
+            "files": [
+                {
+                    "file": "Form1.frm",
+                    "vb_name": "Form1",
+                    "form_kind": "VB.Form",
+                    "type": "form",
+                    "control_count": 0,
+                    "procedures": [],
+                    "show_style": {"show_style": "unknown"},
+                    "show_calls": [],
+                    "lifetime_calls": [
+                        {
+                            "kind": "load",
+                            "target": "Form2",
+                            "line": 6,
+                            "text": "Load Form2",
+                        }
+                    ],
+                }
+            ],
+        }
+        html = build_excerpt_html(
+            inventory,
+            ticked=set(),
+            show_rows=[],
+            stem="demo",
+            lifetime_rows=[
+                {
+                    "file": "Form1.frm",
+                    "kind": "load",
+                    "target": "Form2",
+                    "line": 6,
+                    "text": "Load Form2",
+                }
+            ],
+        )
+        self.assertIn("Load Form2", html)
+        self.assertIn("Form2", html)
 
     def test_excerpt_module_class_surface_and_declare_counts(self) -> None:
         inventory = {

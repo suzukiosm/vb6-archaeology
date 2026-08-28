@@ -5,11 +5,17 @@ import unittest
 from pathlib import Path
 
 from tools.frm_deep_read import (
+    FONT_FACE_BLACKLIST,
     analyze_module_file,
     annotate_hidden_ancestor,
     build_menu_tree,
+    classify_controls,
+    classify_events,
     collect_goto_label_maps,
     extract_controls,
+    extract_events,
+    extract_para,
+    extract_show_map,
     find_goto_skipped_opens,
     find_goto_skipped_stmts,
     flatten_menu_tree,
@@ -441,6 +447,247 @@ class ModuleReadTests(unittest.TestCase):
         )
         self.assertEqual(data["kind"], "module")
         self.assertEqual(data["procedures"][0]["name"], "A")
+
+
+class ClassifyEventsTests(unittest.TestCase):
+    def test_general_sub_without_caller_is_unobserved(self) -> None:
+        events = [{"name": "Helper"}]
+        classify_events(events, "Private Sub Helper()\nEnd Sub\n", "", [], "Form1")
+        self.assertEqual(events[0]["status"], "unobserved")
+        self.assertEqual(events[0]["dead_reason"], "no_caller_observed")
+        self.assertNotEqual(events[0]["status"], "dead")
+
+    def test_event_with_designer_owner_is_live(self) -> None:
+        events = [{"name": "Command1_Click"}]
+        classify_events(events, "", "", [{"name": "Command1"}], "Form1")
+        self.assertEqual(events[0]["status"], "live")
+
+    def test_orphan_called_as_sub_is_live(self) -> None:
+        events = [{"name": "FX_Click"}]
+        code = (
+            "Private Sub faxx_Click()\n"
+            "    Dim x As Long\n"
+            "    x = 1\n"
+            "    FX_Click\n"
+            "End Sub\n"
+        )
+        classify_events(events, code, "", [], "Form1")
+        self.assertEqual(events[0]["status"], "live")
+        self.assertEqual(events[0]["note"], "orphan handler, called as sub")
+
+    def test_orphan_without_call_stays_dead(self) -> None:
+        events = [{"name": "Ghost_Click"}]
+        classify_events(events, "Private Sub Ghost_Click()\nEnd Sub\n", "", [], "Form1")
+        self.assertEqual(events[0]["status"], "dead")
+        self.assertIn("orphan", events[0]["dead_reason"])
+
+
+class ReportHonestyTests(unittest.TestCase):
+    def test_unobserved_section_says_not_unreachable(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "out.md"
+            write_report(
+                path,
+                "T.frm",
+                {"name": "FormTest", "caption": "t"},
+                [],
+                [{
+                    "name": "Helper",
+                    "status": "unobserved",
+                    "start_line": 3,
+                    "end_line": 5,
+                    "size": 3,
+                    "scope": "Private",
+                    "dead_reason": "no_caller_observed",
+                }],
+                {},
+                [],
+                10,
+                [],
+                [],
+            )
+            text = path.read_text(encoding="utf-8")
+        self.assertIn("到達不能ではない", text)
+        self.assertIn("未観測", text)
+        self.assertIn("Helper", text)
+        self.assertNotIn("## デッドプロシージャ", text)
+
+
+class FontFaceTests(unittest.TestCase):
+    def test_blacklist_excludes_ms_pgothic(self) -> None:
+        controls = [ctrl("ＭＳ Ｐゴシック", kind="VB.Label"), ctrl("Label1")]
+        classify_controls(controls, 'Label1.Caption = "x"', "", [], "Form1")
+        by_name = {c["name"]: c for c in controls}
+        self.assertFalse(by_name["ＭＳ Ｐゴシック"]["live"])
+        self.assertTrue(by_name["Label1"]["live"])
+        self.assertIn("ＭＳ Ｐゴシック", FONT_FACE_BLACKLIST)
+        self.assertIn("ＭＳ ゴシック", FONT_FACE_BLACKLIST)
+        self.assertIn("MS PGothic", FONT_FACE_BLACKLIST)
+        self.assertIn("MS Gothic", FONT_FACE_BLACKLIST)
+        self.assertGreaterEqual(len(FONT_FACE_BLACKLIST), 2)
+
+
+class ParaOptionalTests(unittest.TestCase):
+    def test_empty_markers_yield_no_hits(self) -> None:
+        lines = _frm_lines('    PARA = "ABC"')
+        self.assertEqual(extract_para(lines, markers=[]), [])
+
+    def test_configured_marker_hits(self) -> None:
+        lines = _frm_lines('    PARA = "ABC"')
+        hits = extract_para(lines, markers=["PARA"])
+        self.assertEqual(len(hits), 1)
+        self.assertEqual(hits[0]["line"], 3)
+        self.assertEqual(hits[0]["marker"], "PARA")
+
+    def test_extract_events_respects_markers(self) -> None:
+        lines = _frm_lines(
+            "Private Sub Command1_Click()",
+            '    PARA = "X"',
+            "End Sub",
+        )
+        ev_empty = extract_events(lines, assign_markers=[])
+        self.assertEqual(ev_empty[0].get("para_sets"), [])
+        ev_para = extract_events(lines, assign_markers=["PARA"])
+        self.assertEqual(ev_para[0]["para_sets"], ["X"])
+
+    def test_report_omits_para_heading_by_default(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "out.md"
+            write_report(
+                path,
+                "T.frm",
+                {"name": "FormTest", "caption": "t"},
+                [],
+                [],
+                {},
+                [],
+                10,
+                [],
+                [],
+            )
+            text = path.read_text(encoding="utf-8")
+        self.assertNotIn("## PARA", text)
+        self.assertNotIn("## 任意スキャン", text)
+        self.assertNotIn("PARA=", text)
+
+    def test_report_optional_scan_when_hits(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "out.md"
+            write_report(
+                path,
+                "T.frm",
+                {"name": "FormTest", "caption": "t"},
+                [],
+                [],
+                {},
+                [{"line": 10, "text": 'PARA = "X"'}],
+                10,
+                [],
+                [],
+                assign_markers=["PARA"],
+            )
+            text = path.read_text(encoding="utf-8")
+        self.assertIn("任意スキャン（消費者固有の識別子）", text)
+        self.assertNotIn("## PARA（", text)
+
+
+class LifetimeSurfaceTests(unittest.TestCase):
+    def test_extract_events_lifetime_and_me_bare_show(self) -> None:
+        lines = _frm_lines(
+            "Private Sub Command1_Click()",
+            "    Me.Show",
+            "    Show vbModal",
+            "    Load Form1",
+            "    Unload Me",
+            "    If Err Then Unload Me: Form12.Show vbModal",
+            "End Sub",
+        )
+        events = extract_events(lines)
+        self.assertEqual(len(events), 1)
+        ev = events[0]
+        show_targets = [c["target"] for c in ev["show_calls"]]
+        self.assertIn("Me", show_targets)
+        self.assertIn("", show_targets)
+        self.assertIn("Form12", show_targets)
+        kinds = [(c["kind"], c["target"]) for c in ev["lifetime_calls"]]
+        self.assertIn(("load", "Form1"), kinds)
+        self.assertGreaterEqual(sum(1 for k, t in kinds if k == "unload" and t == "Me"), 2)
+
+    def test_report_includes_lifetime_table(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "out.md"
+            write_report(
+                path,
+                "T.frm",
+                {"name": "FormTest", "caption": "t"},
+                [],
+                [
+                    {
+                        "name": "Command1_Click",
+                        "status": "live",
+                        "start_line": 3,
+                        "end_line": 8,
+                        "size": 6,
+                        "scope": "Private",
+                        "lifetime_calls": [
+                            {
+                                "kind": "load",
+                                "target": "Form1",
+                                "line": 5,
+                                "text": "Load Form1",
+                            },
+                            {
+                                "kind": "unload",
+                                "target": "Me",
+                                "line": 6,
+                                "text": "Unload Me",
+                            },
+                        ],
+                    }
+                ],
+                {},
+                [],
+                10,
+                [],
+                [],
+            )
+            text = path.read_text(encoding="utf-8")
+        self.assertIn("Load/Unload 文面", text)
+        self.assertIn("`load`", text)
+        self.assertIn("`Form1`", text)
+        self.assertIn("`unload`", text)
+
+
+class ShowMapStatusTests(unittest.TestCase):
+    def test_unobserved_excluded_like_dead(self) -> None:
+        events = [
+            {
+                "name": "LiveShow",
+                "status": "live",
+                "start_line": 1,
+                "shows": ["Form2"],
+                "para_sets": [],
+                "show_calls": [{"target": "Form2"}],
+            },
+            {
+                "name": "DeadShow",
+                "status": "dead",
+                "start_line": 2,
+                "shows": ["Form3"],
+                "para_sets": [],
+                "show_calls": [{"target": "Form3"}],
+            },
+            {
+                "name": "UnseenShow",
+                "status": "unobserved",
+                "start_line": 3,
+                "shows": ["Form4"],
+                "para_sets": [],
+                "show_calls": [{"target": "Form4"}],
+            },
+        ]
+        rows = extract_show_map(events)
+        self.assertEqual([r["sub"] for r in rows], ["LiveShow"])
 
 
 if __name__ == "__main__":

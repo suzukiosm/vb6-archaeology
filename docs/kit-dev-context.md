@@ -23,6 +23,11 @@ VB6 を壊さず理解するための汎用 OS（docs / .cursor / tools）を維
 
 ## 3. 次手（キット）
 
+- （採用済 2026-08-29 · VBP Type/Attribute）inventory が `Type` / `CondComp` / `CompatibleMode` / `CompilationType` / `CompatibleEXE32` / `AutoIncrementVer` を生文字列で残す。表面に `vb_predeclared_id` / `vb_user_mem_id`（生 bool / 生 int。無ければ null）。解釈しない。PARSER_VERSION inv-8
+- （採用済 2026-08-29 · コロン文分割）`lib.vbparse.split_colon_statements` / `iter_statements`。io-catalog / verify `count_ends` / layout 代入走査が同じ規則。到達判定なし。行番号は物理。
+- （採用済 2026-08-29 · parse_procedures 文単位）inventory `parse_procedures` / `parse_declarations` が `iter_statements` を使う。verify と同じ規則。`x = 1: End Sub` で End 照合が揃う。PARSER_VERSION inv-10。`parse_surface` は論理行のまま。
+- （採用済 2026-08-29 · live/dead 正直化）`classify_events` の一般 Sub は `unobserved` / `no_caller_observed`（到達不能ではない）。orphan のみ `dead`。`optional_assign_markers` キット既定空。`FONT_FACE_BLACKLIST`。`show_map` は `unobserved` を旧 `dead` と同じく除外。
+- （採用済 2026-08-29 · Show/Load 文面）`Me.Show` / 単独 `Show`（target は空）と `Load` / `Unload` を文面のまま列挙。`lifetime_calls` は転置しない。`Me` / 空 target は unresolved。PARSER_VERSION inv-9
 - （採用済 2026-08-16 · extra VBP files）inventory が `UserControl=` / `PropertyPage=` / `UserDocument=` / `Designer=` / `RelatedDoc=` / `ResFile32=` を棚卸し。`.ctl` 等は解析、`.res` は一覧のみ。fixture `MiniCtl.ctl`
 - （採用済 2026-08-16 · Show 転置）既存 `show_calls` の逆引きを inventory / excerpt に出す。未解決ターゲットは `unresolved`。呼び出しグラフではない
 - （採用済 2026-08-16 · status）`python -m tools status` — 既存成果物の有無・件数（JSON + 3 行）。sessionStart が同じ 3 行を出す。`verify` は `<stem>_verify.json` を残す。推定・次手は出さない

@@ -4,7 +4,7 @@
 |---|---|---|
 | 1 | 正本を「整理」する | `working/extracts/` にコピーしてから触る |
 | 2 | Caption だけで遷移を実装 | Show / Load を精読。メニューは skeleton `menu_tree`（デザイナ Visible/Enabled）と layout の実行時 `Enabled =` を**混ぜない** |
-| 3 | 正規表現 callgraph を自動生成 | 読んだ Sub の呼び出しだけ記載。Show は既存 `show_calls` の転置まで（`unresolved` をエッジにしない） |
+| 3 | 正規表現 callgraph を自動生成 | 読んだ Sub の呼び出しだけ記載。Show は既存 `show_calls` の転置まで（`unresolved` をエッジにしない）。`Me.Show` を Form 名に正規化してグラフするな |
 | 4 | inventory に無い Sub 名をレポートに書く | 先に inventory 更新 or 記述削除 |
 | 5 | 「100%理解した」と宣言 | チェックリスト達成率だけ言う |
 | 6 | `working/_*.py` を増やし続ける | `tools/` を改定 |
@@ -12,7 +12,7 @@
 | 8 | PowerShell `-replace` / `Set-Content` で日本語ファイルを壊す | エディタツールまたは Python `encoding="utf-8"` で targeted 置換 |
 | 8b | PowerShell 二重引用符内のバッククォートで Markdown を壊す（`` `F ``→FF・`` `v ``→VT） | バルク文字列を PS に載せない。混入検知は `python -m tools scan-chars`（hits=0） |
 | 9 | 到達不能 Form を必須機能扱い | 証拠を残して除外 or Dev 専用と明記 |
-| 9b | `frm_deep_read` のイベント 0 を孤立・到達不能と即断する | 本ツールは .frm 単体解析。他 .frm/.bas からの `Show` / 操作は見えない |
+| 9b | `frm_deep_read` のイベント 0 や `unobserved` を孤立・到達不能と即断する | 本ツールは .frm 単体解析。他 .frm/.bas からの `Show` / 操作は見えない。`unobserved` は「この .frm と .bas の正規表現では呼び出し未観測」であり到達不能ではない |
 | 9c | 親 Frame/PictureBox が `Visible=0` かつコード未参照なのに子孫を必須 UI にする | `ancestor_hidden` を確認し実行時非表示相当として扱う |
 | 9d | deep-read の文列挙をソース順＝実行順と読む（GoTo 飛び越しを無視） | 「GoTo で飛び越えられる文（候補）」「GoTo / ラベル地図」を確認。条件付き GoTo でもその分岐では届かない |
 | 9e | GoTo 飛び越え候補を「デッド確定」とレポートする | 候補のまま残す。断定は tick で証拠つき。`On Error GoTo` / `GoSub` はラベル地図の候補（飛び越えスパンは作らない）。後方 GoTo は未対応 |

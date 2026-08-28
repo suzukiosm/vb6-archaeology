@@ -3,13 +3,15 @@
 
 Reads an extracted VBP (CP932) and lists, per source file, every procedure
 definition found at line start. No call-graph guessing; only facts:
-  - VBP metadata (Startup, Title, version, Object=, form/module/class in VBP order)
+  - VBP metadata (Startup, Title, version, Type, CondComp, CompatibleMode,
+    CompilationType, CompatibleEXE32, AutoIncrementVer, Object=, files in VBP order)
   - per file: VB_Name, form kind, controls (from the .frm header)
-  - per form: show_style candidate + Show statements (MDIChild / Foo.Show arg)
+  - per form: show_style candidate + Show statements (MDIChild / Foo.Show / Me.Show / bare Show)
+  - per form: lifetime_calls (Load / Unload surface; not inverted)
   - show_inbound / show_unresolved: transpose of existing show_calls (not a callgraph)
   - per procedure: kind, visibility, params, returns, line range, event role
   - per file surface: Implements / WithEvents / Instancing + VB_Creatable/Exposed
-    (facts only; not a Form deep-read copy)
+    + VB_PredeclaredId / VB_UserMemId (raw values only; not a Form deep-read copy)
 
 Outputs <stem>_inventory.json / .md / .html into working/reports/.
 Read-only on sources.
@@ -34,14 +36,15 @@ from lib.config import decode_vb6_bytes, reports_root  # noqa: E402
 from lib.console import enable_utf8_stdio  # noqa: E402
 from lib.show_style import (  # noqa: E402
     attach_show_inbound,
+    parse_lifetime_calls_in_line,
     parse_show_calls_in_line,
     self_show_style,
 )
-from lib.vbparse import iter_logical_lines  # noqa: E402
+from lib.vbparse import iter_logical_lines, iter_statements  # noqa: E402
 
 # Bump when parse_* output shape or semantics change (invalidates the cache).
 # Suffix is part of the key (see inventory_file): .frm vs .bas parse differently.
-PARSER_VERSION = "inv-7"
+PARSER_VERSION = "inv-10"
 
 # Designer-like text files: header + code, same family as .frm.
 DESIGNER_SUFFIXES = frozenset({".frm", ".ctl", ".pag", ".dob", ".dsr"})
@@ -77,7 +80,22 @@ VBP_META_CANON = {
     "versionfiledescription": "VersionFileDescription",
     "versionlegalcopyright": "VersionLegalCopyright",
     "versionproductname": "VersionProductName",
+    "type": "Type",
+    "condcomp": "CondComp",
+    "compatiblemode": "CompatibleMode",
+    "compilationtype": "CompilationType",
+    "compatibleexe32": "CompatibleEXE32",
+    "autoincrementver": "AutoIncrementVer",
 }
+# Always present in parse_vbp meta (empty string when the VBP line is absent).
+VBP_META_ALWAYS = (
+    "Type",
+    "CondComp",
+    "CompatibleMode",
+    "CompilationType",
+    "CompatibleEXE32",
+    "AutoIncrementVer",
+)
 AS_RETURN_RE = re.compile(r"(?i)^As\s+(.+?)\s*$")
 
 PROC_RE = re.compile(
@@ -100,7 +118,7 @@ WITHEVENTS_RE = re.compile(
 )
 INSTANCING_RE = re.compile(r"^Instancing\s*=\s*(-?\d+)", re.IGNORECASE)
 ATTR_BOOL_RE = re.compile(
-    r"^Attribute\s+(VB_Creatable|VB_Exposed|VB_GlobalNameSpace)\s*=\s*"
+    r"^Attribute\s+(VB_Creatable|VB_Exposed|VB_GlobalNameSpace|VB_PredeclaredId)\s*=\s*"
     r"(True|False)\s*$",
     re.IGNORECASE,
 )
@@ -108,7 +126,12 @@ ATTR_BOOL_KEYS = {
     "vb_creatable": "VB_Creatable",
     "vb_exposed": "VB_Exposed",
     "vb_global_name_space": "VB_GlobalNameSpace",
+    "vb_predeclared_id": "VB_PredeclaredId",
 }
+ATTR_USER_MEM_ID_RE = re.compile(
+    r"^Attribute\s+VB_UserMemId\s*=\s*(-?\d+)\s*$",
+    re.IGNORECASE,
+)
 
 # Module-level declarations (facts only; locals inside procedures are excluded)
 CONST_RE = re.compile(
@@ -177,7 +200,7 @@ def parse_vbp(vbp_path: Path, *, skip_parent_common: bool = False) -> dict:
     objects: list[dict] = []
     skipped_parent_common: list[dict] = []
     warnings: list[dict] = []
-    meta: dict[str, str] = {}
+    meta: dict[str, str] = {k: "" for k in VBP_META_ALWAYS}
 
     def maybe_skip(kind: str, path: str, ident: str = "") -> bool:
         if skip_parent_common and looks_like_parent_common(path):
@@ -344,17 +367,19 @@ def parse_form_header(lines: list[str]) -> tuple[str | None, list[dict]]:
 
 
 def scan_form_show_facts(lines: list[str], form_kind: str | None) -> dict:
-    """Facts-only Show / MDIChild scan for inventory (not a callgraph).
+    """Facts-only Show / Load / Unload / MDIChild scan (not a callgraph).
 
     - ``self``: show_style candidate for *this* form (MDIChild / MDIForm kind)
-    - ``outbound``: every ``Foo.Show [arg]`` in the file with style hint
+    - ``outbound``: every Show statement (Ident.Show, Me.Show, bare Show)
+    - ``lifetime``: every Load / Unload statement (surface only; not inverted)
     Dead/live classification is deep-read's job; inventory lists the statements.
     """
     mdi_child: bool | None = None
     outbound: list[dict] = []
+    lifetime: list[dict] = []
     in_header = True
-    for i, line in enumerate(lines):
-        s = line.strip()
+    for stmt in iter_statements(lines):
+        s = stmt.text.strip()
         if VBNAME_RE.match(s):
             in_header = False
             continue
@@ -363,29 +388,37 @@ def scan_form_show_facts(lines: list[str], form_kind: str | None) -> dict:
             if mm:
                 mdi_child = mm.group(1) != "0"
             continue
-        outbound.extend(parse_show_calls_in_line(line, i + 1))
+        if stmt.kind != "stmt":
+            continue
+        outbound.extend(parse_show_calls_in_line(stmt.text, stmt.phys_start))
+        lifetime.extend(parse_lifetime_calls_in_line(stmt.text, stmt.phys_start))
     self_block = self_show_style(mdi_child=mdi_child, form_kind=form_kind or "")
     return {
         "self": self_block,
         "mdi_child": mdi_child,
         "outbound": outbound,
+        "lifetime": lifetime,
     }
 
 
 def parse_procedures(lines: list[str]) -> tuple[list[dict], list[dict]]:
     """Return (procedures, declares).
 
+    Walks colon-split statements (same rule as ``verify_inventory.count_ends``).
     Line numbers are physical (1-based). ``_`` continuations are folded so that
     multi-line ``Declare`` signatures capture the full Lib target, while the
     reported ``line`` stays the physical line where the statement begins.
+    Line labels (``kind="label"``) are skipped.
     """
     procs: list[dict] = []
     declares: list[dict] = []
-    logical = iter_logical_lines(lines)
-    in_header = bool(logical) and logical[0].text.startswith("VERSION")
+    stmts = iter_statements(lines)
+    in_header = bool(stmts) and stmts[0].text.startswith("VERSION")
     open_proc: dict | None = None
-    for ll in logical:
-        stripped = ll.text
+    for stmt in stmts:
+        if stmt.kind != "stmt":
+            continue
+        stripped = stmt.text
         if in_header:
             if VBNAME_RE.match(stripped):
                 in_header = False
@@ -398,7 +431,7 @@ def parse_procedures(lines: list[str]) -> tuple[list[dict], list[dict]]:
                     "kind": dm.group(2).capitalize(),
                     "visibility": (dm.group(1) or "Public").capitalize(),
                     "lib": dm.group(4),
-                    "line": ll.phys_start,
+                    "line": stmt.phys_start,
                 }
             )
             continue
@@ -414,12 +447,12 @@ def parse_procedures(lines: list[str]) -> tuple[list[dict], list[dict]]:
                     "visibility": (pm.group(1) or "Public").capitalize(),
                     "params": params,
                     "returns": returns,
-                    "line_start": ll.phys_start,
+                    "line_start": stmt.phys_start,
                 }
         else:
             if END_RE.match(stripped):
-                open_proc["line_end"] = ll.phys_end
-                open_proc["lines"] = ll.phys_end - open_proc["line_start"] + 1
+                open_proc["line_end"] = stmt.phys_end
+                open_proc["lines"] = stmt.phys_end - open_proc["line_start"] + 1
                 procs.append(open_proc)
                 open_proc = None
     if open_proc is not None:  # unterminated (should not happen in valid VB6)
@@ -437,20 +470,23 @@ def parse_declarations(lines: list[str]) -> dict:
     Type blocks close on ``End Enum`` / ``End Type`` (neither matches END_RE, so
     the verify_inventory proc/End invariant is unaffected). Line numbers are
     physical. Multi-declaration single lines (``Const A = 1, B = 2``) capture the
-    first name only — noted as a known limitation.
+    first name only — noted as a known limitation. Colon-separated Consts on one
+    physical line are separate statements and are each captured.
     """
     consts: list[dict] = []
     enums: list[dict] = []
     types: list[dict] = []
     events: list[dict] = []
-    logical = iter_logical_lines(lines)
-    in_header = bool(logical) and logical[0].text.startswith("VERSION")
+    stmts = iter_statements(lines)
+    in_header = bool(stmts) and stmts[0].text.startswith("VERSION")
     in_proc = False
     open_enum: dict | None = None
     open_type: dict | None = None
 
-    for ll in logical:
-        s = ll.text
+    for stmt in stmts:
+        if stmt.kind != "stmt":
+            continue
+        s = stmt.text
         if in_header:
             if VBNAME_RE.match(s):
                 in_header = False
@@ -458,24 +494,24 @@ def parse_declarations(lines: list[str]) -> dict:
 
         if open_enum is not None:
             if END_ENUM_RE.match(s):
-                open_enum["line_end"] = ll.phys_end
+                open_enum["line_end"] = stmt.phys_end
                 enums.append(open_enum)
                 open_enum = None
             elif not s.startswith("'") and s:
                 mm = ENUM_MEMBER_RE.match(s)
                 if mm:
-                    open_enum["members"].append({"name": mm.group(1), "line": ll.phys_start})
+                    open_enum["members"].append({"name": mm.group(1), "line": stmt.phys_start})
             continue
         if open_type is not None:
             if END_TYPE_RE.match(s):
-                open_type["line_end"] = ll.phys_end
+                open_type["line_end"] = stmt.phys_end
                 types.append(open_type)
                 open_type = None
             elif not s.startswith("'") and s:
                 fm = TYPE_FIELD_RE.match(s)
                 if fm:
                     open_type["fields"].append(
-                        {"name": fm.group(1), "as": fm.group(2).strip(), "line": ll.phys_start}
+                        {"name": fm.group(1), "as": fm.group(2).strip(), "line": stmt.phys_start}
                     )
             continue
 
@@ -496,8 +532,8 @@ def parse_declarations(lines: list[str]) -> dict:
             open_enum = {
                 "name": em.group(2),
                 "visibility": (em.group(1) or "Public").capitalize(),
-                "line": ll.phys_start,
-                "line_end": ll.phys_start,
+                "line": stmt.phys_start,
+                "line_end": stmt.phys_start,
                 "members": [],
             }
             continue
@@ -506,8 +542,8 @@ def parse_declarations(lines: list[str]) -> dict:
             open_type = {
                 "name": tm.group(2),
                 "visibility": (tm.group(1) or "Public").capitalize(),
-                "line": ll.phys_start,
-                "line_end": ll.phys_start,
+                "line": stmt.phys_start,
+                "line_end": stmt.phys_start,
                 "fields": [],
             }
             continue
@@ -518,7 +554,7 @@ def parse_declarations(lines: list[str]) -> dict:
                     "name": vm.group(2),
                     "visibility": (vm.group(1) or "Public").capitalize(),
                     "args": vm.group(3).strip(),
-                    "line": ll.phys_start,
+                    "line": stmt.phys_start,
                 }
             )
             continue
@@ -529,7 +565,7 @@ def parse_declarations(lines: list[str]) -> dict:
                     "name": cm.group(2),
                     "visibility": (cm.group(1) or "Private").capitalize(),
                     "value": cm.group(3).strip(),
-                    "line": ll.phys_start,
+                    "line": stmt.phys_start,
                 }
             )
 
@@ -550,11 +586,13 @@ def empty_surface() -> dict:
         "vb_creatable": None,
         "vb_exposed": None,
         "vb_global_name_space": None,
+        "vb_predeclared_id": None,
+        "vb_user_mem_id": None,
     }
 
 
 def parse_surface(lines: list[str]) -> dict:
-    """Collect Implements / WithEvents / Instancing facts (no role inference)."""
+    """Collect Implements / WithEvents / Instancing / Attribute facts (no role inference)."""
     out = empty_surface()
     for i, raw in enumerate(lines, start=1):
         s = raw.strip()
@@ -563,6 +601,10 @@ def parse_surface(lines: list[str]) -> dict:
         im = INSTANCING_RE.match(s)
         if im:
             out["instancing"] = int(im.group(1))
+            continue
+        um = ATTR_USER_MEM_ID_RE.match(s)
+        if um:
+            out["vb_user_mem_id"] = int(um.group(1))
             continue
         am = ATTR_BOOL_RE.match(s)
         if am:
@@ -696,6 +738,7 @@ def _parse_bytes(raw: bytes, path: Path) -> dict:
         out["show_style"] = show_facts["self"]
         out["mdi_child"] = show_facts["mdi_child"]
         out["show_calls"] = show_facts["outbound"]
+        out["lifetime_calls"] = show_facts["lifetime"]
     return out
 
 
@@ -827,6 +870,8 @@ def _has_surface_facts(surf: dict) -> bool:
         surf.get("implements")
         or surf.get("with_events")
         or surf.get("instancing") is not None
+        or surf.get("vb_predeclared_id") is not None
+        or surf.get("vb_user_mem_id") is not None
     )
 
 
@@ -913,6 +958,7 @@ def write_markdown(report: dict, out: Path) -> None:
         "",
         f"- Startup: `{meta.get('Startup', '?')}` / Title: `{meta.get('Title', '?')}` / Exe: `{meta.get('ExeName32', '?')}`",
         f"- Name: `{meta.get('Name', '?')}` / Version: `{ver}` / Command32: `{meta.get('Command32') or '—'}`",
+        f"- Type: `{meta.get('Type') or '—'}` / CondComp: `{meta.get('CondComp') or '—'}` / CompatibleMode: `{meta.get('CompatibleMode') or '—'}` / CompilationType: `{meta.get('CompilationType') or '—'}` / CompatibleEXE32: `{meta.get('CompatibleEXE32') or '—'}` / AutoIncrementVer: `{meta.get('AutoIncrementVer') or '—'}`",
         f"- ファイル: **{report['file_count']}**（VBP 記載順 Form→Module→Class→UserControl…） / プロシージャ合計: **{report['proc_total']}**",
         "- 行頭のプロシージャ定義のみを機械抽出（呼び出し推定なし）。行番号は抽出コピーの実ファイル基準。",
         "- Form の `show_style` / `Show` 文は事実スキャン（`MDIChild`・`Foo.Show [arg]`）。呼び出し元グラフは作らない。",
@@ -1302,6 +1348,7 @@ summary{{cursor:pointer;padding:.3rem 0}}
 <h1>{e(report['vbp'])} インベントリ（VBP → ファイル → プロシージャ）</h1>
 <p class="meta">Startup: <code>{e(meta.get('Startup', '?'))}</code> ／ Title: <code>{e(meta.get('Title', '?'))}</code> ／ Exe: <code>{e(meta.get('ExeName32', '?'))}</code><br>
 Name: <code>{e(meta.get('Name', '?'))}</code> ／ Version: <code>{e(ver)}</code> ／ Command32: <code>{e(meta.get('Command32') or '—')}</code>{obj_html}<br>
+Type: <code>{e(meta.get('Type') or '—')}</code> ／ CondComp: <code>{e(meta.get('CondComp') or '—')}</code> ／ CompatibleMode: <code>{e(meta.get('CompatibleMode') or '—')}</code> ／ CompilationType: <code>{e(meta.get('CompilationType') or '—')}</code> ／ CompatibleEXE32: <code>{e(meta.get('CompatibleEXE32') or '—')}</code> ／ AutoIncrementVer: <code>{e(meta.get('AutoIncrementVer') or '—')}</code><br>
 ファイル {report['file_count']}（VBP 記載順 Form→Module→Class→UserControl…） ／ プロシージャ合計 {report['proc_total']}。
 行頭のプロシージャ定義のみを機械抽出（呼び出し推定なし）。Form の show_style / Show 文は事実スキャン。行番号は working/extracts の実ファイル基準。</p>
 {warn_html}

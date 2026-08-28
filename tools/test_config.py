@@ -120,5 +120,18 @@ class TestScanTargets(unittest.TestCase):
             self.assertEqual(config.scan_roots(root), ["docs", "working/web/src"])
 
 
+class TestOptionalAssignMarkers(unittest.TestCase):
+    def test_kit_default_is_empty(self):
+        self.assertEqual(config.DEFAULTS["optional_assign_markers"], [])
+
+    def test_missing_key_falls_back_to_empty(self):
+        with TempRepo({}) as root:
+            self.assertEqual(config.optional_assign_markers(root), [])
+
+    def test_consumer_list_is_read(self):
+        with TempRepo({"optional_assign_markers": ["PARA"]}) as root:
+            self.assertEqual(config.optional_assign_markers(root), ["PARA"])
+
+
 if __name__ == "__main__":
     unittest.main()

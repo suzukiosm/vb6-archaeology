@@ -28,7 +28,7 @@
 |---|---|
 | ファイル一覧 | `Form=` · `Module=`（`Ident; path`）· `Class=`（同形） · `UserControl=` · `PropertyPage=` · `UserDocument=` · `Designer=`（`Ident; path`、裸パスも可） · `RelatedDoc=` · `ResFile32=`（パスのみ） |
 | コンポーネント | `Object=`（OCX 等。`;` 後のファイル名、無ければ `file: null` + `raw`） |
-| メタ | `Startup=` · `Title=` · `ExeName32=` · `IconForm=` · `Name=` · `Command32=` · `HelpFile=` · `MajorVer=` · `MinorVer=` · `RevisionVer=` · `VersionComments=` · `VersionCompanyName=` · `VersionFileDescription=` · `VersionLegalCopyright=` · `VersionProductName=` |
+| メタ | `Startup=` · `Title=` · `ExeName32=` · `IconForm=` · `Name=` · `Command32=` · `HelpFile=` · `MajorVer=` · `MinorVer=` · `RevisionVer=` · `VersionComments=` · `VersionCompanyName=` · `VersionFileDescription=` · `VersionLegalCopyright=` · `VersionProductName=` · `Type=` · `CondComp=` · `CompatibleMode=` · `CompilationType=` · `CompatibleEXE32=` · `AutoIncrementVer=`（いずれも生文字列。解釈しない） |
 
 `RelatedDoc=` / `ResFile32=` はファイル一覧に載せるが、中身はプロシージャ解析しない（バイナリ・非コード）。  
 パス欠落（`Module=Foo` / 空の `Form=` 等）は一覧に入れず `warnings` に記録する。  

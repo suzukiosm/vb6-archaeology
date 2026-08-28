@@ -87,6 +87,14 @@ class TestConfigSchema(unittest.TestCase):
         found = problems({"reports_http_port": 70000})
         self.assertTrue(any("<= 65535" in p for p in found))
 
+    def test_optional_assign_markers_accepts_empty(self):
+        found = problems({"optional_assign_markers": []})
+        self.assertEqual(found, [])
+
+    def test_optional_assign_markers_rejects_empty_string(self):
+        found = problems({"optional_assign_markers": [""]})
+        self.assertTrue(any("optional_assign_markers[0]" in p for p in found))
+
     def test_invalid_json_reports_line(self):
         with tempfile.TemporaryDirectory() as tmp:
             bad = Path(tmp) / "archaeology.config.json"

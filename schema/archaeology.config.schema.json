@@ -132,6 +132,11 @@
       "description": "Consumer-only: basenames verify-names accepts beyond the inventory.",
       "items": { "type": "string", "minLength": 1 }
     },
+    "optional_assign_markers": {
+      "type": "array",
+      "description": "Consumer-specific assignment markers scanned by deep-read (e.g. PARA). Kit default is empty — not a required business key.",
+      "items": { "type": "string", "minLength": 1 }
+    },
     "notes": {
       "type": "object",
       "description": "Free-form human notes kept next to the settings they explain.",

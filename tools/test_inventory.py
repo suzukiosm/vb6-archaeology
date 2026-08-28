@@ -9,6 +9,15 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import vb6_inventory as inv  # noqa: E402
+from lib.vbparse import iter_statements  # noqa: E402
+
+
+def _stmt_end_count(lines: list[str]) -> int:
+    return sum(
+        1
+        for st in iter_statements(lines)
+        if st.kind == "stmt" and inv.END_RE.match(st.text.strip())
+    )
 
 BAS = """\
 Attribute VB_Name = "M"
@@ -59,9 +68,47 @@ class ParseProceduresTests(unittest.TestCase):
         self.assertEqual(d["visibility"], "Private")
 
     def test_end_count_matches_proc_count(self) -> None:
-        # Guards the verify_inventory invariant.
-        end_count = sum(1 for ln in self.lines if inv.END_RE.match(ln.strip()))
+        # Guards the verify_inventory invariant (statement-level End).
+        end_count = _stmt_end_count(self.lines)
         self.assertEqual(end_count, len(self.procs))
+
+    def test_end_after_colon_closes_procedure(self) -> None:
+        src = """\
+Attribute VB_Name = "M"
+Public Sub Alpha()
+    x = 1: End Sub
+"""
+        procs, _ = inv.parse_procedures(src.splitlines())
+        self.assertEqual(len(procs), 1)
+        self.assertEqual(procs[0]["name"], "Alpha")
+        self.assertNotIn("unterminated", procs[0])
+        self.assertEqual(procs[0]["line_start"], 2)
+        self.assertEqual(procs[0]["line_end"], 3)
+        self.assertEqual(_stmt_end_count(src.splitlines()), 1)
+
+    def test_one_line_sub_with_colon(self) -> None:
+        src = """\
+Attribute VB_Name = "M"
+Public Sub Alpha(): x = 1: End Sub
+"""
+        procs, _ = inv.parse_procedures(src.splitlines())
+        self.assertEqual(len(procs), 1)
+        self.assertEqual(procs[0]["line_start"], 2)
+        self.assertEqual(procs[0]["line_end"], 2)
+        self.assertEqual(procs[0]["lines"], 1)
+        self.assertEqual(_stmt_end_count(src.splitlines()), 1)
+
+    def test_label_is_not_a_procedure(self) -> None:
+        src = """\
+Attribute VB_Name = "M"
+Public Sub Alpha()
+Foo:
+    x = 1
+End Sub
+"""
+        procs, _ = inv.parse_procedures(src.splitlines())
+        self.assertEqual([p["name"] for p in procs], ["Alpha"])
+        self.assertEqual(_stmt_end_count(src.splitlines()), 1)
 
     def test_property_get_let_set_signatures(self) -> None:
         src = """\
@@ -143,9 +190,27 @@ class ParseDeclarationsTests(unittest.TestCase):
     def test_declarations_do_not_add_end_sub(self) -> None:
         # Enum/Type close with End Enum / End Type, not END_RE — invariant holds.
         procs, _ = inv.parse_procedures(DECL_BAS.splitlines())
-        end_count = sum(1 for ln in DECL_BAS.splitlines() if inv.END_RE.match(ln.strip()))
-        self.assertEqual(end_count, len(procs))
+        self.assertEqual(_stmt_end_count(DECL_BAS.splitlines()), len(procs))
         self.assertEqual(len(procs), 1)
+
+    def test_colon_separated_module_consts(self) -> None:
+        src = """\
+Attribute VB_Name = "M"
+Public Const A = 1: Private Const B = 2
+Public Sub Alpha(): Const LocalOnly = 5: End Sub
+"""
+        d = inv.parse_declarations(src.splitlines())
+        names = [c["name"] for c in d["consts"]]
+        self.assertEqual(names, ["A", "B"])
+        self.assertNotIn("LocalOnly", names)
+        procs, _ = inv.parse_procedures(src.splitlines())
+        self.assertEqual(len(procs), 1)
+        self.assertEqual(_stmt_end_count(src.splitlines()), 1)
+
+
+class ParserVersionTests(unittest.TestCase):
+    def test_parser_version_is_inv10(self) -> None:
+        self.assertEqual(inv.PARSER_VERSION, "inv-10")
 
 
 class DecodeTests(unittest.TestCase):
@@ -183,6 +248,12 @@ HELPFILE="proj.hlp"
         self.assertEqual(got["meta"]["MajorVer"], "1")
         self.assertEqual(got["meta"]["HelpFile"], "proj.hlp")
         self.assertEqual(got["meta"]["Command32"], "/silent")
+        self.assertEqual(got["meta"]["Type"], "Exe")
+        self.assertEqual(got["meta"]["CondComp"], "")
+        self.assertEqual(got["meta"]["CompatibleMode"], "")
+        self.assertEqual(got["meta"]["CompilationType"], "")
+        self.assertEqual(got["meta"]["CompatibleEXE32"], "")
+        self.assertEqual(got["meta"]["AutoIncrementVer"], "")
 
     def test_skip_parent_common(self) -> None:
         vbp = """\
@@ -293,6 +364,64 @@ RelatedDoc=..\\..\\docs\\notes.txt
         self.assertIsNone(got["objects"][0]["file"])
         self.assertIn("{12345}", got["objects"][0]["raw"])
 
+    def test_compile_meta_empty_and_present(self) -> None:
+        empty = "Type=Exe\nForm=Form1.frm\nCondComp=\nCompatibleMode=\nCompilationType=\n"
+        full = """\
+Type=OleDll
+CondComp="FOO = 1"
+CompatibleMode=1
+CompilationType=0
+CompatibleEXE32="proj.dll"
+AutoIncrementVer=0
+UnknownKey=drop
+"""
+        with tempfile.TemporaryDirectory() as td:
+            empty_path = Path(td) / "empty.vbp"
+            empty_path.write_bytes(empty.encode("cp932"))
+            empty_got = inv.parse_vbp(empty_path)
+            full_path = Path(td) / "full.vbp"
+            full_path.write_bytes(full.encode("cp932"))
+            full_got = inv.parse_vbp(full_path)
+        for key in (
+            "Type",
+            "CondComp",
+            "CompatibleMode",
+            "CompilationType",
+            "CompatibleEXE32",
+            "AutoIncrementVer",
+        ):
+            self.assertIn(key, empty_got["meta"])
+            self.assertIn(key, full_got["meta"])
+        self.assertEqual(empty_got["meta"]["Type"], "Exe")
+        self.assertEqual(empty_got["meta"]["CondComp"], "")
+        self.assertEqual(empty_got["meta"]["CompatibleMode"], "")
+        self.assertEqual(empty_got["meta"]["CompilationType"], "")
+        self.assertEqual(full_got["meta"]["Type"], "OleDll")
+        self.assertEqual(full_got["meta"]["CondComp"], "FOO = 1")
+        self.assertEqual(full_got["meta"]["CompatibleMode"], "1")
+        self.assertEqual(full_got["meta"]["CompilationType"], "0")
+        self.assertEqual(full_got["meta"]["CompatibleEXE32"], "proj.dll")
+        self.assertEqual(full_got["meta"]["AutoIncrementVer"], "0")
+        self.assertNotIn("UnknownKey", full_got["meta"])
+        with tempfile.TemporaryDirectory() as td:
+            out = Path(td) / "inv.md"
+            inv.write_markdown(
+                {
+                    "vbp": "t.vbp",
+                    "meta": {},
+                    "file_count": 0,
+                    "proc_total": 0,
+                    "objects": [],
+                    "missing_in_extract": [],
+                    "not_in_vbp": [],
+                    "files": [],
+                },
+                out,
+            )
+            md = out.read_text(encoding="utf-8")
+        self.assertIn("Type:", md)
+        self.assertIn("CondComp:", md)
+
 
 class ShowFactsTests(unittest.TestCase):
     def test_mdi_child_and_vbmodal_outbound(self) -> None:
@@ -331,6 +460,7 @@ End Sub
             info = inv.inventory_file(path, use_cache=False)
         self.assertEqual(info["show_style"]["show_style"], "unknown")
         self.assertEqual(info["show_calls"][0]["show_style"], "modal_overlay")
+        self.assertEqual(info.get("lifetime_calls"), [])
         with tempfile.TemporaryDirectory() as td:
             out = Path(td) / "inv.md"
             inv.write_markdown(
@@ -350,6 +480,49 @@ End Sub
             self.assertIn("show_style / Show 文", md)
             self.assertIn("Show 文の転置（事実）", md)
             self.assertIn("modal_overlay", md)
+
+    def test_lifetime_calls_in_json(self) -> None:
+        frm = """\
+VERSION 5.00
+Begin VB.Form Form1
+   Caption = "F"
+End
+Attribute VB_Name = "Form1"
+Private Sub Command1_Click()
+    Load Form2
+    Unload Me
+    Me.Show
+    Show vbModal
+End Sub
+"""
+        with tempfile.TemporaryDirectory() as td:
+            path = Path(td) / "Form1.frm"
+            path.write_bytes(frm.encode("cp932"))
+            info = inv.inventory_file(path, use_cache=False)
+        kinds = [c["kind"] for c in info["lifetime_calls"]]
+        targets = [c["target"] for c in info["lifetime_calls"]]
+        self.assertEqual(kinds, ["load", "unload"])
+        self.assertEqual(targets, ["Form2", "Me"])
+        show_targets = [c["target"] for c in info["show_calls"]]
+        self.assertIn("Me", show_targets)
+        self.assertIn("", show_targets)
+
+    def test_colon_line_splits_show_and_lifetime(self) -> None:
+        src = """\
+VERSION 5.00
+Begin VB.Form Form1
+   Caption = "F"
+End
+Attribute VB_Name = "Form1"
+Private Sub Command1_Click()
+    If Err Then Unload Me: Form12.Show vbModal
+End Sub
+"""
+        facts = inv.scan_form_show_facts(src.splitlines(), "VB.Form")
+        self.assertEqual(facts["lifetime"][0]["kind"], "unload")
+        self.assertEqual(facts["lifetime"][0]["target"], "Me")
+        self.assertEqual(facts["outbound"][0]["target"], "Form12")
+        self.assertEqual(facts["outbound"][0]["show_style"], "modal_overlay")
 
 
 class ParseSurfaceTests(unittest.TestCase):
@@ -382,6 +555,8 @@ End Sub
         self.assertTrue(surf["vb_creatable"])
         self.assertFalse(surf["vb_exposed"])
         self.assertFalse(surf["vb_global_name_space"])
+        self.assertIsNone(surf["vb_predeclared_id"])
+        self.assertIsNone(surf["vb_user_mem_id"])
         self.assertEqual([i["name"] for i in surf["implements"]], ["IPing"])
         self.assertEqual(surf["with_events"][0]["name"], "Bus")
         self.assertEqual(surf["with_events"][0]["as_type"], "AppEvents")
@@ -390,6 +565,36 @@ End Sub
         self.assertGreater(surf["with_events"][0]["line"], 0)
         procs, _ = inv.parse_procedures(src.splitlines())
         self.assertEqual(inv.public_property_count(procs), 1)
+
+    def test_form_predeclared_id_true_and_user_mem_id_null(self) -> None:
+        src = """\
+VERSION 5.00
+Begin VB.Form Form1
+   Caption         =   "x"
+End
+Attribute VB_Name = "Form1"
+Attribute VB_GlobalNameSpace = False
+Attribute VB_Creatable = False
+Attribute VB_PredeclaredId = True
+Attribute VB_Exposed = False
+"""
+        surf = inv.parse_surface(src.splitlines())
+        self.assertTrue(surf["vb_predeclared_id"])
+        self.assertIsNone(surf["vb_user_mem_id"])
+
+    def test_class_predeclared_id_false_and_user_mem_id(self) -> None:
+        src = """\
+VERSION 1.0 CLASS
+BEGIN
+  Instancing = 5
+END
+Attribute VB_Name = "Widget"
+Attribute VB_PredeclaredId = False
+Attribute VB_UserMemId = 0
+"""
+        surf = inv.parse_surface(src.splitlines())
+        self.assertFalse(surf["vb_predeclared_id"])
+        self.assertEqual(surf["vb_user_mem_id"], 0)
 
     def test_withevents_inside_proc_is_ignored(self) -> None:
         src = """\

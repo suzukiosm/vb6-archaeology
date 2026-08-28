@@ -51,6 +51,10 @@ class FixtureContractTests(unittest.TestCase):
             vbp["user_controls"],
             [{"ident": "MiniCtl", "file": "MiniCtl.ctl"}],
         )
+        self.assertEqual(vbp["meta"]["Type"], "Exe")
+        self.assertEqual(vbp["meta"]["CondComp"], "")
+        self.assertEqual(vbp["meta"]["CompatibleMode"], "")
+        self.assertEqual(vbp["meta"]["CompilationType"], "")
 
     def test_form1_has_forward_goto_on_error_and_gosub(self):
         lines = make_fixture.FRM.splitlines()
@@ -80,6 +84,13 @@ class FixtureContractTests(unittest.TestCase):
         self.assertEqual([i["name"] for i in surf["implements"]], ["IPing"])
         self.assertEqual(surf["with_events"][0]["name"], "Bus")
         self.assertTrue(surf["vb_creatable"])
+        self.assertFalse(surf["vb_predeclared_id"])
+        self.assertIsNone(surf["vb_user_mem_id"])
+
+    def test_form_predeclared_id(self):
+        surf = parse_surface(make_fixture.FRM.splitlines())
+        self.assertTrue(surf["vb_predeclared_id"])
+        self.assertIsNone(surf["vb_user_mem_id"])
 
 
 if __name__ == "__main__":

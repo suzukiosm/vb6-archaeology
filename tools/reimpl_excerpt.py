@@ -198,6 +198,24 @@ def load_show_rows_from_inventory(inventory: dict) -> list[dict]:
     return rows
 
 
+def lifetime_rows_from_inventory(inventory: dict) -> list[dict]:
+    """Enumerate Load / Unload surface from inventory. No roles."""
+    rows: list[dict] = []
+    for f in inventory.get("files") or []:
+        for hit in f.get("lifetime_calls") or []:
+            rows.append(
+                {
+                    "file": f.get("file"),
+                    "vb_name": f.get("vb_name"),
+                    "kind": hit.get("kind"),
+                    "target": hit.get("target"),
+                    "line": hit.get("line"),
+                    "text": hit.get("text"),
+                }
+            )
+    return rows
+
+
 def inbound_from_inventory(inventory: dict) -> tuple[list[dict], list[dict]]:
     """Prefer stored show_inbound; otherwise transpose show_calls in memory."""
     files = inventory.get("files") or []
@@ -269,6 +287,8 @@ def module_class_surface(
                 "implements": [i.get("name") or "" for i in (surf.get("implements") or [])],
                 "with_events": [w.get("name") or "" for w in (surf.get("with_events") or [])],
                 "instancing": inst,
+                "vb_predeclared_id": surf.get("vb_predeclared_id"),
+                "vb_user_mem_id": surf.get("vb_user_mem_id"),
                 "public_properties": pub_prop,
                 "unticked": unticked,
             }
@@ -304,6 +324,7 @@ def build_excerpt_html(
     goto_counts: dict[str, dict[str, int]] | None = None,
     inbound_rows: list[dict] | None = None,
     unresolved_rows: list[dict] | None = None,
+    lifetime_rows: list[dict] | None = None,
 ) -> str:
     forms = [f for f in inventory.get("files") or [] if f.get("type") == "form"]
     surfaces = module_class_surface(inventory, ticked)
@@ -360,6 +381,10 @@ def build_excerpt_html(
         we = ", ".join(f"<code>{_esc(n)}</code>" for n in row.get("with_events") or []) or "—"
         inst = row.get("instancing")
         inst_s = str(inst) if inst is not None else "—"
+        pre = row.get("vb_predeclared_id")
+        pre_s = str(pre) if pre is not None else "—"
+        umem = row.get("vb_user_mem_id")
+        umem_s = str(umem) if umem is not None else "—"
         surface_rows.append(
             "<tr>"
             f"<td>{_esc(row['file'])}</td>"
@@ -370,6 +395,8 @@ def build_excerpt_html(
             f"<td>{impl}</td>"
             f"<td>{we}</td>"
             f"<td>{_esc(inst_s)}</td>"
+            f"<td>{_esc(pre_s)}</td>"
+            f"<td>{_esc(umem_s)}</td>"
             f"<td>{_esc(row.get('public_properties', 0))}</td>"
             f"<td>{names}</td>"
             "</tr>"
@@ -377,6 +404,7 @@ def build_excerpt_html(
 
     inbound_rows = inbound_rows if inbound_rows is not None else []
     unresolved_rows = unresolved_rows if unresolved_rows is not None else []
+    lifetime_rows = lifetime_rows if lifetime_rows is not None else []
 
     show_html = []
     for r in show_rows:
@@ -407,6 +435,18 @@ def build_excerpt_html(
             f"<td><code>{_esc(r.get('show_style', 'unknown'))}</code></td>"
             "</tr>"
         )
+    lifetime_html = []
+    for r in lifetime_rows:
+        lifetime_html.append(
+            "<tr>"
+            f"<td><code>{_esc(r.get('file') or r.get('vb_name'))}</code></td>"
+            f"<td>L{_esc(r.get('line'))}</td>"
+            f"<td><code>{_esc(r.get('kind'))}</code></td>"
+            f"<td><code>{_esc(r.get('target'))}</code></td>"
+            f"<td>{_esc((r.get('text') or '')[:80] or '—')}</td>"
+            "</tr>"
+        )
+
     unresolved_html = []
     for r in unresolved_rows:
         unresolved_html.append(
@@ -471,11 +511,11 @@ GoTo 列は skeleton の飛び越え<strong>候補</strong>件数（デッド確
 </table>
 
 <h2>Module / Class 表面（{len(surfaces)}）</h2>
-<p class="meta">未 tick の <code>.bas</code> / <code>.cls</code> · <code>Declare</code> 件数 · Implements / WithEvents / Instancing · 公開 Property。DLL 意味は書かない。詳細は inventory。</p>
+<p class="meta">未 tick の <code>.bas</code> / <code>.cls</code> · <code>Declare</code> 件数 · Implements / WithEvents / Instancing · VB_PredeclaredId / VB_UserMemId · 公開 Property。生値のみ。DLL 意味は書かない。詳細は inventory。</p>
 <table>
-<thead><tr><th>file</th><th>VB_Name</th><th>type</th><th>Proc</th><th>Declare</th><th>Implements</th><th>WithEvents</th><th>Instancing</th><th>公開 Prop</th><th>未 tick</th></tr></thead>
+<thead><tr><th>file</th><th>VB_Name</th><th>type</th><th>Proc</th><th>Declare</th><th>Implements</th><th>WithEvents</th><th>Instancing</th><th>PredeclaredId</th><th>UserMemId</th><th>公開 Prop</th><th>未 tick</th></tr></thead>
 <tbody>
-{''.join(surface_rows) or '<tr><td colspan="10">（module / class なし）</td></tr>'}
+{''.join(surface_rows) or '<tr><td colspan="12">（module / class なし）</td></tr>'}
 </tbody>
 </table>
 
@@ -496,6 +536,15 @@ GoTo 列は skeleton の飛び越え<strong>候補</strong>件数（デッド確
 </tbody>
 </table>
 {"<h3>unresolved</h3><table><thead><tr><th>from</th><th>target</th><th>L</th><th>reason</th></tr></thead><tbody>" + ''.join(unresolved_html) + "</tbody></table>" if unresolved_html else ""}
+
+<h2>Load/Unload 文面（{len(lifetime_rows)}）</h2>
+<p class="meta">文面の列挙。ターゲットは解決しない。役割は書かない。呼び出しグラフではない。</p>
+<table>
+<thead><tr><th>file</th><th>L</th><th>kind</th><th>target</th><th>text</th></tr></thead>
+<tbody>
+{''.join(lifetime_html) or '<tr><td colspan="5">（lifetime_calls なし）</td></tr>'}
+</tbody>
+</table>
 
 <h2>未 tick プロシージャ（{len(unticked)} / inventory {inventory.get('proc_total', '?')}）</h2>
 <table>
@@ -544,6 +593,7 @@ def write_excerpt(
         if r["kind"] == "self" and r["from_form"] in inv_self:
             r["show_style"] = inv_self[r["from_form"]]
     inbound_rows, unresolved_rows = inbound_from_inventory(inventory)
+    lifetime_rows = lifetime_rows_from_inventory(inventory)
     html_text = build_excerpt_html(
         inventory,
         ticked=ticked,
@@ -552,6 +602,7 @@ def write_excerpt(
         goto_counts=goto_counts,
         inbound_rows=inbound_rows,
         unresolved_rows=unresolved_rows,
+        lifetime_rows=lifetime_rows,
     )
     dest = out or (reports / f"{stem}_reimpl_excerpt.html")
     dest.parent.mkdir(parents=True, exist_ok=True)

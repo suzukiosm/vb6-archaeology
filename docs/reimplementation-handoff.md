@@ -48,7 +48,7 @@ VB の `Show` / `Load` / MDI 子は、Web では取り違えやすい。
 | デザイナ `MDIChild = -1` | `mdi_child`（**その Form 自身**） |
 | 印刷プレビュー等で呼び出し元を隠してもよいと合意 | `navigate`（合意のみ・機械では出さない） |
 | 素の `.Show` / `vbModeless` | `unknown`（証拠だけ残す） |
-| `Load` のみで直後に非表示メンテ | 製品面に出さない／Dev のみ（必須 UI にしない） |
+| `Load` のみで直後に非表示メンテ | 製品面に出さない／Dev のみ（必須 UI にしない）。文面は inventory / excerpt の `lifetime_calls` に出る（製品必須にはしない） |
 
 **失敗パターン（実戦）:** モーダル相当をフルページ遷移にし、呼び出し元が消える。  
 `modal_overlay` と判定した Form は、呼び出し元を残す実装を選ぶ。

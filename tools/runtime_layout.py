@@ -28,6 +28,7 @@ from lib.config import (  # noqa: E402
     skeletons_root,
 )
 from lib.console import enable_utf8_stdio  # noqa: E402
+from lib.vbparse import iter_statements, split_colon_statements  # noqa: E402
 
 DEFAULT_EXTRACT = None  # require --extract unless a single extract exists
 REPORTS = reports_root()
@@ -252,9 +253,9 @@ def strip_comment(line: str) -> str:
 
 
 def clean_assign_expr(expr: str) -> str:
-    """同一行の `:` 連結や `Else` 以降を落とす。"""
-    e = expr.strip()
-    e = re.split(r"\s*:\s*", e, maxsplit=1)[0]
+    """`Else` 以降を落とす。コロン尾は ``split_colon_statements`` で切る（文字列内 ``:`` は残す）。"""
+    parts = split_colon_statements(expr)
+    e = parts[0] if parts else expr.strip()
     e = re.split(r"\s+Else\b", e, maxsplit=1, flags=re.IGNORECASE)[0]
     return e.strip()
 
@@ -401,14 +402,16 @@ def extract_file(path: pathlib.Path, file_vb: str) -> list[dict]:
                 code_start = i
                 break
 
-    for i, raw in enumerate(lines, 1):
-        if i < code_start:
+    for stmt in iter_statements(lines):
+        if stmt.phys_start < code_start:
             continue
-        s = strip_comment(raw).strip()
+        if stmt.kind != "stmt":
+            continue
+        s = stmt.text.strip()
         if not s:
             continue
-        if raw.lstrip().startswith("'"):
-            continue
+        i = stmt.phys_start
+        raw = lines[i - 1] if 0 < i <= len(lines) else stmt.text
 
         sm = SUB_RE.match(s)
         if sm:

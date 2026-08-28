@@ -39,6 +39,11 @@
 | F10 | ~~フィクスチャに UserControl / `On Error` / `GoSub` / I/O 5 種が無い~~ **採用済 2026-08-16** `test_make_fixture.py` | `tools/make_fixture.py` |
 | F11 | ~~GitHub Issues は空。改善テンプレはあるがバックログの置き場が無い~~ **採用済 2026-08-16** 正は本ファイル。`python -m tools ideas` | `docs/kit-improvement-ideas.md` · `tools/ideas.py` |
 | F12 | ~~パイプライン進捗を出すコマンドが無い~~ **採用済 2026-08-16** `python -m tools status` | `tools/status.py` |
+| F13 | ~~VBP Type / CondComp / CompatibleMode と VB_PredeclaredId / VB_UserMemId が捨てられる~~ **採用済 2026-08-29** | `vb6_inventory` VBP_META_CANON · parse_surface |
+| F14 | ~~1物理行の `:` 連結を論理行のまま数えて I/O・End・代入を落とす~~ **採用済 2026-08-29**（vbparse 一級。inventory `parse_procedures` も 2026-08-29） | `lib.vbparse.iter_statements` |
+| F15 | ~~deep-read が一般 Sub を `status=dead` / `no caller` と書き 9b と矛盾。PARA / ＭＳ Ｐゴシックがキット必須指紋~~ **採用済 2026-08-29** `unobserved` · `optional_assign_markers` · `FONT_FACE_BLACKLIST` | `frm_deep_read.classify_events` · [anti-patterns 9b](reference/anti-patterns.md) |
+| F16 | ~~`Me.Show` / 単独 `Show` / `Load` / `Unload` が show_calls から落ちる~~ **採用済 2026-08-29** 文面列挙。解決しない。PARSER_VERSION inv-9 | `lib.show_style` · inventory `lifetime_calls` |
+| F17 | ~~inventory `parse_procedures` が論理行のまま verify とずれる~~ **採用済 2026-08-29** 文単位。PARSER_VERSION inv-10 | `vb6_inventory.parse_procedures` · `parse_declarations` |
 
 `show_calls`（Form 単位の出方向事実）は採用済。無いのは **入方向の転置** と **進捗の機械集計**。
 
@@ -124,6 +129,28 @@ skeleton `menu_tree` + deep-read「メニュー木（デザイナ値）」。親
 
 `python -m tools verify-show`。同じ Form の self / 同行 Show が食い違ったら hard（exit 1）。inventory だけの Show（デッド Sub 等）と skeleton 欠は警告・exit 0。どちらが正かは決めない。fixture `Ghost_Click` が inventory_only の回帰。
 
+### P4 — VBP メタと Attribute 表面
+
+#### Q. VBP Type/CondComp/CompatibleMode + VB_PredeclaredId/VB_UserMemId — **採用済 2026-08-29**
+
+inventory の VBP メタに `Type` / `CondComp` / `CompatibleMode` / `CompilationType` / `CompatibleEXE32` / `AutoIncrementVer` を生文字列で残す（白リスト外は無視）。モジュール表面に `vb_predeclared_id`（bool | null）と `vb_user_mem_id`（int | null）。Instancing を MultiUse 等に翻訳しない。CompatibleMode から互換破綻を推定しない。PARSER_VERSION `inv-8`。
+
+#### R. コロン文分割 — **採用済 2026-08-29**
+
+`_` 折り後に `:` で文分割。文字列・コメント・ラベルを区別。到達判定なし。io-catalog / verify / layout / inventory `parse_procedures` · `parse_declarations` が採用。`parse_surface` は論理行のまま。
+
+#### S. live/dead 正直化とキット指紋 — **採用済 2026-08-29**
+
+一般 Sub の呼び出し未観測は `unobserved` / `no_caller_observed`（到達不能ではない）。orphan のみ `dead`。`optional_assign_markers` キット既定空。`FONT_FACE_BLACKLIST`。`show_map` は `unobserved` を旧 `dead` と同じく除外。
+
+#### T. Show / Load / Unload 文面 — **採用済 2026-08-29**
+
+`Me.Show` と単独 `Show`（target は空文字。Form に結び付けない）を `show_calls` に載せる。`Load` / `Unload` は `lifetime_calls`（転置しない）。`Me` / 空 target は unresolved（`self` / `implicit`）。verify-show は `target=Me` を比較対象外。PARSER_VERSION `inv-9`。
+
+#### U. parse_procedures 文単位 — **採用済 2026-08-29**
+
+inventory の `parse_procedures` / `parse_declarations` が `iter_statements` を使う。verify `count_ends` と同じ規則。`x = 1: End Sub` で照合が揃う。PARSER_VERSION `inv-10`。`parse_surface` は論理行のまま。
+
 ---
 
 ## 3. 後回しでよい
@@ -145,4 +172,4 @@ skeleton `menu_tree` + deep-read「メニュー木（デザイナ値）」。親
 3. 採用したら [`kit-dev-context.md`](kit-dev-context.md) の「次手」に「採用済」と日付を足し、本ファイルの該当節を短くする
 4. 捨てる案は「やらない」表へ移す（消して忘れない）
 
-P0 · P1 · P2 · P3 と穴 F1–F12 は採用済。残るのは「後回し」表と「やらない」表。`python -m tools ideas` が機械集計する。
+P0 · P1 · P2 · P3 · P4 と穴 F1–F17 は採用済。残るのは「後回し」表と「やらない」表。`python -m tools ideas` が機械集計する。

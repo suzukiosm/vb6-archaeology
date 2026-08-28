@@ -14,7 +14,7 @@
 ## 検証を伴わないレポートは出さない
 
 - 機械抽出は独立手段でクロスチェックする  
-  例: プロシージャ数 == 行頭 `End Sub|Function|Property` 数（`python -m tools verify`）
+  例: プロシージャ数 == `End Sub|Function|Property` 数（文単位。`python -m tools verify`）
 - 既存レポートを引用する前に inventory と矛盾しないか確認
 - 再利用解析は `tools/` に置き、サイクル中に改定する
 
@@ -30,6 +30,7 @@
 - 正本ディレクトリ: 読取専用（hooks）
 - 成果: `working/reports/` に JSON + MD + 必要なら HTML
 - HTML 閲覧: ローカル HTTP（`file://` 不可）
+- 論理行とコロン文。`iter_logical_lines` は空白＋末尾 `_` だけを折り、物理行番号（`phys_start` / `phys_end`）を保持する。1物理行に `:` で並んだ文は `iter_statements` が **同じ物理行番号のまま** 分割する（`If Err Then Unload Me: Exit Sub` は2文）。行番号の正は常に物理行。文字列内の `:` と `'` コメントは切らない。行ラベル `Foo:` は文ではない（`kind=label`）。到達判定はしない。`#If`・古い数値行番号・DATA 文の `:` は既知制限。inventory `parse_procedures` / `parse_declarations` と verify `count_ends` は同じ文分割。`parse_surface` は論理行のまま。
 
 ## 理解度スコア
 
@@ -40,8 +41,13 @@
 ## Form 深読みの範囲
 
 - `frm_deep_read.py` は **対象 .frm 単体**の解析。他 .frm/.bas からの参照（`Show` 呼び元・外部操作）は見えない
-- `.bas` / `.cls` は同じコマンドで **表面レポート**（Implements / WithEvents / Instancing / プロシージャ / Show 文面 / GoTo）。メニュー・Ctrl・ライブ/デッド分類はしない
+- `.bas` / `.cls` は同じコマンドで **表面レポート**（Implements / WithEvents / Instancing / プロシージャ / Show 文面 / GoTo）。メニュー・Ctrl・ライブ/デッド/未観測の分類はしない
 - イベント数 0 を「孤立・到達不能」と即断しない
+- deep-read の `live` はデザイナ結合のイベント、またはこの .frm/.bas の正規表現で呼び出しが観測された Sub
+- 一般 Sub で呼び出し未観測なら `unobserved`（`dead_reason=no_caller_observed`）。到達不能ではない。旧ラベル `dead` / `no caller` は使わない
+- `dead` はデザイナに owner が無い orphan handler（かつ Sub としても未観測）に限る
+- `show_map` はライブ Sub のみ。`unobserved` は旧 `dead` と同じく対象外（範囲を広げない）
+- `optional_assign_markers`（キット既定空）が無いとき、代入マーカー節（旧 PARA）は出さない。消費者固有の識別子でありキット必須ではない
 - 親が `VB.Frame` / `VB.PictureBox` で設計時 `Visible=0` かつコード非参照（dead container）のとき、子孫に `ancestor_hidden` / `ancestor_hidden_by` が付く（実行時非表示相当）
 - 同一 Sub 内で前方 `GoTo` が注目文（`Open` / ファイル I/O / `Call` 等）を飛び越す場合、deep-read が到達不能**候補**として出す（静的近似。ソース順＝実行順と読まない。デッド確定にしない）
 - extract 横断の `Open` / `Kill` / `Name` / `Get` / `Put` 位置は `python -m tools io-catalog`（業務意味は書かない。飛び越えは skeleton と file+line 突合）

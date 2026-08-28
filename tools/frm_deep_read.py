@@ -29,12 +29,18 @@ from lib.config import (  # noqa: E402
     decode_vb6_bytes,
     extracts_root,
     load_config,
+    optional_assign_markers,
     preferred_extract,
     reports_root,
     skeletons_root,
 )
 from lib.console import enable_utf8_stdio  # noqa: E402
-from lib.show_style import parse_show_calls_in_line, self_show_style  # noqa: E402
+from lib.show_style import (  # noqa: E402
+    parse_lifetime_calls_in_line,
+    parse_show_calls_in_line,
+    self_show_style,
+)
+from lib.vbparse import iter_statements  # noqa: E402
 from vb6_inventory import parse_surface  # noqa: E402
 
 MODULE_SUFFIXES = {".bas", ".cls"}
@@ -51,6 +57,19 @@ EVENT_SUFFIXES = re.compile(
     r"OLEDragOver|OLEStartDrag|dblclick|keydown|mousedown|change|click|unload)$",
     re.IGNORECASE,
 )
+
+# Designer-leak font face names. These are not controls.
+# Only faces seen in Japanese field .frm files; do not guess more.
+FONT_FACE_BLACKLIST = frozenset({
+    "ＭＳ Ｐゴシック",
+    "ＭＳ ゴシック",
+    "MS PGothic",
+    "MS Gothic",
+})
+
+# show_map stays live-Sub only. unobserved is the old "dead" exclusion
+# (do not widen the map when renaming no-caller Subs).
+SHOW_MAP_EXCLUDED_STATUS = frozenset({"dead", "unobserved"})
 
 
 def read_cp932(path: pathlib.Path) -> str:
@@ -187,10 +206,20 @@ def extract_controls(lines: list[str]):
 
 # ── Events ────────────────────────────────────────────────
 
-def extract_events(lines: list[str]):
+def _assign_value_re(markers: list[str]) -> re.Pattern[str] | None:
+    if not markers:
+        return None
+    alts = "|".join(re.escape(m) for m in markers)
+    return re.compile(rf'(?:{alts})\s*=\s*"([^"]+)"')
+
+
+def extract_events(lines: list[str], assign_markers: list[str] | None = None):
     events = []
     in_code = False
     current = None
+    if assign_markers is None:
+        assign_markers = optional_assign_markers()
+    marker_re = _assign_value_re(assign_markers)
 
     for i, line in enumerate(lines):
         s = line.strip()
@@ -232,12 +261,10 @@ def extract_events(lines: list[str]):
             continue
 
         if current and s and not s.startswith("'"):
-            for call in parse_show_calls_in_line(line, i + 1):
-                current.setdefault("shows", []).append(call["target"])
-                current.setdefault("show_calls", []).append(call)
-            pm = re.search(r'PARA\s*=\s*"([^"]+)"', s)
-            if pm:
-                current.setdefault("para_sets", []).append(pm.group(1))
+            if marker_re:
+                pm = marker_re.search(s)
+                if pm:
+                    current.setdefault("para_sets", []).append(pm.group(1))
 
     if current:
         current["end_line"] = len(lines)
@@ -248,11 +275,42 @@ def extract_events(lines: list[str]):
         ev.setdefault("shows", [])
         ev.setdefault("para_sets", [])
         ev.setdefault("show_calls", [])
+        ev.setdefault("lifetime_calls", [])
+
+    _attach_show_and_lifetime(events, lines)
+
+    for ev in events:
         # dedupe preserving order
         ev["shows"] = list(dict.fromkeys(ev["shows"]))
         ev["para_sets"] = list(dict.fromkeys(ev["para_sets"]))
 
     return events
+
+
+def _attach_show_and_lifetime(events: list[dict], lines: list[str]) -> None:
+    """Attach Show / Load / Unload surface to the Sub that contains the line.
+
+    One colon-split statement at a time. Does not resolve targets or graph.
+    """
+    if not events:
+        return
+    for stmt in iter_statements(lines):
+        if stmt.kind != "stmt":
+            continue
+        owner = None
+        for ev in events:
+            start = ev.get("start_line") or 0
+            end = ev.get("end_line") or 0
+            if start <= stmt.phys_start <= end:
+                owner = ev
+                break
+        if owner is None:
+            continue
+        for call in parse_show_calls_in_line(stmt.text, stmt.phys_start):
+            owner["shows"].append(call["target"])
+            owner["show_calls"].append(call)
+        for hit in parse_lifetime_calls_in_line(stmt.text, stmt.phys_start):
+            owner["lifetime_calls"].append(hit)
 
 
 def analyze_menus(controls: list[dict], events: list[dict]):
@@ -359,9 +417,10 @@ def build_menu_tree(controls: list[dict], events: list[dict] | None = None) -> l
 
 
 def extract_show_map(events: list[dict]):
+    """Live-Sub Show / marker rows. ``unobserved`` is excluded like old ``dead``."""
     rows = []
     for e in events:
-        if e.get("status") == "dead":
+        if e.get("status") in SHOW_MAP_EXCLUDED_STATUS:
             continue
         if not e.get("shows") and not e.get("para_sets") and not e.get("show_calls"):
             continue
@@ -391,12 +450,13 @@ def classify_events(
     events: list[dict], code_text: str, bas_text: str,
     controls: list[dict] | None = None, form_name: str = "",
 ):
-    """Classify subs live/dead.
+    """Classify Subs as live / unobserved / dead (orphan).
 
-    Event-named subs are live only if the owning control exists in the designer
-    (case-insensitive). Orphan handlers (e.g. Form11 ``Text1_OLEDragDrop`` with
-    no ``Text1``) never fire; they stay live only when explicitly called as a
-    normal sub elsewhere (e.g. Denpyou ``FX_Click`` called from ``faxx_Click``).
+    Event-named Subs are live when the owning control exists in the designer
+    (case-insensitive). Orphan handlers stay live only when called as a
+    normal Sub. A general Sub with no regex-observed caller is ``unobserved``
+    (not unreachable). ``dead`` is reserved for orphan handlers with no
+    observed call.
     """
     search_text = code_text + "\n" + bas_text
     control_names = {c["name"].lower() for c in (controls or [])}
@@ -431,9 +491,9 @@ def classify_events(
                 ev["dead_reason"] = "orphan (control not in designer)"
             continue
 
-        ev["status"] = "live" if has_real_calls(ev["name"]) else "dead"
-        if ev["status"] == "dead":
-            ev["dead_reason"] = "no caller"
+        ev["status"] = "live" if has_real_calls(ev["name"]) else "unobserved"
+        if ev["status"] == "unobserved":
+            ev["dead_reason"] = "no_caller_observed"
 
     return events
 
@@ -451,7 +511,7 @@ def classify_controls(controls, code_text, project_text, events=None, form_name=
     """
     event_owners: set[str] = set()
     for ev in events or []:
-        if ev.get("status") == "dead":
+        if ev.get("status") in SHOW_MAP_EXCLUDED_STATUS:
             continue
         m = EVENT_SUFFIXES.match(ev["name"])
         if m:
@@ -460,7 +520,7 @@ def classify_controls(controls, code_text, project_text, events=None, form_name=
     owners_lower = {o.lower() for o in event_owners}
     for ctrl in controls:
         name = ctrl["name"]
-        if name in ("ＭＳ Ｐゴシック",):
+        if name in FONT_FACE_BLACKLIST:
             ctrl["live"] = False
             continue
         # VB6 identifiers are case-insensitive (designer label3 ↔ code Label3)
@@ -536,11 +596,21 @@ def extract_data_paths(lines: list[str], api_names: set[str] | None = None):
     return paths
 
 
-def extract_para(lines: list[str]):
+def extract_para(lines: list[str], markers: list[str] | None = None):
+    """Optional assignment-marker scan. Kit default markers are empty."""
+    if markers is None:
+        markers = optional_assign_markers()
     hits = []
+    if not markers:
+        return hits
     for i, line in enumerate(lines):
-        if "PARA" in line and not line.strip().startswith("'"):
-            hits.append({"line": i + 1, "text": line.strip()[:200]})
+        s = line.strip()
+        if s.startswith("'"):
+            continue
+        for marker in markers:
+            if marker in s:
+                hits.append({"line": i + 1, "text": s[:200], "marker": marker})
+                break
     return hits
 
 
@@ -896,12 +966,18 @@ def write_report(
     goto_skipped_stmts=None,
     goto_label_maps=None,
     menu_tree=None,
+    assign_markers=None,
 ):
     live = [c for c in controls if c.get("live")]
     dead = [c for c in controls if not c.get("live")]
     live_events = [e for e in events if e["status"] == "live"]
+    unobserved_events = [e for e in events if e["status"] == "unobserved"]
     dead_events = [e for e in events if e["status"] == "dead"]
     events_sorted = sorted(live_events, key=lambda e: e["size"], reverse=True)
+    markers = list(assign_markers or [])
+    show_marker_col = bool(markers) or any(
+        r.get("para_sets") for r in (show_map or [])
+    )
     src = source_label or frm_filename
     style = show_style or form_show_style_block(form_info)
     skipped = list(goto_skipped_stmts or goto_skipped_opens or [])
@@ -913,13 +989,17 @@ def write_report(
     md.append(f"ソース: `{src}`（CP932, {total_lines}行）\n")
     md.append(f"Form Caption: `{form_info['caption']}`\n\n")
     md.append(f"> コントロール: {len(controls)} 全体 → **{len(live)} ライブ** / {len(dead)} デッド（コード未参照）\n")
-    md.append(f"> イベント: {len(events)} 全体 → **{len(live_events)} ライブ** / {len(dead_events)} デッド\n\n")
+    md.append(
+        f"> イベント: {len(events)} 全体 → **{len(live_events)} ライブ**"
+        f" / {len(unobserved_events)} 未観測"
+        f" / {len(dead_events)} デッド（orphan）\n\n"
+    )
     # 本ツールは .frm 単体解析。他 .frm/.bas からの参照は見えないため、
-    # イベント 0 を「孤立・到達不能」と即断させない注記を必ず出す。
+    # イベント 0 や unobserved を「孤立・到達不能」と即断させない注記を必ず出す。
     md.append(
         "> **範囲**: 本レポートはこの .frm 単体の解析。他 .frm/.bas からの参照"
         "（`Show` の呼び元・外部 Sub によるコントロール操作）は対象外。"
-        "イベント数 0 を孤立・到達不能と即断しない"
+        "イベント数 0 や `unobserved` を孤立・到達不能と即断しない"
         f"{'（イベント 0 でも外部から Load / 操作される場合がある）。' if not live_events else '。'}\n\n"
     )
 
@@ -982,30 +1062,57 @@ def write_report(
             )
 
     if show_map:
-        md.append("\n## Form.Show / PARA= マップ（ライブ Sub）\n\n")
-        md.append("| Sub | L | target | arg | show_style | PARA= |\n|---|---|---|---|---|---|\n")
+        if show_marker_col:
+            md.append("\n## Form.Show / 代入マーカー マップ（ライブ Sub）\n\n")
+            md.append(
+                "| Sub | L | target | arg | show_style | 代入 |\n"
+                "|---|---|---|---|---|---|\n"
+            )
+        else:
+            md.append("\n## Form.Show マップ（ライブ Sub）\n\n")
+            md.append("| Sub | L | target | arg | show_style |\n|---|---|---|---|---|\n")
         for r in show_map[:40]:
             paras = ", ".join(f'`"{p}"`' for p in r["para_sets"]) or "—"
+            marker_cell = f" | {paras}" if show_marker_col else ""
             calls = r.get("calls") or []
             if calls:
                 for c in calls:
                     md.append(
                         f"| `{r['sub']}` | {c.get('line', r['line'])} | "
                         f"`{c['target']}` | {c.get('arg') or '—'} | "
-                        f"`{c.get('show_style', 'unknown')}` | {paras} |\n"
+                        f"`{c.get('show_style', 'unknown')}`{marker_cell} |\n"
                     )
             elif r.get("shows"):
                 shows = ", ".join(f"`{s}`" for s in r["shows"])
                 md.append(
                     f"| `{r['sub']}` | {r['line']} | {shows} | — | "
-                    f"`unknown` | {paras} |\n"
+                    f"`unknown`{marker_cell} |\n"
                 )
             else:
                 md.append(
-                    f"| `{r['sub']}` | {r['line']} | — | — | — | {paras} |\n"
+                    f"| `{r['sub']}` | {r['line']} | — | — | —{marker_cell} |\n"
                 )
         if len(show_map) > 40:
             md.append(f"\n他 {len(show_map) - 40} 件省略\n")
+
+    lifetime_rows = []
+    for ev in events:
+        for hit in ev.get("lifetime_calls") or []:
+            lifetime_rows.append({**hit, "sub": ev.get("name")})
+    if lifetime_rows:
+        md.append("\n## Load/Unload 文面\n\n")
+        md.append(
+            "> 文面の列挙。ターゲットは解決しない。GoTo 飛び越え候補とは別"
+            "（こちらは全文。飛び越え規則は既存のまま）。\n\n"
+        )
+        md.append("| Sub | L | kind | target |\n|---|---|---|---|\n")
+        for hit in lifetime_rows[:40]:
+            md.append(
+                f"| `{hit.get('sub')}` | {hit.get('line')} | "
+                f"`{hit.get('kind')}` | `{hit.get('target')}` |\n"
+            )
+        if len(lifetime_rows) > 40:
+            md.append(f"\n他 {len(lifetime_rows) - 40} 件省略\n")
 
     md.append("\n## ライブイベントプロシージャ\n\n")
     md.append("| Sub | 行範囲 | 行数 | scope |\n|---|---|---|---|\n")
@@ -1014,8 +1121,21 @@ def write_report(
     if len(events_sorted) > 25:
         md.append(f"\n他 {len(events_sorted) - 25} 件省略\n")
 
+    if unobserved_events:
+        md.append(f"\n## 未観測プロシージャ（{len(unobserved_events)}件）\n\n")
+        md.append(
+            "> この .frm と .bas の正規表現では呼び出し未観測。到達不能ではない。\n\n"
+        )
+        for e in unobserved_events:
+            reason = e.get("dead_reason", "")
+            suffix = f" — {reason}" if reason else ""
+            md.append(
+                f"- `{e['name']}` L{e['start_line']}-{e['end_line']} "
+                f"({e['size']}行){suffix}\n"
+            )
+
     if dead_events:
-        md.append(f"\n## デッドプロシージャ（{len(dead_events)}件）\n\n")
+        md.append(f"\n## デッドプロシージャ（orphan）（{len(dead_events)}件）\n\n")
         for e in dead_events:
             reason = e.get("dead_reason", "")
             suffix = f" — {reason}" if reason else ""
@@ -1137,7 +1257,14 @@ def write_report(
             md.append(f"\n他 {len(skipped) - 40} 件省略\n")
 
     if para_hits:
-        md.append(f"\n## PARA（{len(para_hits)}箇所）\n\n")
+        marker_names = ", ".join(f"`{m}`" for m in markers) or "—"
+        md.append(
+            f"\n## 任意スキャン（消費者固有の識別子）（{len(para_hits)}箇所）\n\n"
+        )
+        md.append(
+            f"> config `optional_assign_markers`（{marker_names}）。"
+            "キット必須の業務キーではない。\n\n"
+        )
         for h in para_hits[:15]:
             md.append(f"- L{h['line']}: `{h['text'][:150]}`\n")
 
@@ -1438,11 +1565,12 @@ def main(argv: list[str] | None = None) -> int:
         )
         return 0
 
+    assign_markers = optional_assign_markers()
     form_info, controls = extract_controls(lines)
-    events = extract_events(lines)
+    events = extract_events(lines, assign_markers=assign_markers)
     api_names = extract_declared_apis(code_text, bas_text)
     data_paths = extract_data_paths(lines, api_names)
-    para_hits = extract_para(lines)
+    para_hits = extract_para(lines, markers=assign_markers)
 
     events = classify_events(
         events, code_text, bas_text, controls, form_name=form_info.get("name") or "",
@@ -1461,6 +1589,7 @@ def main(argv: list[str] | None = None) -> int:
     live_ctrls = [c for c in controls if c.get("live")]
     dead_ctrls = [c for c in controls if not c.get("live")]
     live_events = [e for e in events if e["status"] == "live"]
+    unobserved_events = [e for e in events if e["status"] == "unobserved"]
     dead_events = [e for e in events if e["status"] == "dead"]
     hidden_n = sum(1 for c in controls if c.get("ancestor_hidden"))
 
@@ -1468,11 +1597,14 @@ def main(argv: list[str] | None = None) -> int:
     print(f"Form: {form_info['name']} / Caption: {form_info['caption']}")
     print(f"Lines: {len(lines)}")
     print(f"Controls: {len(controls)} total -> {len(live_ctrls)} live, {len(dead_ctrls)} dead")
-    print(f"Events: {len(events)} total -> {len(live_events)} live, {len(dead_events)} dead")
+    print(
+        f"Events: {len(events)} total -> {len(live_events)} live, "
+        f"{len(unobserved_events)} unobserved, {len(dead_events)} dead"
+    )
     print(
         f"Menu tree: {_count_menu_nodes(menu_tree)} "
         f"(roots={len(menu_tree)}) / warnings: {len(menu_findings)} "
-        f"/ Show+PARA map rows: {len(show_map)}"
+        f"/ Show map rows: {len(show_map)}"
     )
     if hidden_n:
         print(f"Ancestor-hidden controls: {hidden_n}")
@@ -1481,7 +1613,7 @@ def main(argv: list[str] | None = None) -> int:
         if items:
             print(f"Data {cat}: {len(items)} hits")
     if para_hits:
-        print(f"PARA: {len(para_hits)} hits")
+        print(f"assign-marker hits: {len(para_hits)}")
     if goto_skipped_stmts:
         print(f"GoTo-skipped stmt candidates: {len(goto_skipped_stmts)}")
         for f in goto_skipped_stmts[:8]:
@@ -1504,8 +1636,13 @@ def main(argv: list[str] | None = None) -> int:
                 flags.append("NoClick")
             print(f"  {f['name']} \"{f['caption']}\" [{','.join(flags)}]")
 
+    if unobserved_events:
+        print("Unobserved procedures (not unreachable):")
+        for e in unobserved_events:
+            reason = e.get("dead_reason", "")
+            print(f"  {e['name']}  L{e['start_line']}-{e['end_line']}  ({e['size']} lines)  {reason}")
     if dead_events:
-        print("Dead procedures:")
+        print("Dead procedures (orphan handlers):")
         for e in dead_events:
             reason = e.get("dead_reason", "")
             print(f"  {e['name']}  L{e['start_line']}-{e['end_line']}  ({e['size']} lines)  {reason}")
@@ -1556,6 +1693,7 @@ def main(argv: list[str] | None = None) -> int:
             goto_label_maps=goto_label_maps,
             show_style=form_show_style_block(form_info),
             menu_tree=menu_tree,
+            assign_markers=assign_markers,
         )
         print(f"Report  -> {report_path}")
 

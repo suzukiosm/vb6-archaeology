@@ -69,6 +69,21 @@ class ScanLogicalLineTests(unittest.TestCase):
         self.assertEqual(entries[0]["file"], "Module1.bas")
         self.assertEqual(entries[0]["path_fragment"], "tmp.dat")
 
+    def test_two_verbs_on_one_physical_line(self) -> None:
+        text = 'Open "tmp.dat" For Output As #1: Kill "tmp.dat"\n'
+        entries = scan_source_text(text, "Module1.bas")
+        self.assertEqual(len(entries), 2)
+        self.assertEqual(entries[0]["kind"], "open")
+        self.assertEqual(entries[1]["kind"], "kill")
+        self.assertEqual(entries[0]["line"], 1)
+        self.assertEqual(entries[1]["line"], 1)
+        self.assertEqual(entries[0]["file"], "Module1.bas")
+
+    def test_label_is_not_classified_as_kill(self) -> None:
+        text = "Kill:\n    x = 1\n"
+        entries = scan_source_text(text, "Module1.bas")
+        self.assertEqual(entries, [])
+
 
 class GotoSkipAttachTests(unittest.TestCase):
     def test_attaches_same_file_and_line(self) -> None:

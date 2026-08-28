@@ -6,13 +6,21 @@
 | 抽出 / extract | `working/extracts/<stem>/` の分析用コピー |
 | inventory | VBP→ファイル→プロシージャの事実レポート |
 | deep-read | `.frm` のライブ Ctrl・イベント・データパス等の機械+整理。`.bas`/`.cls` は表面レポート（Form chrome なし） |
+| live（deep-read Sub） | デザイナに owner があるイベント、またはこの .frm/.bas の正規表現で呼び出しが観測された Sub |
+| dead（deep-read イベント） | デザイナに owner が無い orphan handler（かつ Sub としても未観測） |
+| unobserved | 一般 Sub で、この .frm と .bas の正規表現では呼び出し未観測。到達不能ではない |
+| FONT_FACE_BLACKLIST | デザイナ漏れのフォント面名。コントロールではない（`ＭＳ Ｐゴシック` / `ＭＳ ゴシック` / `MS PGothic` / `MS Gothic`） |
+| optional_assign_markers | 消費者固有の代入マーカー（例: `PARA`）。キット既定は空。deep-read の任意スキャン節 |
 | skeleton | 再実装用の Form コントロール座標 JSON（`menu_tree` = デザイナのメニュー親子） |
 | runtime_layout | コード部が書き換える Left/Top/Visible 等のカタログ |
 | mdi_chrome | config キー。MDI シェル VB_Name（`shell_forms`）と chrome コントロール名（`control_names`）。キット既定は空 |
 | show_style | Show / MDIChild から出す再実装向け候補（`mdi_child` / `modal_overlay` / `unknown` 等）。機械は `navigate` を出さない |
 | Show 転置 | 既存 `show_calls` の逆引き（誰がこの Form を Show しているか）。未解決は `unresolved`。呼び出しグラフではない |
 | excerpt | Form · Module/Class（未 tick · Declare件数 · Implements / WithEvents / Instancing）· Show · GoTo件数 の短い HTML（`python -m tools excerpt` · serve `/excerpt`） |
-| 表面（Module/Class） | inventory の Implements / WithEvents / Instancing（生整数）/ 公開 Property。deep-read ではない |
+| 表面（Module/Class） | inventory の Implements / WithEvents / Instancing（生整数）/ 公開 Property / `vb_predeclared_id` / `vb_user_mem_id`。deep-read ではない |
+| VB_PredeclaredId | `.frm` / `.cls` 等の `Attribute VB_PredeclaredId = True|False`。inventory 表面キー `vb_predeclared_id`（bool | null）。既定インスタンス属性の生 bool。`New` との同一視はしない |
+| VB_UserMemId | `Attribute VB_UserMemId = <整数>`。inventory 表面キー `vb_user_mem_id`（int | null。無ければ null）。デフォルトプロパティの痕跡になりうるが、その断定はしない。生整数のみ |
+| 論理行 / コロン文 | `_` 継続を折った論理行を、文字列外の `:` で文に分割する。行番号は常に物理行。ラベル `Foo:` は文ではない。inventory `parse_procedures` / verify `count_ends` は同じ規則。`parse_surface` は論理行のまま |
 | serve ランディング | `serve` の `/`。inventory · comprehension · excerpt · layout · io-catalog · deep-read へのリンク + ディレクトリ一覧 |
 | io-catalog | extract 横断の `Open` / `Kill` / `Name` / `Get` / `Put`（file:line。業務意味なし。GoTo 飛び越えと突合） |
 | status | 既存成果物の有無・件数（`python -m tools status`）。推定も次手も出さない |

@@ -25,6 +25,9 @@ from lib.console import enable_utf8_stdio  # noqa: E402
 HARD_KINDS = frozenset({"self_style", "call_style", "deep_read_only"})
 WARN_KINDS = frozenset({"inventory_only", "missing_skeleton"})
 NOTE = "neither side is canon; inventory=full file, deep-read=live Subs"
+# Me / implicit (empty target) Show are surface facts, not Form edges.
+# Exclude from style comparison so extra Me.Show never becomes hard.
+SKIP_COMPARE_TARGETS = frozenset({"", "me"})
 
 
 def _style(block: dict | None) -> str:
@@ -80,8 +83,16 @@ def compare_form(entry: dict, skel: dict | None) -> list[dict]:
             }
         )
 
-    inv_calls = {_call_key(c): c for c in entry.get("show_calls") or []}
-    dr_calls = {_call_key(c): c for c in flatten_show_map(skel)}
+    inv_calls = {
+        _call_key(c): c
+        for c in entry.get("show_calls") or []
+        if str(c.get("target") or "").strip().lower() not in SKIP_COMPARE_TARGETS
+    }
+    dr_calls = {
+        _call_key(c): c
+        for c in flatten_show_map(skel)
+        if str(c.get("target") or "").strip().lower() not in SKIP_COMPARE_TARGETS
+    }
 
     for key, call in sorted(inv_calls.items()):
         other = dr_calls.get(key)

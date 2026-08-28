@@ -13,13 +13,25 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT / "tools"))
 from lib.config import decode_vb6_bytes, reports_root  # noqa: E402
 from lib.console import enable_utf8_stdio  # noqa: E402
+from lib.vbparse import iter_statements  # noqa: E402
 
 END_RE = re.compile(r"^End\s+(Sub|Function|Property)\b", re.IGNORECASE)
 
 
 def count_ends(path: Path) -> int:
+    """Count ``End Sub|Function|Property`` per colon-split statement.
+
+    ``x = 1: End Sub`` counts. Line labels are skipped. Inventory
+    ``parse_procedures`` uses the same splitter.
+    """
     text = decode_vb6_bytes(path.read_bytes())
-    return sum(1 for line in text.splitlines() if END_RE.match(line.strip()))
+    n = 0
+    for stmt in iter_statements(text.splitlines()):
+        if stmt.kind != "stmt":
+            continue
+        if END_RE.match(stmt.text.strip()):
+            n += 1
+    return n
 
 
 def main(argv: list[str] | None = None) -> int:

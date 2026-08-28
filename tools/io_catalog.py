@@ -29,7 +29,7 @@ from lib.config import (  # noqa: E402
     skeletons_root,
 )
 from lib.console import enable_utf8_stdio  # noqa: E402
-from lib.vbparse import iter_logical_lines  # noqa: E402
+from lib.vbparse import iter_statements  # noqa: E402
 
 SCAN_SUFFIXES = frozenset({".frm", ".bas", ".cls", ".ctl", ".pag", ".dob", ".dsr"})
 IO_KINDS = ("open", "kill", "name", "get", "put")
@@ -83,17 +83,23 @@ def path_fragment(text: str) -> str:
 
 
 def scan_source_text(text: str, file_name: str) -> list[dict]:
-    """Scan decoded VB6 text. ``file_name`` is the inventory basename."""
+    """Scan decoded VB6 text. ``file_name`` is the inventory basename.
+
+    Walks colon-split statements (not whole logical lines). ``line`` is the
+    physical start of the logical line that contained the statement.
+    """
     lines = text.splitlines()
     entries: list[dict] = []
-    for logical in iter_logical_lines(lines):
-        kind = classify_io_statement(logical.text)
+    for stmt in iter_statements(lines):
+        if stmt.kind != "stmt":
+            continue
+        kind = classify_io_statement(stmt.text)
         if kind is None:
             continue
-        code = logical.text.strip().split("'")[0].strip()
+        code = stmt.text.strip()
         entries.append({
             "file": file_name,
-            "line": logical.phys_start,
+            "line": stmt.phys_start,
             "kind": kind,
             "text": code[:200],
             "path_fragment": path_fragment(code),

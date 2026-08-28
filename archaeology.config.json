@@ -27,6 +27,7 @@
   },
   "picture1_height_by_sub": {},
   "verify_report_allow_files": [],
+  "optional_assign_markers": [],
   "notes": {
     "agents": "Read AGENTS.md then docs/ai-onboarding.md before using the kit. Validate this file with `python -m tools config-check`.",
     "protected_path_markers": "Path segments that are read-only wherever they appear, including outside the repo. Use this when the VB6 originals live on a share instead of inside the repo; protected_source_dirs may then be empty.",
@@ -40,6 +41,7 @@
     "layout_sub_scores": "Optional map of lowercase Sub name → int score for runtime_layout open-path preference. Kit default is form_load/mdiform_load only. Put app-specific openers (e.g. stet_click) in the consumer config — do not upstream them into the kit.",
     "picture1_height_by_sub": "Optional map of lowercase Sub (or sub@file_vb) → Form VB_Name for Picture1.Height context when near_show is empty. Consumer-only; keep empty in the kit.",
     "verify_report_allow_files": "Optional list of basename tokens allowed by verify_report_names.py beyond inventory (other VBP / shared modules). Consumer-only.",
+    "optional_assign_markers": "消費者固有の代入マーカー。キット既定空。",
     "consumer": "When adopting this kit, set protected_source_dirs to your immutable VB6 tree name(s). Use requires LICENSE permission."
   }
 }

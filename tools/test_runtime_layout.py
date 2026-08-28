@@ -569,6 +569,64 @@ class ScanClsTests(unittest.TestCase):
         self.assertEqual(rows[0]["kind"], "form_place")
 
 
+class ColonStatementScanTests(unittest.TestCase):
+    """extract_file walks iter_statements before assignment match."""
+
+    def test_two_assigns_on_one_line(self) -> None:
+        src = """\
+Attribute VB_Name = "Host"
+Private Sub Form_Load()
+    Me.Left = 10: Me.Top = 20
+End Sub
+"""
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "Host.frm"
+            path.write_text(src, encoding="utf-8")
+            rows = extract_file(path, "Host")
+        props = {(r["prop"], r["value"], r["line"]) for r in rows}
+        self.assertIn(("Left", 10, 3), props)
+        self.assertIn(("Top", 20, 3), props)
+
+    def test_then_assign_then_exit_sub(self) -> None:
+        src = """\
+Attribute VB_Name = "Host"
+Private Sub Form_Load()
+    If x Then Child.Visible = True: Exit Sub
+End Sub
+"""
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "Host.frm"
+            path.write_text(src, encoding="utf-8")
+            rows = extract_file(path, "Host")
+        vis = [r for r in rows if r["prop"] == "Visible"]
+        self.assertEqual(len(vis), 1)
+        self.assertEqual(vis[0]["object"], "Child")
+        self.assertEqual(vis[0]["value"], True)
+        self.assertEqual(vis[0]["line"], 3)
+
+    def test_inline_with_dot_assign(self) -> None:
+        src = """\
+Attribute VB_Name = "Host"
+Private Sub Form_Load()
+    With Child: .Left = 50: End With
+End Sub
+"""
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "Host.frm"
+            path.write_text(src, encoding="utf-8")
+            saved = runtime_layout.KNOWN_FORMS
+            runtime_layout.KNOWN_FORMS = {"Child"}
+            try:
+                rows = extract_file(path, "Host")
+            finally:
+                runtime_layout.KNOWN_FORMS = saved
+        left = [r for r in rows if r["prop"] == "Left"]
+        self.assertEqual(len(left), 1)
+        self.assertEqual(left[0]["object"], "Child")
+        self.assertEqual(left[0]["value"], 50)
+
+
 if __name__ == "__main__":
     unittest.main()
+
 

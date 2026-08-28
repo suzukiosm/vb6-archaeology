@@ -24,7 +24,7 @@ python -m tools --version
 |---|---|---|---|
 | `config-check` | `lib/config_schema.py` | 設定を JSON Schema で検証 | stdout（問題ごとに JSON パス） |
 | `extract` | `extract_vbp.py` | VBP 切り出し（`Reference=` スキップ。同 stem の `.frx`/`.ctx` 等もコピー） | `working/extracts/<stem>/` + `_extract_report.json` |
-| `inventory` | `vb6_inventory.py` | 構成事実のみ（Module/Class 表面: Implements / WithEvents / Instancing） | `working/reports/<stem>_inventory.{json,md,html}` |
+| `inventory` | `vb6_inventory.py` | 構成事実のみ（VBP Type / CondComp / CompatibleMode 等の生メタ。Module/Class 表面: Implements / WithEvents / Instancing / VB_PredeclaredId / VB_UserMemId） | `working/reports/<stem>_inventory.{json,md,html}` |
 | `verify` | `verify_inventory.py` | End 文カウント照合 | stdout JSON + `count mismatches: none` |
 | `verify-names` | `verify_report_names.py` | inventory 名集合 ↔ レポート言及照合 | stdout JSON + `name mismatches: none` |
 | `verify-show` | `verify_show.py` | inventory と deep-read の `show_style` 照合（どちらが正かは決めない） | stdout JSON + `<stem>_verify_show.json` |
@@ -49,7 +49,7 @@ python -m tools --version
 | `lib/config.py` | `archaeology.config.json` 読込、保護 dir、デコード |
 | `lib/config_schema.py` | `schema/archaeology.config.schema.json` による設定検証（stdlib のみ） |
 | `lib/console.py` | stdout/stderr を UTF-8 化（各 `main()` 冒頭で呼ぶ。日本語 Caption を非 CP932 コンソールへ出せるように） |
-| `lib/vbparse.py` | `_` 行連結の畳み込み（物理行番号を保持する logical line） |
+| `lib/vbparse.py` | `_` 行連結とコロン文分割（物理行番号を保持） |
 | `lib/cache.py` | 内容アドレス指定の解析キャッシュ（`working/.cache/`） |
 
 ## 使い方（代表）
@@ -107,6 +107,7 @@ python -m tools status
 - `deep_read_name_map` で `deep-read` / `deep-read-all` の出力キー特例を指定できる（任意。既定は VB_Name 小文字）
 - `picture1_height_by_sub` — `layout` が `near_show` 空のとき Picture1.Height の帰属 Form を決める（消費者のみ）
 - `verify_report_allow_files` — `verify-names` が inventory 外ファイル名を許可するリスト（消費者のみ）
+- `optional_assign_markers` — 消費者固有の代入マーカー（例: `PARA`）。**キット既定は空**。deep-read の任意スキャンに使う（必須節ではない）
 - `skeletons_dir` 既定は `working/skeletons`（消費者は web lib 等へ変更可）
 - `reports_http_port` 既定は 8765（`serve --port` で上書き可）
 - `--extract` 未指定時は `working/extracts/` 下一意ならそれを使う（複数ならエラー）
@@ -119,11 +120,12 @@ python -m tools status
   - パーサ挙動を変えたら `vb6_inventory.PARSER_VERSION` を上げて自動無効化する。
 - `--skip-parent-common` — VBP パスが親ディレクトリを2段以上辿るもの（`..\..\` 系）をスキップ。共有ライブラリ参照を棚卸しから外す任意オプション（既定オフ）。
 - 棚卸し対象:
-  - VBP: **Form / Module / Class / UserControl / PropertyPage / UserDocument / Designer**、`RelatedDoc=` / `ResFile32=`（一覧のみ）、`Object=`（OCX 等）、Version / Command32 / HelpFile などメタ
-  - プロシージャ: Sub/Function/Property + **引数・戻り値**、Declare、モジュールレベル Const/Enum/Type/Event
+  - VBP: **Form / Module / Class / UserControl / PropertyPage / UserDocument / Designer**、`RelatedDoc=` / `ResFile32=`（一覧のみ）、`Object=`（OCX 等）、Version / Command32 / HelpFile / Type / CondComp / CompatibleMode / CompilationType / CompatibleEXE32 / AutoIncrementVer などメタ（生文字列）
+  - プロシージャ: Sub/Function/Property + **引数・戻り値**、Declare、モジュールレベル Const/Enum/Type/Event（`iter_statements`。`End` 照合は verify と同じ文単位）
 - パス欠落の `Form=` / `Module=` / `Class=` は一覧に入れず `warnings` に出す（JSON / MD / HTML / CLI サマリ）。
 - HTML レポートは検索ボックス（ファイル名 / VB_Name / プロシージャ / 宣言名）と全開閉ボタン付き。
-- Form の `show_calls` を転置して `show_inbound` / `show_unresolved` を出す（新しい呼び出しは推定しない）。
+- Form の `show_calls`（`Foo.Show` / `Me.Show` / 単独 `Show`）を転置して `show_inbound` / `show_unresolved` を出す（新しい呼び出しは推定しない。`Me` / 空 target は unresolved）。
+- Form の `lifetime_calls`（`Load` / `Unload` 文面。転置しない）。
 - VBP キーの正: `docs/reference/vbp-keys.md`。
 
 ## comprehension scaffold の契約
@@ -155,13 +157,13 @@ python -m unittest discover -s tools -p "test_*.py" -v
 - `test_hooks.py` — 保護 hooks の deny / ask / allowlist / 偽陽性（`resources` を `source` と誤認しない）
 - `test_console.py` — cp1252 コンソール（英語 Windows 相当）でも日本語 Caption を出力して落ちない
 - `test_runtime_layout.py` — Show 経路の文脈解決・Sub 境界で `recent_shows` クリア · `.cls` 走査（合成データ）
-- `test_frm_deep_read.py` — `ancestor_hidden`（死んだ非表示コンテナ配下）· `menu_tree`（デザイナ親子）· `.cls` 表面
+- `test_frm_deep_read.py` — `ancestor_hidden`（死んだ非表示コンテナ配下）· `menu_tree`（デザイナ親子）· `.cls` 表面 · `unobserved` / フォント除外 / 任意代入マーカー
 - `test_ideas.py` — `kit-improvement-ideas.md` の open/adopted 集計
 - `test_show_style.py` — show_style ヒューリスティック · Show 転置 · excerpt 配線
 - `test_verify_report_names.py` — inventory 名集合照合（偽 Sub で fail / 既知名で pass）
 - `test_verify_show.py` — inventory vs deep-read show_style（self/call 食い違いは hard、inventory_only は警告）
-- `test_vbparse.py` — 行連結畳み込みと物理行番号の保持
-- `test_inventory.py` — proc/Declare/Property シグネチャ、Const/Enum/Type/Event、Class=/Object=/meta、`warnings`、`--skip-parent-common`、End 数不変条件
+- `test_vbparse.py` — 行連結畳み込み・コロン分割・ラベル kind
+- `test_inventory.py` — proc/Declare/Property シグネチャ、Const/Enum/Type/Event、Class=/Object=/meta（Type / CondComp / CompatibleMode 等）、`warnings`、`--skip-parent-common`、End 数不変条件、表面 VB_PredeclaredId / VB_UserMemId
 - `test_cache.py` — 内容ハッシュキー・保存/読込
 - `test_build_report.py` — 並列＝逐次の一致・VBP 順維持・HTML 検索 TOC
 - `test_status.py` — 成果物の有無・件数、複数 extract、`default_extract`、verify 永続化

@@ -36,6 +36,7 @@ DEFAULTS: dict = {
     },
     "picture1_height_by_sub": {},
     "verify_report_allow_files": [],
+    "optional_assign_markers": [],
 }
 
 
@@ -160,6 +161,15 @@ def reports_root(repo_root: Path | None = None) -> Path:
 def skeletons_root(repo_root: Path | None = None) -> Path:
     cfg = load_config(repo_root)
     return Path(cfg["_repo_root"]) / cfg["skeletons_dir"]
+
+
+def optional_assign_markers(repo_root: Path | None = None) -> list[str]:
+    """Consumer-specific assignment markers (e.g. PARA). Kit default is empty."""
+    cfg = load_config(repo_root)
+    markers = cfg.get("optional_assign_markers")
+    if markers is None:
+        markers = DEFAULTS["optional_assign_markers"]
+    return [str(m) for m in markers]
 
 
 def decode_vb6_bytes(raw: bytes, repo_root: Path | None = None) -> str:

@@ -97,6 +97,19 @@ class CompareFormTests(unittest.TestCase):
         findings = compare_form(_form(), None)
         self.assertEqual(findings[0]["kind"], "missing_skeleton")
 
+    def test_me_show_is_excluded_from_compare(self):
+        me = {"target": "Me", "show_style": "unknown", "line": 4}
+        findings = compare_form(_form(calls=[me]), _skel())
+        self.assertEqual(findings, [])
+        findings_both = compare_form(_form(), _skel(calls=[me]))
+        self.assertEqual(findings_both, [])
+        self.assertNotIn("self_style", [f["kind"] for f in findings])
+        self.assertNotIn("deep_read_only", [f["kind"] for f in findings_both])
+
+    def test_empty_target_show_is_excluded_from_compare(self):
+        bare = {"target": "", "show_style": "modal_overlay", "line": 5}
+        self.assertEqual(compare_form(_form(calls=[bare]), _skel()), [])
+
 
 class CompareInventoryTests(unittest.TestCase):
     def test_ok_with_inventory_only_warning(self):
