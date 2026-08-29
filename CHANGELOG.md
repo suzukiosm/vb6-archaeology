@@ -9,6 +9,11 @@ Versions are exposed by `python -m tools --version` (`tools/__init__.py`).
 
 ### Added
 
+- inventory の VBP メタに `Type` / `CondComp` / `CompatibleMode` / `CompilationType` / `CompatibleEXE32` / `AutoIncrementVer` を生文字列で残す。モジュール表面に `vb_predeclared_id`（bool | null）と `vb_user_mem_id`（int | null）。解釈しない。PARSER_VERSION inv-8
+- `lib.vbparse` — `_` 折り後に文字列外の `:` で文分割（`iter_statements` / `split_colon_statements`）。io-catalog / verify `count_ends` / layout / inventory が同じ規則。到達判定なし。行番号は物理。`#If`・数値行番号・DATA の `:` は既知制限
+- `Me.Show` / 単独 `Show`（target は `Me` / 空。Form に結び付けない）を `show_calls` に載せる。`Load` / `Unload` は `lifetime_calls`（転置しない）。PARSER_VERSION inv-9
+- inventory `parse_procedures` / `parse_declarations` が `iter_statements`。`x = 1: End Sub` で End 照合が揃う。PARSER_VERSION inv-10
+- `parse_surface` が `iter_statements`。`Const A = 1, B = 2` を複数件（文字列・括弧内のカンマは値に残す）。PARSER_VERSION inv-11
 - `python -m tools ideas` — `docs/kit-improvement-ideas.md` の open / adopted / deferred / wont を集計（キットバックログの正。Issues は受付口）
 - `deep-read` / `deep-read-all` が `.bas` / `.cls` の表面レポート + skeleton（Implements / GoTo / Show 文面。Form chrome なし）。fixture `SkipOpen`
 - `python -m tools verify-show` — inventory と deep-read の `show_style` 照合。同じ行の食い違いは exit 1。inventory だけの Show（デッド Sub）は警告。どちらが正かは決めない。fixture `Ghost_Click`
@@ -16,7 +21,11 @@ Versions are exposed by `python -m tools --version` (`tools/__init__.py`).
 
 ### Changed
 
+- deep-read の一般 Sub は呼び出し未観測を `unobserved` / `unobserved_reason=no_caller_observed` と書く（到達不能ではない）。orphan のみ `dead` / `dead_reason`。`optional_assign_markers` キット既定空。`show_map` は `unobserved` を旧 `dead` と同じく除外
+
 ### Fixed
+
+- 未観測 Sub の理由キーを `dead_reason` から分け、`docs/kit-improvement-ideas.md` の「入方向の転置と進捗が無い」死文を消した
 
 ## [0.2.0] - 2026-08-16
 

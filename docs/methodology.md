@@ -44,7 +44,7 @@
 - `.bas` / `.cls` は同じコマンドで **表面レポート**（Implements / WithEvents / Instancing / プロシージャ / Show 文面 / GoTo）。メニュー・Ctrl・ライブ/デッド/未観測の分類はしない
 - イベント数 0 を「孤立・到達不能」と即断しない
 - deep-read の `live` はデザイナ結合のイベント、またはこの .frm/.bas の正規表現で呼び出しが観測された Sub
-- 一般 Sub で呼び出し未観測なら `unobserved`（`dead_reason=no_caller_observed`）。到達不能ではない。旧ラベル `dead` / `no caller` は使わない
+- 一般 Sub で呼び出し未観測なら `unobserved`（`unobserved_reason=no_caller_observed`）。到達不能ではない。旧ラベル `dead` / `no caller` は使わない。`dead_reason` は orphan だけ
 - `dead` はデザイナに owner が無い orphan handler（かつ Sub としても未観測）に限る
 - `show_map` はライブ Sub のみ。`unobserved` は旧 `dead` と同じく対象外（範囲を広げない）
 - `optional_assign_markers`（キット既定空）が無いとき、代入マーカー節（旧 PARA）は出さない。消費者固有の識別子でありキット必須ではない
