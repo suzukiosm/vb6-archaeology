@@ -8,7 +8,7 @@
 | deep-read | `.frm` のライブ Ctrl・イベント・データパス等の機械+整理。`.bas`/`.cls` は表面レポート（Form chrome なし） |
 | live（deep-read Sub） | デザイナに owner があるイベント、またはこの .frm/.bas の正規表現で呼び出しが観測された Sub |
 | dead（deep-read イベント） | デザイナに owner が無い orphan handler（かつ Sub としても未観測） |
-| unobserved | 一般 Sub で、この .frm と .bas の正規表現では呼び出し未観測。到達不能ではない |
+| unobserved | 一般 Sub で、この .frm と .bas の正規表現では呼び出し未観測。到達不能ではない。理由キーは `unobserved_reason`（orphan の `dead_reason` と混ぜない） |
 | FONT_FACE_BLACKLIST | デザイナ漏れのフォント面名。コントロールではない（`ＭＳ Ｐゴシック` / `ＭＳ ゴシック` / `MS PGothic` / `MS Gothic`） |
 | optional_assign_markers | 消費者固有の代入マーカー（例: `PARA`）。キット既定は空。deep-read の任意スキャン節 |
 | skeleton | 再実装用の Form コントロール座標 JSON（`menu_tree` = デザイナのメニュー親子） |

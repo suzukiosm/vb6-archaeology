@@ -46,7 +46,7 @@
 | F17 | ~~inventory `parse_procedures` が論理行のまま verify とずれる~~ **採用済 2026-08-29** 文単位。PARSER_VERSION inv-10 | `vb6_inventory.parse_procedures` · `parse_declarations` |
 | F18 | ~~`parse_surface` が論理行。`Const A = 1, B = 2` は先頭名だけ~~ **採用済 2026-08-29** PARSER_VERSION inv-11 | `vb6_inventory.parse_surface` · `parse_const_declarators` |
 
-`show_calls`（Form 単位の出方向事実）は採用済。無いのは **入方向の転置** と **進捗の機械集計**。
+`show_calls` の出方向・入方向転置と `status` の機械集計は採用済。未着手は §3「後回し」と §0「やらない」だけ。
 
 ---
 

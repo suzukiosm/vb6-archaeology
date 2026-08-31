@@ -484,7 +484,6 @@ def classify_events(
                 ev["status"] = "live"
             elif has_real_calls(ev["name"]):
                 ev["status"] = "live"
-                ev["dead_reason"] = ""
                 ev["note"] = "orphan handler, called as sub"
             else:
                 ev["status"] = "dead"
@@ -493,9 +492,16 @@ def classify_events(
 
         ev["status"] = "live" if has_real_calls(ev["name"]) else "unobserved"
         if ev["status"] == "unobserved":
-            ev["dead_reason"] = "no_caller_observed"
+            ev["unobserved_reason"] = "no_caller_observed"
 
     return events
+
+
+def _status_reason(ev: dict) -> str:
+    """Reason text for unobserved / dead. Old `dead_reason` on unobserved still reads."""
+    if ev.get("status") == "unobserved":
+        return str(ev.get("unobserved_reason") or ev.get("dead_reason") or "")
+    return str(ev.get("dead_reason") or "")
 
 
 def classify_controls(controls, code_text, project_text, events=None, form_name=""):
@@ -1127,7 +1133,7 @@ def write_report(
             "> この .frm と .bas の正規表現では呼び出し未観測。到達不能ではない。\n\n"
         )
         for e in unobserved_events:
-            reason = e.get("dead_reason", "")
+            reason = _status_reason(e)
             suffix = f" — {reason}" if reason else ""
             md.append(
                 f"- `{e['name']}` L{e['start_line']}-{e['end_line']} "
@@ -1137,7 +1143,7 @@ def write_report(
     if dead_events:
         md.append(f"\n## デッドプロシージャ（orphan）（{len(dead_events)}件）\n\n")
         for e in dead_events:
-            reason = e.get("dead_reason", "")
+            reason = _status_reason(e)
             suffix = f" — {reason}" if reason else ""
             md.append(f"- `{e['name']}` L{e['start_line']}-{e['end_line']} ({e['size']}行){suffix}\n")
 
@@ -1285,7 +1291,6 @@ def analyze_module_file(lines: list[str], path: pathlib.Path, vb_name: str) -> d
     events = extract_events(lines)
     for ev in events:
         ev["status"] = "listed"
-        ev["dead_reason"] = ""
         ev["note"] = "module/class: no designer live/dead"
     show_calls: list[dict] = []
     for ev in events:
@@ -1639,12 +1644,12 @@ def main(argv: list[str] | None = None) -> int:
     if unobserved_events:
         print("Unobserved procedures (not unreachable):")
         for e in unobserved_events:
-            reason = e.get("dead_reason", "")
+            reason = _status_reason(e)
             print(f"  {e['name']}  L{e['start_line']}-{e['end_line']}  ({e['size']} lines)  {reason}")
     if dead_events:
         print("Dead procedures (orphan handlers):")
         for e in dead_events:
-            reason = e.get("dead_reason", "")
+            reason = _status_reason(e)
             print(f"  {e['name']}  L{e['start_line']}-{e['end_line']}  ({e['size']} lines)  {reason}")
     offscreen_live = [c for c in live_ctrls if c.get("offscreen")]
     if offscreen_live:

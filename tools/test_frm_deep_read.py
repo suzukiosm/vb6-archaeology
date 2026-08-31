@@ -454,7 +454,8 @@ class ClassifyEventsTests(unittest.TestCase):
         events = [{"name": "Helper"}]
         classify_events(events, "Private Sub Helper()\nEnd Sub\n", "", [], "Form1")
         self.assertEqual(events[0]["status"], "unobserved")
-        self.assertEqual(events[0]["dead_reason"], "no_caller_observed")
+        self.assertEqual(events[0]["unobserved_reason"], "no_caller_observed")
+        self.assertNotIn("dead_reason", events[0])
         self.assertNotEqual(events[0]["status"], "dead")
 
     def test_event_with_designer_owner_is_live(self) -> None:
@@ -498,7 +499,7 @@ class ReportHonestyTests(unittest.TestCase):
                     "end_line": 5,
                     "size": 3,
                     "scope": "Private",
-                    "dead_reason": "no_caller_observed",
+                    "unobserved_reason": "no_caller_observed",
                 }],
                 {},
                 [],
@@ -510,7 +511,34 @@ class ReportHonestyTests(unittest.TestCase):
         self.assertIn("到達不能ではない", text)
         self.assertIn("未観測", text)
         self.assertIn("Helper", text)
+        self.assertIn("no_caller_observed", text)
         self.assertNotIn("## デッドプロシージャ", text)
+
+    def test_unobserved_section_reads_legacy_dead_reason(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "out.md"
+            write_report(
+                path,
+                "T.frm",
+                {"name": "FormTest", "caption": "t"},
+                [],
+                [{
+                    "name": "Helper",
+                    "status": "unobserved",
+                    "start_line": 3,
+                    "end_line": 5,
+                    "size": 3,
+                    "scope": "Private",
+                    "dead_reason": "no_caller_observed",
+                }],
+                {},
+                [],
+                10,
+                [],
+                [],
+            )
+            text = path.read_text(encoding="utf-8")
+        self.assertIn("no_caller_observed", text)
 
 
 class FontFaceTests(unittest.TestCase):
