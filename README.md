@@ -56,20 +56,12 @@ Use a parser when you need an AST. Use this kit when you must not destroy the tr
 
 ```bash
 cd <this-repo>
-python -m tools fixture
-python -m tools extract source/mini_vbp/mini_vbp.vbp
-python -m tools inventory working/extracts/mini_vbp
-python -m tools verify working/reports/mini_vbp_inventory.json
-python -m tools status
-python -m tools deep-read Form1.frm --extract working/extracts/mini_vbp
-python -m tools layout --extract working/extracts/mini_vbp
-python -m tools excerpt
-python -m tools serve
+python -m tools demo
 ```
 
-Then open `http://127.0.0.1:8765/` (landing), inventory HTML, and `/excerpt`.
+Open the URL printed on stdout (landing, inventory HTML, `/excerpt`). If port 8765 is taken, the printed URL is the real one — do not assume 8765.
 
-Self-check (pipeline + tests):
+Full investigation cycle (verify, deep-read, layout, ticks) is `python -m tools --help`. Self-check:
 
 ```bash
 python -m tools smoke

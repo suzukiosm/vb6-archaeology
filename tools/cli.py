@@ -34,6 +34,10 @@ class Command(NamedTuple):
 
 # Ordered as the standard investigation cycle, then helpers, then kit self-check.
 COMMANDS: dict[str, Command] = {
+    "demo": Command(
+        "tools.demo",
+        "One-command fixture tour: extract → inventory → excerpt → serve",
+    ),
     "extract": Command(
         "tools.extract_vbp",
         "Copy a .vbp and the files it references into working/extracts/",
@@ -100,7 +104,7 @@ COMMANDS: dict[str, Command] = {
     ),
     "serve": Command(
         "tools.serve_reports",
-        "Serve reports: / landing, static files, /excerpt; --live-get probes 200",
+        "Serve reports: / landing, static files, /excerpt; occupied port falls back",
     ),
     "fixture": Command(
         "tools.make_fixture",
@@ -115,6 +119,9 @@ COMMANDS: dict[str, Command] = {
 USAGE = f"""usage: python -m tools <command> [args...]
 
 vb6-archaeology {__version__} — investigate VB6 without touching the originals.
+
+First look: `python -m tools demo` (extract → inventory → excerpt → serve).
+Open the URL it prints (if port 8765 is taken, the printed URL is the real one).
 
 commands:
 {{commands}}

@@ -61,11 +61,23 @@ class TestCli(unittest.TestCase):
         self.assertIn("unknown command", err)
         self.assertIn("inventory", err)
 
+    def test_root_help_mentions_demo(self):
+        code, out, _ = run([])
+        self.assertEqual(code, 0)
+        self.assertIn("demo", out)
+
+    def test_tools_readme_lists_every_command(self):
+        readme = Path(__file__).resolve().parent / "README.md"
+        text = readme.read_text(encoding="utf-8")
+        for name in COMMANDS:
+            with self.subTest(command=name):
+                self.assertIn(f"`{name}`", text)
+
 
 class TestLegacyMainSignature(unittest.TestCase):
     """Consumer repos carry tools written before this CLI; both shapes dispatch."""
 
-    def test_main_without_argv_receives_sys_argv(self):
+    def test_main_without_argv_receives_sys_argv(self) -> None:
         seen: dict[str, list[str]] = {}
 
         class Legacy:
@@ -78,7 +90,7 @@ class TestLegacyMainSignature(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertEqual(seen["argv"], ["python -m tools legacy", "--flag", "value"])
 
-    def test_main_with_argv_receives_the_arguments(self):
+    def test_main_with_argv_receives_the_arguments(self) -> None:
         seen: dict[str, list[str]] = {}
 
         class Modern:
@@ -90,7 +102,7 @@ class TestLegacyMainSignature(unittest.TestCase):
         self.assertEqual(dispatch("modern", Modern, ["a", "b"]), 0)
         self.assertEqual(seen["argv"], ["a", "b"])
 
-    def test_sys_argv_is_restored(self):
+    def test_sys_argv_is_restored(self) -> None:
         before = list(sys.argv)
 
         class Legacy:

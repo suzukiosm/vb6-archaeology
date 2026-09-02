@@ -56,20 +56,12 @@ AST が必要ならパーサを使う。正本を壊さず、エージェント�
 
 ```powershell
 cd <this-repo>
-python -m tools fixture
-python -m tools extract "source\mini_vbp\mini_vbp.vbp"
-python -m tools inventory working\extracts\mini_vbp
-python -m tools verify working\reports\mini_vbp_inventory.json
-python -m tools status
-python -m tools deep-read Form1.frm --extract working\extracts\mini_vbp
-python -m tools layout --extract working\extracts\mini_vbp
-python -m tools excerpt
-python -m tools serve
+python -m tools demo
 ```
 
-`http://127.0.0.1:8765/`（目次）、inventory HTML、`/excerpt` を開く。
+stdout に印刷された URL を開く（目次、inventory HTML、`/excerpt`）。8765 が占有なら印刷された URL が正。
 
-自己点検（パイプライン + テスト）:
+調査の全サイクル（verify · deep-read · layout · tick）は `python -m tools --help`。自己点検:
 
 ```powershell
 python -m tools smoke

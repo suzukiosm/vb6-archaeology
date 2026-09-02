@@ -15,6 +15,7 @@ VBP を切り出し・棚卸し・深読み・証拠つき理解まで進める�
 
 | 作業 | コマンド | Cursor command |
 |---|---|---|
+| 5 分デモ | `python -m tools demo` | — |
 | VBP 切り出し | `python -m tools extract "<vbp>"` | `/vb6-extract` |
 | 構成レポート | `python -m tools inventory <extract_dir>` | `/vb6-inventory` |
 | End 数照合 | `python -m tools verify <inventory.json>` | `/vb6-verify-reports` |
@@ -121,8 +122,11 @@ layout → comprehend → excerpt → io-catalog → status → verify-names →
 
 - 「プッシュまで」はコミットとプッシュの両方を含む。コミット／プッシュは明示依頼があるときだけ行う。
 - キット保守中は消費者リポへ書かない。参照は読取のみ。
+- キットの主体は道具（`tools/`）としての完成度。README の発見性や星獲得向けの宣伝は従。
+- LICENSE（source-available）はユーザーの明示なしで変えない。
 
 ## Learned Workspace Facts
 
 - 主な消費者リポは `Z:\_Python\VB6_source`（作業指示書）と `Z:\_Python\delivery_slip`（納品書Ⅱ）。
 - 公開リモートは `https://github.com/suzukiosm/vb6-archaeology`。
+- Linguist は `.gitattributes` で `linguist-language=vb6`。引用符付き `"Visual Basic 6.0"` は git が属性として壊す。

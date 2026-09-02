@@ -11,7 +11,7 @@ VB6 を壊さず理解するための汎用 OS（docs / .cursor / tools）を維
 ## 2. 現状（事実）
 
 - 単一入口: `python -m tools <command>`（`tools/cli.py` の `COMMANDS` が正。個別 `python tools/<name>.py` も維持）
-- コアツール: extract / inventory / verify_inventory / verify_report_names / verify_show / frm_deep_read / runtime_layout / comprehension_scaffold / reimpl_excerpt / io_catalog / status
+- コアツール: demo / extract / inventory / verify_inventory / verify_report_names / verify_show / frm_deep_read / runtime_layout / comprehension_scaffold / reimpl_excerpt / io_catalog / status / serve_reports
 - 設定検証: `schema/archaeology.config.schema.json` + `lib/config_schema.py`（stdlib のみ）
 - 自己点検: `kit_smoke.py`（config-check → fixture パイプライン → comprehend → excerpt → io-catalog → verify-show → status → verify-names → serve --check · --live-get → scan-chars → ideas + unittest）· CI: ubuntu/windows × Python 3.10/3.13
 - 補助: `frm_lines.py` · `scan_control_chars.py` · `frm_deep_read_all.py`（`deep_read_name_map`）
@@ -23,6 +23,7 @@ VB6 を壊さず理解するための汎用 OS（docs / .cursor / tools）を維
 
 ## 3. 次手（キット）
 
+- （採用済 2026-09-03 · demo / serve フォールバック / ライトテーマ）`python -m tools demo`（extract→inventory→excerpt→serve。tick しない。`--live-get` と混ぜない）。`serve` は占有ポートで空きへフォールバックし印刷 URL が正。レポート HTML は `lib/report_html.py` でライトテーマ固定。`tools/README.md` は英日同一ファイル（要約は COMMANDS）
 - （採用済 2026-08-29 · VBP Type/Attribute）inventory が `Type` / `CondComp` / `CompatibleMode` / `CompilationType` / `CompatibleEXE32` / `AutoIncrementVer` を生文字列で残す。表面に `vb_predeclared_id` / `vb_user_mem_id`（生 bool / 生 int。無ければ null）。解釈しない。PARSER_VERSION inv-8
 - （採用済 2026-08-29 · コロン文分割）`lib.vbparse.split_colon_statements` / `iter_statements`。io-catalog / verify `count_ends` / layout 代入走査が同じ規則。到達判定なし。行番号は物理。
 - （採用済 2026-08-29 · parse_procedures 文単位）inventory `parse_procedures` / `parse_declarations` が `iter_statements` を使う。verify と同じ規則。`x = 1: End Sub` で End 照合が揃う。PARSER_VERSION inv-10。
@@ -75,7 +76,7 @@ VB6 を壊さず理解するための汎用 OS（docs / .cursor / tools）を維
 
 ## 5. 公開・運用方針（キット保守）
 
-- GitHub 既定ランディングは英語 `README.md`。日本語は `README.ja.md`。5 分手順と VB6≠VBA の主張は両方を揃える
+- GitHub 既定ランディングは英語 `README.md`。日本語は `README.ja.md`。5 分手順と VB6≠VBA の主張は両方を揃える。`tools/README.md` も英日同一ファイル（コマンド要約は `cli.py` COMMANDS）
 - 対象は **Visual Basic 6**。VBA と混ぜない。Linguist は `.gitattributes` で `linguist-language=vb6`（`.bas` を VBA と出さない）
 - 公開ドキュメント（README・LICENSE）に個人名を出さない。著作権表記は会社名義「有限会社アイコー」のみ
 - README の License 節は `See [LICENSE](LICENSE).` に留め、詳細は LICENSE 側

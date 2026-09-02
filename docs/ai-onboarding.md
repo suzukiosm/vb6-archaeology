@@ -69,6 +69,7 @@ hooks（`.cursor/hooks/`）が書込ツールと破壊的 shell を阻む。
 ## 4. 標準パイプライン
 
 すべて `python -m tools <command>`（一覧は `python -m tools --help`）。
+clone 直後の 5 分入口は `python -m tools demo`（extract → inventory → excerpt → serve。tick しない。本パイプラインの代替ではない）。
 
 ```text
 [正本 .vbp]

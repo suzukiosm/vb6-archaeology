@@ -9,6 +9,7 @@ Versions are exposed by `python -m tools --version` (`tools/__init__.py`).
 
 ### Added
 
+- `python -m tools demo` — フィクスチャの extract → inventory → excerpt → serve。tick しない。`serve --live-get` とは別
 - 公開ランディングを英語 `README.md` + 日本語 `README.ja.md` に分け、`docs/en/`（encoding · VB6≠VBA · adopting 要約）とフィクスチャ画面 `docs/assets/` を追加。Linguist は `.gitattributes` で `.bas`/`.frm` 等を `vb6`（Visual Basic 6.0）とし VBA と混ぜない
 - inventory の VBP メタに `Type` / `CondComp` / `CompatibleMode` / `CompilationType` / `CompatibleEXE32` / `AutoIncrementVer` を生文字列で残す。モジュール表面に `vb_predeclared_id`（bool | null）と `vb_user_mem_id`（int | null）。解釈しない。PARSER_VERSION inv-8
 - `lib.vbparse` — `_` 折り後に文字列外の `:` で文分割（`iter_statements` / `split_colon_statements`）。io-catalog / verify `count_ends` / layout / inventory が同じ規則。到達判定なし。行番号は物理。`#If`・数値行番号・DATA の `:` は既知制限
@@ -22,10 +23,13 @@ Versions are exposed by `python -m tools --version` (`tools/__init__.py`).
 
 ### Changed
 
+- `tools/README.md` を英日同一ファイルにし、コマンド要約は `python -m tools --help`（`cli.py` COMMANDS）を正とする
 - deep-read の一般 Sub は呼び出し未観測を `unobserved` / `unobserved_reason=no_caller_observed` と書く（到達不能ではない）。orphan のみ `dead` / `dead_reason`。`optional_assign_markers` キット既定空。`show_map` は `unobserved` を旧 `dead` と同じく除外
 
 ### Fixed
 
+- `serve` が既定ポート占有時に黙死していた。空きポートへフォールバックし、実際の URL を flush して印刷する。失敗時は `next: python -m tools serve --port <free-port>`
+- レポート HTML（inventory / excerpt / serve ランディング / comprehension）をライトテーマ固定。ダークモードで表が空欄に見えないようにする
 - 未観測 Sub の理由キーを `dead_reason` から分け、`docs/kit-improvement-ideas.md` の「入方向の転置と進捗が無い」死文を消した
 
 ## [0.2.0] - 2026-08-16

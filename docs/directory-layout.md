@@ -25,10 +25,12 @@ vb6-archaeology/
 │   ├── __main__.py           # python -m tools
 │   ├── cli.py                # サブコマンド表（COMMANDS）
 │   ├── kit_smoke.py          # 自己点検（pipeline + unittest）
+│   ├── demo.py               # extract → inventory → excerpt → serve
 │   ├── lib/
 │   │   ├── config.py
 │   │   ├── config_schema.py
 │   │   ├── console.py
+│   │   ├── report_html.py
 │   │   ├── show_style.py
 │   │   ├── vbparse.py
 │   │   └── cache.py

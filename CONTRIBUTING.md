@@ -29,7 +29,7 @@ This kit is **Visual Basic 6**, not VBA. See [docs/en/vb6-not-vba.md](docs/en/vb
 4. Behavior change → `[Unreleased]` in `CHANGELOG.md`. Cutting a release moves that block to `## [X.Y.Z] - YYYY-MM-DD` and sets `tools/__init__.py` `__version__` (`test_version.py` checks)
 5. Changes to `AGENTS.md`, `.cursor/**`, `schema/**`, `archaeology.config.json` need review (`.github/CODEOWNERS`)
 
-Public English docs live in `docs/en/` and `README.md`. Japanese operator docs stay in `docs/` and `README.ja.md`. Keep both landings in sync when the 5-minute path or the VB6≠VBA claim changes.
+Public English docs live in `docs/en/` and `README.md`. Japanese operator docs stay in `docs/` and `README.ja.md`. Keep both landings in sync when the 5-minute path or the VB6≠VBA claim changes. `tools/README.md` is bilingual in one file; command summaries stay in `cli.py` `COMMANDS`.
 
 ---
 
@@ -72,8 +72,8 @@ python -m tools smoke --kit-only
 
 （フィクスチャパイプライン + `tools/` 配下の unittest。CI も同じ入口です。）
 
-ツールを追加したときは `tools/cli.py` の `COMMANDS` と `tools/README.md` の表も更新してください
-（`test_cli.py` が全コマンドの `main` と `--help` を検証します）。
+ツールを追加したときは `tools/cli.py` の `COMMANDS` と `tools/README.md` のコマンド名表を同時に更新してください
+（`test_cli.py` が全コマンドの `main`・`--help`・README の `` `name` `` を検証します）。
 
 ## 変更の置き場
 
