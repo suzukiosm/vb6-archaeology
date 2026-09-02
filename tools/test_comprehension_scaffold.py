@@ -72,6 +72,11 @@ class TestComprehensionScaffold(unittest.TestCase):
         self.assertIn(cs.TICKS_END, text)
         for layer in cs.LAYERS:
             self.assertIn(f'data-layer="{layer}"', text)
+        self.assertIn("color-scheme: light", text)
+        self.assertNotIn("color-scheme: light dark", text)
+        self.assertNotIn("@media (prefers-color-scheme: dark)", text)
+        self.assertIn("background: #ffffff", text)
+        self.assertIn("Rules / 記入規律", text)
 
     def test_rerun_preserves_written_prose(self):
         self.run_cli()

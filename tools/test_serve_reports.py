@@ -2,9 +2,13 @@
 
 from __future__ import annotations
 
+import contextlib
+import errno
+import io
 import json
 import tempfile
 import unittest
+from unittest.mock import patch
 import urllib.request
 from functools import partial
 from http.server import ThreadingHTTPServer
@@ -14,9 +18,12 @@ from threading import Thread
 from tools.serve_reports import (
     FILE_URI_NOTE,
     ReportsHandler,
+    bind_reports_server,
     classify_report,
     live_get,
+    main as serve_main,
     render_landing,
+    serving_announcement,
 )
 
 
@@ -51,6 +58,106 @@ class ClassifyReportTests(unittest.TestCase):
         self.assertIn("<h2>io-catalog</h2>", html)
         self.assertIn("（なし）", html)
         self.assertNotIn("demo_comprehension.html", html)
+        self.assertIn("Reports / レポート", html)
+        self.assertIn("color-scheme: light", html)
+        self.assertNotIn("color-scheme: light dark", html)
+        self.assertIn("background: #ffffff", html)
+        self.assertIn("Do not open as file://", html)
+        self.assertNotIn("@media (prefers-color-scheme: dark)", html)
+
+
+class BindReportsServerTests(unittest.TestCase):
+    def test_requested_ephemeral_port_is_not_fallback(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            handler = partial(ReportsHandler, directory=tmp)
+            httpd, bound, fallback_from = bind_reports_server(
+                "127.0.0.1", 0, handler
+            )
+            try:
+                self.assertIsNone(fallback_from)
+                self.assertGreater(bound, 0)
+            finally:
+                httpd.server_close()
+
+    def test_falls_back_when_requested_port_is_in_use(self) -> None:
+        occupied = 8765
+        ephemeral = 18080
+
+        class Fake:
+            server_address: tuple[str, int]
+
+            def __init__(self, addr: tuple[str, int], _handler: object) -> None:
+                host, port = addr
+                if port == occupied:
+                    raise OSError(errno.EADDRINUSE, "Address already in use")
+                if port == 0:
+                    self.server_address = (host, ephemeral)
+                    return
+                raise AssertionError(f"unexpected port {port}")
+
+            def server_close(self) -> None:
+                return
+
+            def serve_forever(self, poll_interval: float = 0.5) -> None:
+                return
+
+            def __enter__(self) -> Fake:
+                return self
+
+            def __exit__(self, *args: object) -> None:
+                return None
+
+        httpd, bound, fallback_from = bind_reports_server(
+            "127.0.0.1", occupied, object(), server_class=Fake
+        )
+        self.assertEqual(bound, ephemeral)
+        self.assertEqual(fallback_from, occupied)
+        httpd.server_close()
+
+    def test_both_binds_fail_raises(self) -> None:
+        class Fake:
+            def __init__(self, _addr: object, _handler: object) -> None:
+                raise OSError(errno.EADDRINUSE, "Address already in use")
+
+        with self.assertRaises(OSError):
+            bind_reports_server(
+                "127.0.0.1", 8765, object(), server_class=Fake
+            )
+
+    def test_announcement_uses_actual_url_after_fallback(self) -> None:
+        lines = serving_announcement(
+            root=Path("working/reports"),
+            bind="127.0.0.1",
+            bound_port=18080,
+            fallback_from=8765,
+        )
+        text = "\n".join(lines)
+        self.assertIn("8765", text)
+        self.assertIn("http://127.0.0.1:18080/", text)
+        self.assertNotIn("http://127.0.0.1:8765/", text)
+        self.assertIn("in use", text.lower())
+
+    def test_main_bind_failure_prints_next_command(self) -> None:
+        def boom(*_args, **_kwargs):
+            raise OSError(errno.EADDRINUSE, "Address already in use")
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "notes.txt").write_text("x", encoding="utf-8")
+            out, err = io.StringIO(), io.StringIO()
+            with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+                with patch(
+                    "tools.serve_reports.bind_reports_server",
+                    side_effect=boom,
+                ):
+                    code = serve_main(
+                        ["--directory", str(root), "--port", "8765"]
+                    )
+        self.assertEqual(code, 1)
+        err_text = err.getvalue()
+        self.assertIn("cannot bind", err_text.lower())
+        self.assertIn("next:", err_text.lower())
+        self.assertIn("python -m tools serve --port", err_text)
 
 
 class ServeLandingTests(unittest.TestCase):

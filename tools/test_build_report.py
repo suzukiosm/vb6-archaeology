@@ -150,6 +150,12 @@ End Sub
         self.assertIn("s.textContent", doc)
         self.assertNotIn("s.innerText", doc)
         self.assertIn("show_style", doc)
+        self.assertIn("color-scheme: light", doc)
+        self.assertNotIn("color-scheme: light dark", doc)
+        self.assertIn("background: #ffffff", doc)
+        self.assertIn("Expand all / 全て開く", doc)
+        self.assertIn("Collapse all / 全て閉じる", doc)
+        self.assertIn("VB_Name", doc)
 
     def test_form_show_fields_on_report(self) -> None:
         frm = """\

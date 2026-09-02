@@ -34,6 +34,7 @@ from lib.cache import load as cache_load  # noqa: E402
 from lib.cache import store as cache_store  # noqa: E402
 from lib.config import decode_vb6_bytes, reports_root  # noqa: E402
 from lib.console import enable_utf8_stdio  # noqa: E402
+from lib.report_html import COLOR_SCHEME_META, LIGHT_THEME_CSS  # noqa: E402
 from lib.show_style import (  # noqa: E402
     attach_show_inbound,
     parse_lifetime_calls_in_line,
@@ -389,6 +390,8 @@ def file_kind_label(f: dict) -> str:
         return "Class"
     if t == "module":
         return "Module"
+    if not isinstance(t, str):
+        return "?"
     labels = {
         "usercontrol": "UserControl",
         "propertypage": "PropertyPage",
@@ -1381,9 +1384,11 @@ def write_html(report: dict, out: Path) -> None:
 
     doc = f"""<!DOCTYPE html>
 <html lang="ja"><head><meta charset="utf-8">
+{COLOR_SCHEME_META}
 <title>{e(report['vbp'])} インベントリ</title>
 <style>
-body{{font-family:"Segoe UI",Meiryo,sans-serif;margin:2rem auto;max-width:1100px;line-height:1.5;color:#222}}
+{LIGHT_THEME_CSS}
+body{{font-family:"Segoe UI",Meiryo,sans-serif;margin:2rem auto;max-width:1100px;line-height:1.5;color:#222222}}
 table{{border-collapse:collapse;margin:.5rem 0 1rem;width:100%}}
 th,td{{border:1px solid #ccc;padding:.25rem .5rem;font-size:.85rem;text-align:left}}
 th{{background:#f0f2f5}}
@@ -1393,7 +1398,7 @@ details{{border:1px solid #ddd;border-radius:6px;margin:.4rem 0;padding:.3rem .8
 summary{{cursor:pointer;padding:.3rem 0}}
 .warn{{color:#a00}}
 .meta{{color:#555}}
-.toolbar{{position:sticky;top:0;background:#fff;padding:.6rem 0;border-bottom:1px solid #eee;z-index:1;display:flex;gap:.5rem;align-items:center;flex-wrap:wrap}}
+.toolbar{{position:sticky;top:0;background:#ffffff;padding:.6rem 0;border-bottom:1px solid #eee;z-index:1;display:flex;gap:.5rem;align-items:center;flex-wrap:wrap}}
 .toolbar input{{flex:1;min-width:12rem;padding:.35rem .5rem;font-size:.9rem;border:1px solid #bbb;border-radius:4px}}
 .toolbar button{{padding:.35rem .7rem;font-size:.85rem;cursor:pointer;border:1px solid #bbb;border-radius:4px;background:#f7f7f7}}
 .toolbar .count{{color:#555;font-size:.8rem;white-space:nowrap}}
@@ -1406,9 +1411,9 @@ Type: <code>{e(meta.get('Type') or '—')}</code> ／ CondComp: <code>{e(meta.ge
 行頭のプロシージャ定義のみを機械抽出（呼び出し推定なし）。Form の show_style / Show 文は事実スキャン。行番号は working/extracts の実ファイル基準。</p>
 {warn_html}
 <div class="toolbar">
-  <input id="q" type="search" placeholder="検索: ファイル名 / VB_Name / プロシージャ名 / Const / Enum …" autocomplete="off">
-  <button id="expandAll" type="button">全て開く</button>
-  <button id="collapseAll" type="button">全て閉じる</button>
+  <input id="q" type="search" placeholder="Search: filename / VB_Name / procedure / Const / Enum … / 検索: ファイル名 / VB_Name / プロシージャ名 / Const / Enum …" autocomplete="off">
+  <button id="expandAll" type="button">Expand all / 全て開く</button>
+  <button id="collapseAll" type="button">Collapse all / 全て閉じる</button>
   <span class="count" id="count"></span>
 </div>
 <h2>目次</h2>

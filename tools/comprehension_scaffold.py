@@ -31,6 +31,7 @@ sys.path.insert(0, str(REPO_ROOT / "tools"))
 
 from lib.config import reports_root  # noqa: E402
 from lib.console import enable_utf8_stdio  # noqa: E402
+from lib.report_html import COLOR_SCHEME_META, LIGHT_THEME_CSS  # noqa: E402
 
 TICKS_BEGIN = "<!-- TICKS -->"
 TICKS_END = "<!-- TICKS:END -->"
@@ -86,8 +87,9 @@ LAYERS: dict[str, tuple[str, tuple[str, ...]]] = {
     ),
 }
 
-STYLE = """
-:root { color-scheme: light dark; }
+STYLE = (
+    LIGHT_THEME_CSS
+    + """
 body { font-family: "Segoe UI", "Yu Gothic UI", sans-serif; line-height: 1.7;
        margin: 0 auto; max-width: 60rem; padding: 2rem 1.5rem; }
 h1 { margin-bottom: .2rem; }
@@ -104,11 +106,8 @@ section.tick { border: 1px solid #e5e7eb; border-radius: .5rem;
 section.tick h3 { margin: .2rem 0 .6rem; }
 .src { color: #6b7280; font-size: .85rem; font-weight: 400; }
 code { background: #f1f5f9; border-radius: .25rem; padding: 0 .25rem; }
-@media (prefers-color-scheme: dark) {
-  .rules { background: #1f2937; }
-  code, ul.checklist li { background: transparent; }
-}
-""".strip()
+"""
+).strip()
 
 SCRIPT = """
 document.addEventListener('DOMContentLoaded', () => {
@@ -370,6 +369,7 @@ def render_skeleton(data: dict, inventory_path: Path) -> str:
 <html lang="ja">
 <head>
 <meta charset="utf-8">
+{COLOR_SCHEME_META}
 <title>{esc(stem)} — comprehension</title>
 <style>
 {STYLE}
@@ -378,14 +378,14 @@ def render_skeleton(data: dict, inventory_path: Path) -> str:
 <body>
 <h1>{esc(stem)} — comprehension</h1>
 <p class="meta">
-  事実の土台: <code>{esc(inv_rel)}</code>
+  Facts base / 事実の土台: <code>{esc(inv_rel)}</code>
   （{esc(file_count)} files / {esc(proc_total)} procedures）·
-  生成: <code>python -m tools comprehend</code>
+  Generated / 生成: <code>python -m tools comprehend</code>
 </p>
 <p class="progress" id="progress">チェックリスト集計中…</p>
 
 <div class="rules">
-  <strong>記入規律</strong>
+  <strong>Rules / 記入規律</strong>
   <ul>
     <li>事実と推定を混ぜない。推定には証拠（ファイル・プロシージャ・行）を必ず添える。</li>
     <li>inventory に無い名前は書かない。tick 追加はこのツール経由で行う。</li>

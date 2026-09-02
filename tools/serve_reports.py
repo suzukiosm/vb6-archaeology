@@ -6,12 +6,11 @@ through a loopback HTTP server.
 
     python -m tools serve
     python -m tools serve --port 8790
-    python -m tools serve --check      # validate directory, print URL, exit
+    python -m tools serve --check      # validate directory, print planned URL, exit
     python -m tools serve --live-get   # ephemeral port; GET / and /excerpt; expect 200
 
-    http://127.0.0.1:8765/             # landing (inventory / excerpt / io-catalog / …)
-    http://127.0.0.1:8765/excerpt
-    http://127.0.0.1:8765/excerpt?stem=mini_vbp
+    Open the URL printed on stdout. If the configured port is taken, serve
+    binds an ephemeral port and prints that URL instead.
 """
 
 from __future__ import annotations
@@ -32,6 +31,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from lib.config import load_config, reports_root  # noqa: E402
 from lib.console import enable_utf8_stdio  # noqa: E402
+from lib.report_html import COLOR_SCHEME_META, LIGHT_THEME_CSS  # noqa: E402
+from reimpl_excerpt import find_inventory, write_excerpt  # noqa: E402
 
 LANDING_SECTIONS: tuple[tuple[str, str], ...] = (
     ("excerpt", "excerpt"),
@@ -44,12 +45,55 @@ LANDING_SECTIONS: tuple[tuple[str, str], ...] = (
 LAYOUT_NAMES = frozenset(
     {"runtime_layout.md", "runtime_layout.json", "form_layout_gap.md"}
 )
-FILE_URI_NOTE = "file:// では開きません。この HTTP サーバ経由で開いてください。"
+FILE_URI_NOTE = (
+    "Do not open as file://. Use this HTTP server. / "
+    "file:// では開きません。この HTTP サーバ経由で開いてください。"
+)
 DEFAULT_LIVE_GETS = ("/", "/excerpt")
 
 
 def _esc(value: object) -> str:
     return html.escape(str(value if value is not None else ""), quote=True)
+
+
+def bind_reports_server(
+    bind: str,
+    port: int,
+    handler: object,
+    *,
+    server_class: type = ThreadingHTTPServer,
+) -> tuple[ThreadingHTTPServer, int, int | None]:
+    """Bind the reports server. If `port` is taken, bind an ephemeral port.
+
+    Returns ``(httpd, bound_port, fallback_from)``. ``fallback_from`` is the
+    requested port when a fallback occurred, otherwise ``None``.
+    """
+    try:
+        httpd = server_class((bind, port), handler)
+    except OSError:
+        if port == 0:
+            raise
+        httpd = server_class((bind, 0), handler)
+        return httpd, int(httpd.server_address[1]), port
+    return httpd, int(httpd.server_address[1]), None
+
+
+def serving_announcement(
+    *,
+    root: Path,
+    bind: str,
+    bound_port: int,
+    fallback_from: int | None,
+) -> list[str]:
+    """Human lines naming the URL that is actually listening."""
+    url = f"http://{bind}:{bound_port}/"
+    lines: list[str] = []
+    if fallback_from is not None:
+        lines.append(f"port {fallback_from} is in use; using {url} instead")
+    lines.append(f"serving {root} at {url}")
+    lines.append(f"landing: {url}")
+    lines.append(f"reimpl excerpt: {url}excerpt")
+    return lines
 
 
 def live_get(
@@ -130,7 +174,7 @@ def list_report_entries(root: Path) -> list[str]:
 
 
 def grouped_reports(root: Path) -> dict[str, list[str]]:
-    groups = {key: [] for key, _title in LANDING_SECTIONS}
+    groups: dict[str, list[str]] = {key: [] for key, _title in LANDING_SECTIONS}
     for name in list_report_entries(root):
         if name.endswith("/"):
             continue
@@ -169,8 +213,10 @@ def render_landing(root: Path) -> str:
 <html lang="ja">
 <head>
 <meta charset="utf-8"/>
+{COLOR_SCHEME_META}
 <title>vb6-archaeology reports</title>
 <style>
+{LIGHT_THEME_CSS}
   body {{ font-family: system-ui, sans-serif; margin: 1.5rem; max-width: 52rem; }}
   h1 {{ font-size: 1.25rem; }}
   h2 {{ font-size: 1.05rem; margin-top: 1.4rem; }}
@@ -182,9 +228,10 @@ def render_landing(root: Path) -> str:
 </style>
 </head>
 <body>
-<h1>レポート</h1>
+<h1>Reports / レポート</h1>
 <p class="note">{_esc(FILE_URI_NOTE)}</p>
-<p class="meta">存在する成果物へのリンクだけ。無い種類は「なし」。呼び出し関係は推定しない。</p>
+<p class="meta">Existing artifacts only. Missing kinds show なし. No inferred call graph. /
+存在する成果物へのリンクだけ。無い種類は「なし」。呼び出し関係は推定しない。</p>
 {chr(10).join(blocks)}
 <h2>ディレクトリ</h2>
 <ul>
@@ -217,11 +264,9 @@ class ReportsHandler(SimpleHTTPRequestHandler):
         self.wfile.write(body)
 
     def _serve_excerpt(self, query: dict[str, list[str]]) -> None:
-        # Late import keeps --check fast when excerpt deps are unused.
-        from reimpl_excerpt import find_inventory, write_excerpt
-
         root = Path(self.directory)
-        stem = (query.get("stem") or [None])[0]
+        stem_vals = query.get("stem") or []
+        stem = stem_vals[0] if stem_vals else None
         try:
             if stem:
                 inv = find_inventory(root, Path(f"{stem}_inventory.json"))
@@ -288,31 +333,65 @@ def main(argv: list[str] | None = None) -> int:
         print(
             f"reports dir missing: {root} (run `python -m tools inventory` first)",
             file=sys.stderr,
+            flush=True,
         )
+        print("next: python -m tools demo", file=sys.stderr, flush=True)
         return 1
 
-    url = f"http://{args.bind}:{args.port}/"
-    print(f"serving {root} at {url}")
-    print(f"landing: {url}")
-    print(f"reimpl excerpt: {url}excerpt")
     if args.live_get:
         result = live_get(root)
-        print(json.dumps(result, ensure_ascii=False, indent=2))
+        print(json.dumps(result, ensure_ascii=False, indent=2), flush=True)
         if not result.get("ok"):
-            print("live-get: failed (expected HTTP 200 for / and /excerpt)", file=sys.stderr)
+            print(
+                "live-get: failed (expected HTTP 200 for / and /excerpt)",
+                file=sys.stderr,
+                flush=True,
+            )
             return 1
-        print("live-get: ok")
+        print("live-get: ok", flush=True)
         return 0
     if args.check:
+        for line in serving_announcement(
+            root=root,
+            bind=args.bind,
+            bound_port=args.port,
+            fallback_from=None,
+        ):
+            print(line, flush=True)
+        print(
+            "not bound; if that port is taken, serve falls back and prints the real URL",
+            flush=True,
+        )
         return 0
 
     handler = partial(ReportsHandler, directory=str(root))
-    with ThreadingHTTPServer((args.bind, args.port), handler) as httpd:
-        print("Ctrl+C to stop")
+    try:
+        httpd, bound, fallback_from = bind_reports_server(
+            args.bind, args.port, handler
+        )
+    except OSError as exc:
+        detail = exc.strerror or str(exc)
+        print(
+            f"cannot bind {args.bind}:{args.port} ({detail}). "
+            "next: python -m tools serve --port <free-port>",
+            file=sys.stderr,
+            flush=True,
+        )
+        return 1
+
+    with httpd:
+        for line in serving_announcement(
+            root=root,
+            bind=args.bind,
+            bound_port=bound,
+            fallback_from=fallback_from,
+        ):
+            print(line, flush=True)
+        print("Ctrl+C to stop", flush=True)
         try:
             httpd.serve_forever()
         except KeyboardInterrupt:
-            print("\nstopped")
+            print("\nstopped", flush=True)
     return 0
 
 

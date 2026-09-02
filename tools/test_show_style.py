@@ -338,6 +338,11 @@ class ExcerptTests(unittest.TestCase):
         self.assertIn("Form1.frm", html)
         self.assertIn("Form_Load", html)
         self.assertIn("未 tick", html)
+        self.assertIn("color-scheme: light", html)
+        self.assertNotIn("color-scheme: light dark", html)
+        self.assertIn("background: #ffffff", html)
+        self.assertIn("VB_Name", html)
+        self.assertIn("file://", html.lower())
 
     def test_write_excerpt_file(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

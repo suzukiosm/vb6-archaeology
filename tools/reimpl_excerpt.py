@@ -23,6 +23,7 @@ sys.path.insert(0, str(REPO / "tools"))
 
 from lib.config import load_config, reports_root, skeletons_root  # noqa: E402
 from lib.console import enable_utf8_stdio  # noqa: E402
+from lib.report_html import COLOR_SCHEME_META, LIGHT_THEME_CSS  # noqa: E402
 from lib.show_style import invert_show_calls  # noqa: E402
 
 TICK_TARGET_RE = re.compile(
@@ -478,8 +479,10 @@ def build_excerpt_html(
 <html lang="ja">
 <head>
 <meta charset="utf-8"/>
+{COLOR_SCHEME_META}
 <title>reimpl excerpt — {_esc(stem)}</title>
 <style>
+{LIGHT_THEME_CSS}
   body {{ font-family: system-ui, sans-serif; margin: 1.5rem; max-width: 960px; }}
   h1 {{ font-size: 1.25rem; }}
   table {{ border-collapse: collapse; width: 100%; margin: .75rem 0 1.5rem; }}
@@ -493,14 +496,22 @@ def build_excerpt_html(
 </style>
 </head>
 <body>
-<h1>再実装向け抜粋 — <code>{_esc(stem)}</code></h1>
-<p class="meta">Form 一覧 · Module/Class 表面 · Show 関係 · Show 転置 · GoTo 飛び越え件数 · 未 tick。詳細は inventory / deep-read / comprehension を正とする。</p>
-<p class="note">調査完了 ≠ 製品 UI 完了。出荷前は
-<code>docs/reimplementation-handoff.md</code> を通す。<br/>
+<h1>Reimplementation excerpt / 再実装向け抜粋 — <code>{_esc(stem)}</code></h1>
+<p class="meta">Forms · Module/Class surface · Show · Show inbound · GoTo skip counts · unticked.
+Detail lives in inventory / deep-read / comprehension. /
+Form 一覧 · Module/Class 表面 · Show 関係 · Show 転置 · GoTo 飛び越え件数 · 未 tick。詳細は inventory / deep-read / comprehension を正とする。</p>
+<p class="note">Investigation done ≠ product UI done. Before shipping, read
+<code>docs/reimplementation-handoff.md</code>. /
+調査完了 ≠ 製品 UI 完了。出荷前は <code>docs/reimplementation-handoff.md</code> を通す。<br/>
+<code>show_style</code> is a heuristic (not a verdict). /
 <code>show_style</code> はヒューリスティック候補（断定しない）。
+The machine never emits <code>navigate</code> — <code>unknown</code> ≠ a full-page jump. /
 機械は <code>navigate</code> を出さない — <code>unknown</code> ≠ フルページ遷移。<br/>
+GoTo column = skeleton skip <strong>candidates</strong> (not proven dead). Open deep-read. /
 GoTo 列は skeleton の飛び越え<strong>候補</strong>件数（デッド確定ではない）。deep-read を開いて確認する。
-{" GoTo skip 合計: " + str(goto_total) + "。" if goto_total else ""}</p>
+{" GoTo skip 合計: " + str(goto_total) + "。" if goto_total else ""}<br/>
+Do not open as file://. Use <code>python -m tools serve</code>. /
+file:// では開かない。閲覧は <code>python -m tools serve</code>。</p>
 
 <h2>Form 一覧（{len(forms)}）</h2>
 <table>

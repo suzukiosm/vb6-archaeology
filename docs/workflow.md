@@ -129,7 +129,7 @@ python -m tools status
 
 ```powershell
 python -m tools excerpt --inventory working\reports\<stem>_inventory.json
-# または serve 起動後 http://127.0.0.1:8765/excerpt
+# または serve が印刷した URL の /excerpt
 ```
 
 ## Step 8 —（任意）再実装
