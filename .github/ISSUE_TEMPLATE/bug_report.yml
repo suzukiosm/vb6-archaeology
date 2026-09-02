@@ -5,6 +5,10 @@ body:
   - type: markdown
     attributes:
       value: |
+        This kit is **Visual Basic 6** (`.vbp` / `.frm`), not VBA / Office macros.
+        Do not paste customer VB6 originals. Security issues go to [SECURITY.md](../blob/main/SECURITY.md), not Issues.
+
+        本キットの対象は **VB6** です（VBA / Office マクロではない）。
         セキュリティ上の懸念は Issue に書かず [SECURITY.md](../blob/main/SECURITY.md) の窓口へ。
         VB6 正本のソースコードは貼らないでください（顧客資産の可能性があります）。
   - type: input
@@ -50,4 +54,5 @@ body:
     attributes:
       label: 自己点検
       options:
+        - label: "I am reporting a Visual Basic 6 (.vbp/.frm) issue, not VBA/Office macros / VB6（.vbp/.frm）の話であり、VBA・Office マクロではない"
         - label: "`python -m tools smoke` を実行し、結果を上に含めた"

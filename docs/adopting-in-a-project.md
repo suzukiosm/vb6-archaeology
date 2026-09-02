@@ -1,5 +1,7 @@
 # 他リポへの採用ガイド
 
+**[English](en/adopting-in-a-project.md)** · **[日本語](adopting-in-a-project.md)**
+
 ## 許諾前提（必読）
 
 本キットは [LICENSE](../LICENSE) のとおり **source-available** であり、オープンソースではありません。  

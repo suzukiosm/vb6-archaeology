@@ -9,6 +9,7 @@ Versions are exposed by `python -m tools --version` (`tools/__init__.py`).
 
 ### Added
 
+- 公開ランディングを英語 `README.md` + 日本語 `README.ja.md` に分け、`docs/en/`（encoding · VB6≠VBA · adopting 要約）とフィクスチャ画面 `docs/assets/` を追加。Linguist は `.gitattributes` で `.bas`/`.frm` 等を `vb6`（Visual Basic 6.0）とし VBA と混ぜない
 - inventory の VBP メタに `Type` / `CondComp` / `CompatibleMode` / `CompilationType` / `CompatibleEXE32` / `AutoIncrementVer` を生文字列で残す。モジュール表面に `vb_predeclared_id`（bool | null）と `vb_user_mem_id`（int | null）。解釈しない。PARSER_VERSION inv-8
 - `lib.vbparse` — `_` 折り後に文字列外の `:` で文分割（`iter_statements` / `split_colon_statements`）。io-catalog / verify `count_ends` / layout / inventory が同じ規則。到達判定なし。行番号は物理。`#If`・数値行番号・DATA の `:` は既知制限
 - `Me.Show` / 単独 `Show`（target は `Me` / 空。Form に結び付けない）を `show_calls` に載せる。`Load` / `Unload` は `lifetime_calls`（転置しない）。PARSER_VERSION inv-9

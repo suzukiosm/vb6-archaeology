@@ -3,6 +3,8 @@
 **VB6 を壊さず理解するオペレーティングシステム（キット）。** 正本ツリーへの書込を禁止したまま、
 VBP を切り出し・棚卸し・深読み・証拠つき理解まで進める。
 
+人間向けランディング: [`README.md`](README.md)（English）· [`README.ja.md`](README.ja.md)（日本語）。対象は VB6 であり VBA ではない（[`docs/vb6-not-vba.md`](docs/vb6-not-vba.md)）。
+
 ## Setup
 
 - Python **3.10+**（標準ライブラリのみ。pip 依存を増やさない）

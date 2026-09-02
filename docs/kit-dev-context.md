@@ -75,6 +75,8 @@ VB6 を壊さず理解するための汎用 OS（docs / .cursor / tools）を維
 
 ## 5. 公開・運用方針（キット保守）
 
+- GitHub 既定ランディングは英語 `README.md`。日本語は `README.ja.md`。5 分手順と VB6≠VBA の主張は両方を揃える
+- 対象は **Visual Basic 6**。VBA と混ぜない。Linguist は `.gitattributes` で `linguist-language=vb6`（`.bas` を VBA と出さない）
 - 公開ドキュメント（README・LICENSE）に個人名を出さない。著作権表記は会社名義「有限会社アイコー」のみ
 - README の License 節は `See [LICENSE](LICENSE).` に留め、詳細は LICENSE 側
 - ハードコードの絶対パスを残さない。手順はプレースホルダ（`<this-repo>` 等）

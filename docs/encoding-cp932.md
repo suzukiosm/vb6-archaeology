@@ -1,5 +1,7 @@
 # エンコーディング（CP932）
 
+**[English](en/encoding-cp932.md)** · **[日本語](encoding-cp932.md)**
+
 ## 事実
 
 - 日本語 VB6 の `.vbp` / `.frm` / `.bas` / `.cls` は多くの場合 **Windows CP932**

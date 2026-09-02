@@ -5,7 +5,9 @@ body:
   - type: markdown
     attributes:
       value: |
-        本キットのゴールは **正確な理解と再現可能な調査**です。
+        This kit is **Visual Basic 6**, not VBA. App-specific logic (one slip format, one Form) stays in the consumer repo `tools/`, not here.
+
+        本キットのゴールは **正確な理解と再現可能な調査**です。対象は VB6 であり VBA ではありません。
         アプリ固有ロジック（特定の伝票形式・特定 Form 等）はキットには入れず、消費者リポの `tools/` に置きます。
         キット保守の未採用案の正は [`docs/kit-improvement-ideas.md`](../docs/kit-improvement-ideas.md)
         （`python -m tools ideas`）。Issue は受付口。採用するまで実装しない。
@@ -39,4 +41,5 @@ body:
     attributes:
       label: 適用範囲の確認
       options:
-        - label: これは特定アプリ固有ではなく、どの VB6 プロジェクトでも役立つ
+        - label: This is useful for any VB6 project, not one app / 特定アプリ固有ではなく、どの VB6 プロジェクトでも役立つ
+        - label: This is Visual Basic 6, not VBA / VB6 の話であり VBA ではない

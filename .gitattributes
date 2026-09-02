@@ -1,0 +1,8 @@
+# This kit is Visual Basic 6 (VB6). It is not VBA (Office macros).
+# GitHub Linguist shares .bas/.cls/.frm between the two; `vb6` is the
+# Linguist alias for "Visual Basic 6.0" (not VBA). Do not quote the name —
+# git parses `linguist-language="Visual Basic 6.0"` as a broken attribute.
+*.bas linguist-language=vb6
+*.cls linguist-language=vb6
+*.frm linguist-language=vb6
+*.ctl linguist-language=vb6

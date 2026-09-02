@@ -3,7 +3,9 @@
 ```
 vb6-archaeology/
 ├── AGENTS.md                 # AI 入口（短い）
-├── README.md                 # 人間向け
+├── README.md                 # 人間向け（English・GitHub 既定）
+├── README.ja.md              # 人間向け（日本語）
+├── .gitattributes            # Linguist: .bas/.frm は VB6（VBA ではない）
 ├── CONTRIBUTING.md
 ├── SECURITY.md
 ├── CHANGELOG.md
@@ -47,6 +49,9 @@ vb6-archaeology/
 │   └── make_fixture.py
 ├── docs/
 │   ├── README.md             # 本ディレクトリの索引
+│   ├── vb6-not-vba.md        # VB6 ≠ VBA（公開）
+│   ├── en/                   # 英語の公開ドキュメント
+│   ├── assets/               # README 用画面（フィクスチャ）
 │   ├── ai-onboarding.md      # AI 必読（AGENTS の次）
 │   ├── kit-dev-context.md    # キット保守（消費者 ai-dev-context ではない）
 │   ├── reimplementation-handoff.md

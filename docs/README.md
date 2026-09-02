@@ -1,6 +1,9 @@
 # docs — 索引
 
+**[English public docs](en/README.md)** · **日本語（本ページ）**
+
 エージェントはまずリポ直下の [`AGENTS.md`](../AGENTS.md) → [`ai-onboarding.md`](ai-onboarding.md) を Read。  
+人間向けランディング: [`README.md`](../README.md)（English）· [`README.ja.md`](../README.ja.md)（日本語）。  
 ツール入口は `python -m tools --help`。
 
 ## 必読・入口
@@ -12,15 +15,22 @@
 | [flow/_master.md](flow/_master.md) | フェーズ・不変条件の正 |
 | [workflow.md](workflow.md) | 標準パイプライン詳細 |
 
+## 公開向け（VB6 ≠ VBA · 文字化け）
+
+| 文書 | 用途 |
+|---|---|
+| [vb6-not-vba.md](vb6-not-vba.md) | VB6 / VBA / VB.NET / VBScript の対比（[English](en/vb6-not-vba.md)） |
+| [encoding-cp932.md](encoding-cp932.md) | CP932 前提（[English](en/encoding-cp932.md)） |
+| [en/adopting-in-a-project.md](en/adopting-in-a-project.md) | 採用手順の英語要約 |
+
 ## 方法論・採用
 
 | 文書 | 用途 |
 |---|---|
 | [methodology.md](methodology.md) | 事実 vs 推定・証拠ルール |
-| [adopting-in-a-project.md](adopting-in-a-project.md) | 他リポへの採用手順 |
+| [adopting-in-a-project.md](adopting-in-a-project.md) | 他リポへの採用手順（[English](en/adopting-in-a-project.md)） |
 | [reimplementation-handoff.md](reimplementation-handoff.md) | 調査完了→製品 UI のチェックリスト · Show パターン |
 | [directory-layout.md](directory-layout.md) | ディレクトリ契約 |
-| [encoding-cp932.md](encoding-cp932.md) | CP932 前提 |
 
 ## テンプレ
 

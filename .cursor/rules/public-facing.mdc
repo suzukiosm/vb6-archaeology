@@ -1,0 +1,14 @@
+---
+description: Public README and English docs stay bilingual and VB6-only (not VBA).
+globs: README.md, README.ja.md, docs/en/**, docs/vb6-not-vba.md, docs/encoding-cp932.md
+alwaysApply: false
+---
+
+# Public-facing docs
+
+- GitHub landing is **English** (`README.md`). Japanese landing is `README.ja.md`. Same claims on both.
+- This kit is **Visual Basic 6**, not VBA / VB.NET / VBScript. Do not add a `vba` GitHub topic. Linguist overrides live in `.gitattributes`.
+- Japanese VB6 is **CP932**. Do not cite Cursor-garbled text. Point to `docs/encoding-cp932.md` and `docs/en/encoding-cp932.md`.
+- LICENSE stays source-available. README License section is `See LICENSE`. Viewing/learning is welcome; copy/embed needs a grant.
+- No personal names on public pages. Copyright is 有限会社アイコー / Aiko Co., Ltd.
+- Fixture screenshots in `docs/assets/` are from `mini_vbp` via `python -m tools serve` (HTTP, not `file://`).

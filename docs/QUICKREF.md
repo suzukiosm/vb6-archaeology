@@ -14,6 +14,7 @@
 | 再実装の短い抜粋 | `python -m tools excerpt` · serve `/excerpt` |
 | 設定を変えた | `python -m tools config-check` |
 | キット壊れてない？ | `/kit-smoke` |
+| VB6 と VBA を混同しそう | `docs/vb6-not-vba.md`（English: `docs/en/vb6-not-vba.md`） |
 | 他リポへ持ち出す | `docs/adopting-in-a-project.md`（**LICENSE 許諾後**） |
 | 再実装の製品面 | `docs/reimplementation-handoff.md`（調査完了 ≠ UI 完了） |
 | キット自体の保守 | `docs/kit-dev-context.md` |
