@@ -18,6 +18,7 @@ DEFAULTS: dict = {
     "default_extract": "",
     "reports_dir": "working/reports",
     "skeletons_dir": "working/skeletons",
+    "readable_dir": "working/readable",
     "encoding": "cp932",
     "encoding_fallbacks": ["utf-8-sig", "utf-8"],
     "reports_http_port": 8765,
@@ -161,6 +162,13 @@ def reports_root(repo_root: Path | None = None) -> Path:
 def skeletons_root(repo_root: Path | None = None) -> Path:
     cfg = load_config(repo_root)
     return Path(cfg["_repo_root"]) / cfg["skeletons_dir"]
+
+
+def readable_dir_root(repo_root: Path | None = None) -> Path:
+    """UTF-8 sidecar tree (Cursor Read). Not the extract canon."""
+    cfg = load_config(repo_root)
+    rel = cfg.get("readable_dir") or DEFAULTS["readable_dir"]
+    return Path(cfg["_repo_root"]) / str(rel)
 
 
 def optional_assign_markers(repo_root: Path | None = None) -> list[str]:

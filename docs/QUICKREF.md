@@ -5,6 +5,7 @@
 | セッション開始 | `AGENTS.md` → `docs/ai-onboarding.md` |
 | コマンドを忘れた | `python -m tools --help`（5 分デモは `python -m tools demo`） |
 | 新しい .vbp | `/vb6-extract` → `/vb6-inventory` |
+| Cursor Read が化ける | `python -m tools readable`（UTF-8 コピー。正は extracts） |
 | Form / Module を知る | `/frm-deep-read`（`.frm` または `.bas`/`.cls`） |
 | キットバックログ | `python -m tools ideas`（正は `docs/kit-improvement-ideas.md`） |
 | 座標が合わない | `/runtime-layout`（デザイナ値だけで決めない。MDI chrome は config `mdi_chrome`） |

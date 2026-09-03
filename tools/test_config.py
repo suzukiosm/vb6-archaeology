@@ -120,6 +120,22 @@ class TestScanTargets(unittest.TestCase):
             self.assertEqual(config.scan_roots(root), ["docs", "working/web/src"])
 
 
+class TestReadableDir(unittest.TestCase):
+    def test_default_when_unset(self) -> None:
+        with TempRepo({}) as root:
+            self.assertEqual(
+                config.readable_dir_root(root),
+                (root / "working" / "readable").resolve(),
+            )
+
+    def test_configured_path(self) -> None:
+        with TempRepo({"readable_dir": "working/utf8"}) as root:
+            self.assertEqual(
+                config.readable_dir_root(root),
+                (root / "working" / "utf8").resolve(),
+            )
+
+
 class TestOptionalAssignMarkers(unittest.TestCase):
     def test_kit_default_is_empty(self):
         self.assertEqual(config.DEFAULTS["optional_assign_markers"], [])

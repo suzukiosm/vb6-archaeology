@@ -35,6 +35,17 @@ def run_pipeline() -> None:
     run_step("config-check", ["config-check"])
     run_step("fixture", ["fixture"])
     run_step("extract", ["extract", str(VBP)])
+    run_step("readable", ["readable", "--extract", str(EXTRACT)])
+    readable_frm = REPO / "working" / "readable" / "mini_vbp" / "Form1.frm"
+    if not readable_frm.is_file():
+        raise SystemExit(
+            "kit_smoke failed: expected working/readable/mini_vbp/Form1.frm"
+        )
+    readable_text = readable_frm.read_text(encoding="utf-8")
+    if "ミニ画面" not in readable_text:
+        raise SystemExit(
+            "kit_smoke failed: readable Form1.frm missing Japanese caption"
+        )
     run_step("inventory", ["inventory", str(EXTRACT)])
     run_step("verify", ["verify", str(INV_JSON)])
     run_step(

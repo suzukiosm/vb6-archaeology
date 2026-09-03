@@ -45,6 +45,14 @@ python -m tools extract "source\<project>\<Name>.vbp"
 - `skipped_ref_count` は COM `Reference=`（コピー対象外・正常）
 - 同 stem の `.frx` / `.ctx` 等が `copied` に入る（中身は解析しない）
 
+Cursor で全文を読むときは（任意）:
+
+```powershell
+python -m tools readable --extract working\extracts\<stem>
+```
+
+出力は `working/readable/<stem>/`。行番号は extracts と同じ。整形しない。分析の正は extracts。
+
 ## Step 3 — インベントリ (`/vb6-inventory`)
 
 ```powershell

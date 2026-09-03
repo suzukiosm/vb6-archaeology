@@ -11,9 +11,9 @@ VB6 を壊さず理解するための汎用 OS（docs / .cursor / tools）を維
 ## 2. 現状（事実）
 
 - 単一入口: `python -m tools <command>`（`tools/cli.py` の `COMMANDS` が正。個別 `python tools/<name>.py` も維持）
-- コアツール: demo / extract / inventory / verify_inventory / verify_report_names / verify_show / frm_deep_read / runtime_layout / comprehension_scaffold / reimpl_excerpt / io_catalog / status / serve_reports
+- コアツール: demo / extract / readable / inventory / verify_inventory / verify_report_names / verify_show / frm_deep_read / runtime_layout / comprehension_scaffold / reimpl_excerpt / io_catalog / status / serve_reports
 - 設定検証: `schema/archaeology.config.schema.json` + `lib/config_schema.py`（stdlib のみ）
-- 自己点検: `kit_smoke.py`（config-check → fixture パイプライン → comprehend → excerpt → io-catalog → verify-show → status → verify-names → serve --check · --live-get → scan-chars → ideas + unittest）· CI: ubuntu/windows × Python 3.10/3.13
+- 自己点検: `kit_smoke.py`（config-check → extract → readable → inventory → … → serve --check · --live-get → scan-chars → ideas + unittest）· CI: ubuntu/windows × Python 3.10/3.13
 - 補助: `frm_lines.py` · `scan_control_chars.py` · `frm_deep_read_all.py`（`deep_read_name_map`）
 - `frm_deep_read`: .frm 単体解析注記、`show_style`、GoTo 飛び越え文候補（I/O·Call 等）+ ラベル地図、`menu_tree`（デザイナ値。実行時 Enabled は layout）、`ancestor_hidden`（静的近似・断定しない）。`.bas`/`.cls` は表面レポート（Implements / GoTo / Show 文面。デザイナ live/dead なし）
 - `runtime_layout`: `.frm` + `.bas` + `.cls` を走査。Show 文脈は Sub 境界で `recent_shows` クリア。開経路スコアは `layout_sub_scores`（既定 `form_load` / `mdiform_load` のみ）。MDI chrome は `mdi_chrome`（キット既定空）
@@ -23,6 +23,7 @@ VB6 を壊さず理解するための汎用 OS（docs / .cursor / tools）を維
 
 ## 3. 次手（キット）
 
+- （採用済 2026-09-03 · readable）`python -m tools readable` — extract の UTF-8 サイドカー（物理行一致。extract は触らない。`.frx` 等はスキップ）。Cursor Read 用。分析の正は extracts。`readable_dir`（既定 `working/readable`）
 - （採用済 2026-09-03 · demo / serve フォールバック / ライトテーマ）`python -m tools demo`（extract→inventory→excerpt→serve。tick しない。`--live-get` と混ぜない）。`serve` は占有ポートで空きへフォールバックし印刷 URL が正。レポート HTML は `lib/report_html.py` でライトテーマ固定。`tools/README.md` は英日同一ファイル（要約は COMMANDS）
 - （採用済 2026-08-29 · VBP Type/Attribute）inventory が `Type` / `CondComp` / `CompatibleMode` / `CompilationType` / `CompatibleEXE32` / `AutoIncrementVer` を生文字列で残す。表面に `vb_predeclared_id` / `vb_user_mem_id`（生 bool / 生 int。無ければ null）。解釈しない。PARSER_VERSION inv-8
 - （採用済 2026-08-29 · コロン文分割）`lib.vbparse.split_colon_statements` / `iter_statements`。io-catalog / verify `count_ends` / layout 代入走査が同じ規則。到達判定なし。行番号は物理。

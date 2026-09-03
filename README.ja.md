@@ -101,6 +101,7 @@ python -m tools smoke
 ```
 source/                 # 読取専用 VB6 正本（hooks 保護）
 working/extracts/       # 切り出しコピー
+working/readable/       # UTF-8 読取コピー（正は extracts）
 working/reports/        # 調査成果
 working/skeletons/      # Form skeleton JSON
 tools/                  # 再利用 CLI（python -m tools）

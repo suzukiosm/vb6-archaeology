@@ -26,6 +26,7 @@ python -m tools demo            # extract → inventory → excerpt → serve
 |---|---|
 | `demo` | `demo.py` |
 | `extract` | `extract_vbp.py` |
+| `readable` | `readable.py` |
 | `inventory` | `vb6_inventory.py` |
 | `verify` | `verify_inventory.py` |
 | `verify-names` | `verify_report_names.py` |
@@ -98,6 +99,7 @@ Canon: `schema/archaeology.config.schema.json` (`python -m tools config-check`).
 - `protected_source_dirs` — in-repo read-only names. **Empty is valid** (originals live outside the repo)
 - `protected_path_markers` — path segments that are read-only wherever they appear
 - `default_extract` — extract name when `--extract` is omitted
+- `readable_dir` — UTF-8 sidecar (`python -m tools readable`; default `working/readable`)
 - `reports_http_port` — default 8765; `serve` falls back and prints the real URL
 - `mdi_chrome` / `layout_sub_scores` / `optional_assign_markers` — kit defaults are empty or generic; app names stay in the consumer config
 - `--extract` with no flag uses the sole folder under `working/extracts/` (error if several)

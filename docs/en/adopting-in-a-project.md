@@ -65,5 +65,6 @@ App-specific Form names, MDI chrome, and layout scores belong in the **consumer*
 1. Write a short consumer `AGENTS.md` (no long status dumps — those go in `docs/ai-dev-context.md`)
 2. Run `python -m tools extract` on the real `.vbp`, then `inventory` / `verify`
 3. Keep originals read-only. The only kit exception is `python -m tools fixture` for the sample VBP
+4. After `python -m tools smoke`, either delete `working/reports/mini_vbp_*` or pass `--exclude-glob mini_vbp*` to `verify-names` — smoke leftover names fail an app inventory check
 
 Japanese original with extra consumer notes: [../adopting-in-a-project.md](../adopting-in-a-project.md).

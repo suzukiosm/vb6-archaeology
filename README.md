@@ -99,6 +99,7 @@ Rewrite product checks: [docs/reimplementation-handoff.md](docs/reimplementation
 ```
 source/                 # read-only VB6 originals (hooks)
 working/extracts/       # analysis copies
+working/readable/       # UTF-8 sidecar for Cursor Read (canon stays extracts)
 working/reports/        # inventory / deep-read / excerpt
 working/skeletons/      # Form skeleton JSON
 tools/                  # CLI (python -m tools)

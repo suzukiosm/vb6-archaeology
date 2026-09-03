@@ -18,6 +18,7 @@ vb6-archaeology/
 │   └── mini_vbp/             # スモーク用フィクスチャ
 ├── working/
 │   ├── extracts/<stem>/      # 切り出し
+│   ├── readable/<stem>/      # UTF-8 読取コピー（行番号は extracts と同じ）
 │   ├── reports/              # 調査成果（inventory / deep_read / excerpt 等）
 │   └── skeletons/            # Form skeleton / runtime-layout.json
 ├── tools/
@@ -47,6 +48,7 @@ vb6-archaeology/
 │   ├── status.py
 │   ├── serve_reports.py
 │   ├── frm_lines.py
+│   ├── readable.py
 │   ├── scan_control_chars.py
 │   └── make_fixture.py
 ├── docs/

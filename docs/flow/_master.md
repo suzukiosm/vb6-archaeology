@@ -41,6 +41,7 @@
 
 - 保護ディレクトリ（`archaeology.config.json`）は読取専用
 - 抽出は `working/extracts/` のみ
+- UTF-8 読取コピーは `working/readable/`（任意。分析の正は extracts）
 - 解析成果は `working/reports/` / `docs/`
 - 使い捨て解析の増殖禁止（`tools/` 改定 + `cli.py` の `COMMANDS` 更新）
 - 推定に証拠必須。inventory に無い名前はレポートに書かない

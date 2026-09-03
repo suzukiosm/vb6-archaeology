@@ -17,6 +17,7 @@
 5. PowerShell の二重引用符文字列内では `` ` `` がエスケープになる。`` `F ``→FF（`\x0c`）、`` `v ``→VT（`\x0b`）などで Markdown のインラインコードが壊れる。検出: `python -m tools scan-chars`（hits=0）
 
 行番号つきで CP932 ソースを見るときは `python -m tools lines <file> <start>-<end>`。
+Cursor で全文を読むなら `python -m tools readable`（`working/readable/<stem>/`。行番号は extracts と同じ。引用・inventory の正は extracts）。
 
 ## 出力側（コンソール）
 

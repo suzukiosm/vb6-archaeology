@@ -25,6 +25,8 @@ working/reports/**
 !working/reports/.gitkeep
 working/skeletons/**
 !working/skeletons/.gitkeep
+working/readable/**
+!working/readable/.gitkeep
 working/_*.py
 working/_verify_*.py
 

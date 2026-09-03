@@ -42,6 +42,10 @@ COMMANDS: dict[str, Command] = {
         "tools.extract_vbp",
         "Copy a .vbp and the files it references into working/extracts/",
     ),
+    "readable": Command(
+        "tools.readable",
+        "UTF-8 sidecar of an extract (same physical lines; extract unchanged)",
+    ),
     "inventory": Command(
         "tools.vb6_inventory",
         "Build the canonical facts-only inventory (json/md/html)",

@@ -9,6 +9,7 @@ Versions are exposed by `python -m tools --version` (`tools/__init__.py`).
 
 ### Added
 
+- `python -m tools readable` — extract の UTF-8 サイドカー（物理行一致。extract は触らない。`.frx` 等はスキップ）。Cursor Read 用。分析の正は extracts。`readable_dir`（既定 `working/readable`）
 - `python -m tools demo` — フィクスチャの extract → inventory → excerpt → serve。tick しない。`serve --live-get` とは別
 - 公開ランディングを英語 `README.md` + 日本語 `README.ja.md` に分け、`docs/en/`（encoding · VB6≠VBA · adopting 要約）とフィクスチャ画面 `docs/assets/` を追加。Linguist は `.gitattributes` で `.bas`/`.frm` 等を `vb6`（Visual Basic 6.0）とし VBA と混ぜない
 - inventory の VBP メタに `Type` / `CondComp` / `CompatibleMode` / `CompilationType` / `CompatibleEXE32` / `AutoIncrementVer` を生文字列で残す。モジュール表面に `vb_predeclared_id`（bool | null）と `vb_user_mem_id`（int | null）。解釈しない。PARSER_VERSION inv-8

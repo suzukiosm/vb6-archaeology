@@ -17,6 +17,7 @@ VBP を切り出し・棚卸し・深読み・証拠つき理解まで進める�
 |---|---|---|
 | 5 分デモ | `python -m tools demo` | — |
 | VBP 切り出し | `python -m tools extract "<vbp>"` | `/vb6-extract` |
+| UTF-8 読取コピー | `python -m tools readable` | `/vb6-readable` |
 | 構成レポート | `python -m tools inventory <extract_dir>` | `/vb6-inventory` |
 | End 数照合 | `python -m tools verify <inventory.json>` | `/vb6-verify-reports` |
 | 名前集合照合 | `python -m tools verify-names --inventory <inventory.json>` | `/vb6-verify-reports` |
@@ -45,7 +46,7 @@ python -m tools smoke
 python -m tools smoke --kit-only
 ```
 
-フィクスチャパイプライン（config-check → extract → inventory → verify → deep-read →
+フィクスチャパイプライン（config-check → extract → readable → inventory → verify → deep-read →
 layout → comprehend → excerpt → io-catalog → status → verify-names → serve --live-get → scan-chars）＋ `tools/` 配下の unittest。
 失敗時は stdout のステップ名を見て `CONTRIBUTING.md` · `tools/README.md` を参照（専用ログファイルは無い）。
 再実装の製品面チェック: `docs/reimplementation-handoff.md`。
@@ -90,6 +91,7 @@ layout → comprehend → excerpt → io-catalog → status → verify-names →
 |---|---|
 | `source/` | 読取専用の VB6 正本（キット既定。別名は config で指定） |
 | `working/extracts/` | VBP 切り出しコピー（分析用） |
+| `working/readable/` | UTF-8 読取コピー（Cursor Read。正は extracts） |
 | `working/reports/` | inventory / deep_read / comprehension 等 |
 | `working/skeletons/` | Form skeleton JSON（再実装に渡す中間成果） |
 | `tools/` | 再利用解析 + CLI（`python -m tools`） |
@@ -127,6 +129,6 @@ layout → comprehend → excerpt → io-catalog → status → verify-names →
 
 ## Learned Workspace Facts
 
-- 主な消費者リポは `Z:\_Python\VB6_source`（作業指示書）と `Z:\_Python\delivery_slip`（納品書Ⅱ）。
+- 主な消費者リポは `Z:\_Python\VB6_source`（作業指示書）、`Z:\_Python\delivery_slip`（納品書Ⅱ・既存）、`Z:\_Python\delivery_slip_new`（納品書Ⅱ・新規調査）。
 - 公開リモートは `https://github.com/suzukiosm/vb6-archaeology`。
 - Linguist は `.gitattributes` で `linguist-language=vb6`。引用符付き `"Visual Basic 6.0"` は git が属性として壊す。

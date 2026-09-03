@@ -44,6 +44,11 @@
       "minLength": 1,
       "description": "Where form skeleton JSON is written (consumers may point this at a web lib dir)."
     },
+    "readable_dir": {
+      "type": "string",
+      "minLength": 1,
+      "description": "UTF-8 sidecar of an extract for Cursor Read (default working/readable). Not the analysis canon."
+    },
     "encoding": {
       "type": "string",
       "minLength": 1,

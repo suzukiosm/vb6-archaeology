@@ -16,7 +16,8 @@
 4. Do not rewrite Japanese literals with PowerShell `Set-Content` / `-replace`
 5. Inside PowerShell double-quoted strings, `` ` `` is an escape. `` `F `` becomes FF (`\x0c`), `` `v `` becomes VT (`\x0b`), which breaks Markdown inline code. Detect with `python -m tools scan-chars` (expect `hits=0`)
 
-Line-numbered CP932 views: `python -m tools lines <file> <start>-<end>`.
+Line-numbered CP932 views: `python -m tools lines <file> <start>-<end>`.  
+Full-file Cursor Read: `python -m tools readable` writes `working/readable/<stem>/` (same physical lines). Inventory and citations still use the extract.
 
 ## Console output
 

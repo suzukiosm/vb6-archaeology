@@ -41,6 +41,7 @@ hooks の `sessionStart` が短いリマインダを出すことがある。そ�
 ```
 source/                 # 正本（読取専用）— archaeology.config.json で別名可
 working/extracts/<stem>/
+working/readable/<stem>/  # UTF-8 読取コピー。正は extracts
 working/reports/
 working/skeletons/
 tools/                  # 解析の正（python -m tools）。足りなければここを直す
@@ -62,6 +63,7 @@ hooks（`.cursor/hooks/`）が書込ツールと破壊的 shell を阻む。
 
 - VB6 ソースは **CP932** 前提（`tools/lib/config.py`）
 - Cursor の `Read` で日本語が化けても、**化けた文字を引用根拠にしない**
+- 全文を Cursor で読むなら `python -m tools readable`（正は extracts）
 - 内容判断・行番号引用は Python ツール出力または `decode('cp932')` 経由
 
 ---
@@ -75,6 +77,7 @@ clone 直後の 5 分入口は `python -m tools demo`（extract → inventory �
 [正本 .vbp]
     → config-check     → 設定の型・未知キーを検証
     → extract          → working/extracts/<stem>/
+    → readable         → working/readable/<stem>/（任意。Cursor Read 用。正は extracts）
     → inventory        → working/reports/<stem>_inventory.{json,md,html}
     → verify           → count mismatches: none
     → deep-read        → *_deep_read.md + skeletons（.frm および .bas/.cls 表面）

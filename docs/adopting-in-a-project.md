@@ -43,7 +43,7 @@ docs/templates/              # 初回コピー元
 **コピーしないもの（このキットのサンプル）**
 
 - `source/mini_vbp/`（フィクスチャ）
-- `working/extracts|reports|skeletons` の中身
+- `working/extracts|readable|reports|skeletons` の中身
 - `docs/kit-dev-context.md`（キット保守用。消費者のセッション事実ではない）
 
 ## 設定
@@ -179,6 +179,10 @@ docs/templates/              # 初回コピー元
 - 業務を足した消費者がキット層だけ回すとき: `python -m tools smoke --kit-only`
 
 キット本体に業種ドメインのテストは載せない。
+
+`smoke` は `working/reports/mini_vbp_*` とフィクスチャ deep-read を残す。
+消費者の `verify-names` は既定で `working/reports/**` 全体を見るので、アプリ inventory と混ぜると fixture 名が unknown になる。
+アプリ照合の前に mini_vbp 成果を消すか、`--exclude-glob mini_vbp*` を付ける。
 
 ## 長セッション手渡し
 
