@@ -5,7 +5,7 @@ vb6-archaeology/
 ├── AGENTS.md                 # AI 入口（短い）
 ├── README.md                 # 人間向け（English・GitHub 既定）
 ├── README.ja.md              # 人間向け（日本語）
-├── .gitattributes            # Linguist: .bas/.frm は VB6（VBA ではない）
+├── .gitattributes            # Linguist: .bas/.frm は VB6（VBA ではない）· mini_vbp は改行変換しない
 ├── CONTRIBUTING.md
 ├── SECURITY.md
 ├── CHANGELOG.md

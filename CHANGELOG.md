@@ -40,6 +40,7 @@ Versions are exposed by `python -m tools --version` (`tools/__init__.py`).
 - `serve` が既定ポート占有時に黙死していた。空きポートへフォールバックし、実際の URL を flush して印刷する。失敗時は `next: python -m tools serve --port <free-port>`
 - レポート HTML（inventory / excerpt / serve ランディング / comprehension）をライトテーマ固定。ダークモードで表が空欄に見えないようにする
 - 未観測 Sub の理由キーを `dead_reason` から分け、`docs/kit-improvement-ideas.md` の「入方向の転置と進捗が無い」死文を消した
+- Windows（`core.autocrlf=true`）の clone で `fixture` / `smoke` を回すと、中身が同じ `source/mini_vbp/` の 7 ファイルが変更扱いになっていた。`.gitattributes` の `source/mini_vbp/** -text` で git にフィクスチャのバイト列（CP932・LF）を変換させない。既に変更扱いの clone は一度 `git add source/mini_vbp` で消える（内容差分は無い）
 
 ## [0.2.0] - 2026-08-16
 

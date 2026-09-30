@@ -6,3 +6,8 @@
 *.cls linguist-language=vb6
 *.frm linguist-language=vb6
 *.ctl linguist-language=vb6
+
+# tools/make_fixture.py owns the exact bytes of the smoke fixture (CP932, LF).
+# With core.autocrlf=true, git would check them out as CRLF and every
+# `python -m tools fixture` run would show phantom edits in the protected tree.
+source/mini_vbp/** -text

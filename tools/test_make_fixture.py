@@ -6,8 +6,12 @@ temp dir (never ``source/``) and checks them with the same parsers smoke uses.
 
 from __future__ import annotations
 
+import os
+import shutil
+import subprocess
 import sys
 import tempfile
+import time
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -29,6 +33,43 @@ def _write_fixture(root: Path) -> None:
         code = make_fixture.main([])
     if code != 0:
         raise RuntimeError(f"make_fixture.main exited {code}")
+
+
+def _git(root: Path, *args: str) -> str:
+    proc = subprocess.run(
+        ["git", "-c", "core.autocrlf=true", *args],
+        cwd=root,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    return proc.stdout
+
+
+@unittest.skipUnless(shutil.which("git"), "git not installed")
+class FixtureCheckoutTests(unittest.TestCase):
+    def test_regenerate_after_checkout_leaves_git_status_clean(self):
+        """Windows clones use core.autocrlf=true; fixture runs must not look like edits."""
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            shutil.copy(make_fixture.REPO / ".gitattributes", root)
+            fixture = root / "source" / "mini_vbp"
+            _write_fixture(fixture)
+            _git(root, "init", "-q")
+            _git(root, "add", "-A")
+            for path in fixture.iterdir():
+                path.unlink()
+            _git(root, "checkout-index", "--all", "--force", "--index")
+            # Age the checkout so git trusts the cached sizes; a racily clean
+            # entry is content-checked on every status and would hide the bug.
+            past = time.time() - 60
+            for path in fixture.iterdir():
+                os.utime(path, (past, past))
+            _git(root, "update-index", "-q", "--refresh")
+            _write_fixture(fixture)
+            status = _git(root, "status", "--porcelain", "--", "source")
+            worktree_dirty = [line for line in status.splitlines() if line[1] != " "]
+            self.assertEqual(worktree_dirty, [])
 
 
 class FixtureContractTests(unittest.TestCase):
