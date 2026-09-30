@@ -7,6 +7,7 @@ Cursor の Read は日本語が化けやすく、PowerShell の Get-Content も
 usage:
     python tools/frm_lines.py <file> <start>-<end> [<start>-<end> ...]
     python tools/frm_lines.py <file> --find "Form1.Show" [--context 10]
+    python tools/frm_lines.py <file> --proc Command1_Click   # every accessor of that name
 """
 
 from __future__ import annotations
@@ -20,6 +21,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from lib.config import decode_vb6_bytes  # noqa: E402
 from lib.console import enable_utf8_stdio  # noqa: E402
+from vb6_inventory import parse_procedures  # noqa: E402
 
 
 def read_lines(path: Path) -> list[str]:
@@ -43,12 +45,23 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--find", help="正規表現。ヒット行の前後を出す")
     ap.add_argument("--context", type=int, default=8)
     ap.add_argument("--ignore-case", action="store_true")
+    ap.add_argument("--proc", help="Print the physical lines of this procedure (inventory spans)")
     args = ap.parse_args(argv)
 
     path = Path(args.file)
     if not path.is_file():
         ap.error(f"not a file: {path}")
     lines = read_lines(path)
+
+    if args.proc:
+        procs, _ = parse_procedures(lines)
+        spans = [p for p in procs if p["name"].casefold() == args.proc.casefold()]
+        if not spans:
+            print(f"(no procedure {args.proc!r} in {path})")
+            return 1
+        for proc in spans:
+            print(f"# {proc['kind']} {proc['name']}")
+            emit(path, lines, proc["line_start"], proc["line_end"])
 
     if args.find:
         flags = re.IGNORECASE if args.ignore_case else 0
@@ -66,7 +79,7 @@ def main(argv: list[str] | None = None) -> int:
             ap.error(f"bad range: {r}（START-END で指定）")
         emit(path, lines, int(m.group(1)), int(m.group(2)))
 
-    if not args.find and not args.ranges:
+    if not args.find and not args.ranges and not args.proc:
         emit(path, lines, 1, len(lines))
     return 0
 

@@ -19,6 +19,7 @@ DEFAULTS: dict = {
     "reports_dir": "working/reports",
     "skeletons_dir": "working/skeletons",
     "readable_dir": "working/readable",
+    "index_dir": "working/index",
     "encoding": "cp932",
     "encoding_fallbacks": ["utf-8-sig", "utf-8"],
     "reports_http_port": 8765,
@@ -168,6 +169,13 @@ def readable_dir_root(repo_root: Path | None = None) -> Path:
     """UTF-8 sidecar tree (Cursor Read). Not the extract canon."""
     cfg = load_config(repo_root)
     rel = cfg.get("readable_dir") or DEFAULTS["readable_dir"]
+    return Path(cfg["_repo_root"]) / str(rel)
+
+
+def index_root(repo_root: Path | None = None) -> Path:
+    """AI index tree (``python -m tools index``). One folder per extract stem."""
+    cfg = load_config(repo_root)
+    rel = cfg.get("index_dir") or DEFAULTS["index_dir"]
     return Path(cfg["_repo_root"]) / str(rel)
 
 

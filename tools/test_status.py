@@ -69,7 +69,22 @@ class TestStatusEmpty(unittest.TestCase):
         self.assertIn("verify=not persisted", lines[2])
         self.assertIn("io=no", lines[2])
         self.assertIn("show=not persisted", lines[2])
+        self.assertIn("index=no", lines[2])
         self.assertIn("mod-read=0/0", lines[1])
+
+    def test_index_manifest_counts_are_reported(self):
+        with TempRepo() as root:
+            (root / "working" / "extracts" / "demo").mkdir()
+            _write_inventory(root / "working" / "reports", "demo", [])
+            index = root / "working" / "index" / "demo"
+            index.mkdir(parents=True)
+            (index / "manifest.json").write_text(
+                json.dumps({"counts": {"symbols": 3, "occurrences": 1, "effects": 0, "chunks": 2}}),
+                encoding="utf-8",
+            )
+            data = build_status(root)
+        self.assertEqual(data["index"]["counts"]["symbols"], 3)
+        self.assertIn("index=yes", format_status_lines(data).splitlines()[2])
 
 
 class TestStatusArtifacts(unittest.TestCase):

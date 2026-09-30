@@ -22,6 +22,7 @@ sys.path.insert(0, str(REPO / "tools"))
 
 from lib.config import (  # noqa: E402
     extracts_root,
+    index_root,
     load_config,
     preferred_extract,
     reports_root,
@@ -248,6 +249,7 @@ def build_status(
     tick_count = _count_ticks(comprehension) if comprehension else 0
     excerpt = reports / f"{stem}_reimpl_excerpt.html" if stem else None
     io_catalog = reports / f"{stem}_io_catalog.json" if stem else None
+    index_manifest = index_root(root) / stem / "manifest.json" if stem else None
     verify_path = reports / f"{stem}_verify.json" if stem else None
     verify_show_path = reports / f"{stem}_verify_show.json" if stem else None
     layout_md = reports / "runtime_layout.md"
@@ -352,7 +354,18 @@ def build_status(
             "present": bool(io_catalog and io_catalog.is_file()),
             "path": _rel(io_catalog, root) if io_catalog and io_catalog.is_file() else None,
         },
+        "index": _index_info(index_manifest, root),
     }
+
+
+def _index_info(manifest: Path | None, root: Path) -> dict:
+    if manifest is None or not manifest.is_file():
+        return {"present": False, "path": None, "counts": None}
+    try:
+        counts = json.loads(manifest.read_text(encoding="utf-8")).get("counts")
+    except (OSError, json.JSONDecodeError):
+        counts = None
+    return {"present": True, "path": _rel(manifest.parent, root), "counts": counts}
 
 
 def format_status_lines(data: dict) -> str:
@@ -405,7 +418,8 @@ def format_status_lines(data: dict) -> str:
         f"ticks={ticks.get('count', 0)}/{ticks.get('proc_total') if ticks.get('proc_total') is not None else 0} "
         f"excerpt={excerpt}"
     )
-    line3 = f"verify={verify_s} layout={layout} io={io_catalog} show={show_s}"
+    index = "yes" if (data.get("index") or {}).get("present") else "no"
+    line3 = f"verify={verify_s} layout={layout} io={io_catalog} show={show_s} index={index}"
     return "\n".join((line1, line2, line3))
 
 

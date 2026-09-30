@@ -10,6 +10,7 @@
   "reports_dir": "working/reports",
   "skeletons_dir": "working/skeletons",
   "readable_dir": "working/readable",
+  "index_dir": "working/index",
   "encoding": "cp932",
   "encoding_fallbacks": ["utf-8-sig", "utf-8"],
   "reports_http_port": 8765,

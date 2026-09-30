@@ -37,6 +37,8 @@ python -m tools demo            # extract → inventory → excerpt → serve
 | `comprehend` | `comprehension_scaffold.py` |
 | `excerpt` | `reimpl_excerpt.py` |
 | `io-catalog` | `io_catalog.py` |
+| `index` | `index_build.py` |
+| `bundle` | `bundle.py` |
 | `status` | `status.py` |
 | `ideas` | `ideas.py` |
 | `lines` | `frm_lines.py` |
@@ -62,9 +64,13 @@ When you add a command, update `cli.py` `COMMANDS` and the table above in the sa
 | `lib/config.py` | `archaeology.config.json`, protected dirs, decode |
 | `lib/config_schema.py` | JSON Schema validation (stdlib only) |
 | `lib/console.py` | UTF-8 stdout/stderr so Japanese captions survive a non-CP932 console |
-| `lib/vbparse.py` | `_` continuations and colon split (physical line numbers kept) |
-| `lib/cache.py` | content-addressed parse cache (`working/.cache/`) |
+| `lib/vbparse.py` | `_` continuations and colon split (physical line numbers kept); MS-VBAL comment continuation, labels, `#If` regions |
+| `lib/cache.py` | content-addressed parse cache (`working/.cache/`); key includes the parser code fingerprint |
 | `lib/report_html.py` | light-theme CSS for report HTML (no dark-mode inversion) |
+| `lib/event_binding.py` | `<owner>_<event>` binding shared by inventory and deep-read |
+| `lib/file_statements.py` | file statements (`Open` / `Get` / `Put` / `Close` …, `#` optional) |
+| `lib/declarators.py` | variables, parameters, Deftype and implicit types |
+| `lib/designer.py` | `Begin … End` designer tree with raw properties, `.frx` refs, data binding |
 
 ### Typical usage
 
@@ -77,10 +83,14 @@ python -m tools extract "source\mini_vbp\mini_vbp.vbp"
 python -m tools inventory working\extracts\mini_vbp
 python -m tools verify
 python -m tools excerpt
+python -m tools index
+python -m tools bundle Command1_Click@Form1.frm
 python -m tools serve
 ```
 
 Open the URL `serve` / `demo` prints. Do not use `file://`.
+`index` writes `working/index/<stem>/` (manifest + symbols / occurrences / effects / chunks JSONL,
+shape in `schema/index.schema.json`). Occurrence candidates follow VB6 scope rules; they are not a call graph.
 
 Verify order: `verify` (End counts) → `verify-names` (name set) → `verify-show` (show_style; range gaps are warnings).
 If extraction is wrong, fix the tool here — do not add `working/_verify_*.py`.
@@ -148,9 +158,13 @@ VB6 テキストは **CP932**（`lib/config.py` / `archaeology.config.json`）�
 | `lib/config.py` | `archaeology.config.json` 読込、保護 dir、デコード |
 | `lib/config_schema.py` | `schema/archaeology.config.schema.json` による設定検証（stdlib のみ） |
 | `lib/console.py` | stdout/stderr を UTF-8 化（各 `main()` 冒頭で呼ぶ。日本語 Caption を非 CP932 コンソールへ出せるように） |
-| `lib/vbparse.py` | `_` 行連結とコロン文分割（物理行番号を保持） |
-| `lib/cache.py` | 内容アドレス指定の解析キャッシュ（`working/.cache/`） |
+| `lib/vbparse.py` | `_` 行連結とコロン文分割（物理行番号を保持）。MS-VBAL のコメント継続・ラベル・`#If` 領域 |
+| `lib/cache.py` | 内容アドレス指定の解析キャッシュ（`working/.cache/`）。キーにパーサコードの指紋を含む |
 | `lib/report_html.py` | レポート HTML のライトテーマ固定（ダークモードで表が空に見えないように） |
+| `lib/event_binding.py` | `<持ち主>_<イベント>` の結合判定（inventory / deep-read 共通） |
+| `lib/file_statements.py` | ファイル文の認識（`Open` / `Get` / `Put` / `Close` …。`#` は省略可） |
+| `lib/declarators.py` | 変数・引数・Deftype・暗黙型 |
+| `lib/designer.py` | デザイナ `Begin … End` の木（生プロパティ・`.frx` 参照・データバインド） |
 
 ### 使い方（代表）
 
@@ -176,8 +190,15 @@ python -m tools lines working\extracts\mini_vbp\Form1.frm 1-20
 python -m tools scan-chars
 python -m tools status
 python -m tools excerpt
+python -m tools index
+python -m tools bundle Command1_Click@Form1.frm --budget 3000
+python -m tools lines working\extracts\mini_vbp\Form1.frm --proc Command1_Click
+python -m tools comprehend --stale
 python -m tools serve
 ```
+
+`index` は `working/index/<stem>/` に manifest と JSONL（symbols / occurrences / effects / chunks）を出す（形は `schema/index.schema.json`）。
+`occurrences` は VB6 のスコープ規則で選んだ候補（`basis`）で、呼び出しグラフではない。
 
 `demo` は tick しない。`serve --live-get`（smoke 用の一時ポート GET）とは別。
 `serve` / `demo` が印刷した URL が正（8765 が占有なら空きポートへ落ちる）。`file://` は使わない。
@@ -229,6 +250,7 @@ python -m tools serve
   - VBP: **Form / Module / Class / UserControl / PropertyPage / UserDocument / Designer**、`RelatedDoc=` / `ResFile32=`（一覧のみ）、`Object=`（OCX 等）、Version / Command32 / HelpFile / Type / CondComp / CompatibleMode / CompilationType / CompatibleEXE32 / AutoIncrementVer などメタ（生文字列）
   - プロシージャ: Sub/Function/Property + **引数・戻り値**、Declare、モジュールレベル Const/Enum/Type/Event（`iter_statements`。`End` 照合は verify と同じ文単位。`Const A = 1, B = 2` は複数件）
   - 表面: Implements / WithEvents / Instancing / Attribute も `iter_statements`
+  - 追加事実（inv-14）: `variables` / `options`（Explicit・Base・Compare・Deftype）、手続きの `params_detail` / `return_type` / `attributes` / `error_handling` / `labels` / `event_binding` / `conditional`、表面の `class_header` / `default_member` / `enumerator_member`、VBP `references`、`Declare` の `alias`、designer の `ocx_objects` / `external_control_classes` / `data_bindings`、`diagnostics`（`comment_continuation` / `duplicate_procedure`）。値の無いキーは出さないものがある（`diagnostics` 等）
 - パス欠落の `Form=` / `Module=` / `Class=` は一覧に入れず `warnings` に出す（JSON / MD / HTML / CLI サマリ）。
 - HTML レポートは検索ボックス（ファイル名 / VB_Name / プロシージャ / 宣言名）と全開閉ボタン付き。
 - Form の `show_calls`（`Foo.Show` / `Me.Show` / 単独 `Show`）を転置して `show_inbound` / `show_unresolved` を出す（新しい呼び出しは推定しない。`Me` / 空 target は unresolved）。
@@ -278,6 +300,15 @@ python -m unittest discover -s tools -p "test_*.py" -v
 - `test_serve_reports.py` — ランディング分類 + `--live-get`（`/` と `/excerpt` が 200）+ ポート占有時のフォールバック
 - `test_demo.py` — `--no-serve` で inventory/excerpt を書き、tick しない。失敗時は `next:` を出す
 - `test_extract_vbp.py` — 同 stem 同伴（`.frx` / `.ctx` 等）。中身は解析しない
+- `test_event_binding.py` — イベント持ち主（コントロール・自モジュール・WithEvents）で inventory と deep-read が一致
+- `test_file_statements.py` — `#` 無しファイル番号、`rs.Open` / `Property Get` を拾わない
+- `test_declarators.py` — モジュール変数・Option・Deftype・暗黙型・`ByRef` 既定・型文字付き関数名
+- `test_dependencies.py` — `Reference=`・Declare の Alias と引数・フォームごとの OCX
+- `test_error_handling.py` — `On Error` / `Resume` の事実、文単位の GoTo 地図（`ErrH: …` / `x = 1: GoTo`）
+- `test_designer.py` — `BeginProperty` の分離・`""`・`.frx` 参照・データバインド
+- `test_index_build.py` — 索引のスコープ規則（同一ファイル・全体・Form 修飾・型付き変数・Private 不可視・With）、副作用、チャンク、スキーマ適合、決定性
+- `test_bundle.py` — 文脈束の優先順・予算での省略・参照元候補、`lines --proc`
+- `test_verify_inventory.py` — End 数に加え、物理行ヘッダ数・範囲の重なり・重複（独立検査）
 
 いずれも特定顧客アプリの正本は不要（合成データ／一時ディレクトリ）。
 
@@ -305,4 +336,8 @@ python -m unittest discover -s tools -p "test_*.py" -v
 - `verify` fails on `missing_in_extract` as well as End-count mismatch. It checks
   internal consistency, not complete VB6 correctness. `test_review_regressions.py`
   supplies explicit expected results independent of End counts.
-- Parser cache version is `inv-12`; encoding settings are included in cache keys.
+- Parser version is `inv-14` (phase-1 facts above); cache keys also carry encoding settings and a
+  SHA-256 of `vb6_inventory.py` + `tools/lib/*.py`, so a parser edit without a version
+  bump no longer serves stale facts. `inventory` JSON records `provenance`.
+- Protection hooks read Cursor's payload as `utf-8-sig` (Cursor on Windows sends a
+  BOM). An unreadable payload is denied (`protect_source`) or asked (`guard_shell`).

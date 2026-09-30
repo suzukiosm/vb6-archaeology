@@ -25,6 +25,7 @@ CONTEXT = (
     "Commands: /vb6-extract /vb6-inventory /frm-deep-read /runtime-layout "
     "/vb6-comprehend /vb6-report /vb6-verify-reports /serve-reports /kit-smoke. "
     "Reimpl excerpt: python -m tools excerpt or serve /excerpt. "
+    "AI index: python -m tools index, then python -m tools bundle <Proc>[@File]. "
     "Pipeline status: python -m tools status. "
     "config-check: python -m tools config-check."
 )

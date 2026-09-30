@@ -1,0 +1,113 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/suzukiosm/vb6-archaeology/schema/index.schema.json",
+  "title": "vb6-archaeology AI index records (schema_version 1)",
+  "description": "Records written by `python -m tools index` under <index_dir>/<stem>/. Each JSONL line is one record of the matching $defs entry; manifest.json is one manifest object. Keys not listed here may appear (additive); listed keys keep their meaning within a schema_version.",
+  "$defs": {
+    "manifest": {
+      "type": "object",
+      "required": ["schema", "schema_version", "stem", "files", "counts", "token_estimate", "notes"],
+      "properties": {
+        "schema": { "type": "string", "minLength": 1 },
+        "schema_version": { "type": "integer", "minimum": 1 },
+        "stem": { "type": "string", "minLength": 1 },
+        "vbp": { "type": "string" },
+        "inventory_provenance": { "type": "object" },
+        "references": { "type": "array", "items": { "type": "object" } },
+        "objects": { "type": "array", "items": { "type": "object" } },
+        "files": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["file", "sha256", "lines"],
+            "properties": {
+              "file": { "type": "string", "minLength": 1 },
+              "sha256": { "type": "string", "minLength": 64 },
+              "lines": { "type": "integer", "minimum": 0 }
+            }
+          }
+        },
+        "counts": {
+          "type": "object",
+          "required": ["symbols", "occurrences", "effects", "chunks"],
+          "properties": {
+            "symbols": { "type": "integer", "minimum": 0 },
+            "occurrences": { "type": "integer", "minimum": 0 },
+            "effects": { "type": "integer", "minimum": 0 },
+            "chunks": { "type": "integer", "minimum": 0 }
+          }
+        },
+        "token_estimate": { "type": "string", "minLength": 1 },
+        "notes": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "symbol": {
+      "type": "object",
+      "description": "kind is File | Sub | Function | Property Get | Property Let | Property Set | Declare | Const | Enum | EnumMember | Type | Event | Variable | Control. id is <file>#<Kind>:<name> (File: the file name; duplicates get @L<line>).",
+      "required": ["id", "kind", "name", "file"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "kind": { "type": "string", "minLength": 1 },
+        "name": { "type": "string", "minLength": 1 },
+        "file": { "type": "string", "minLength": 1 },
+        "visibility": { "type": "string" },
+        "span": { "type": "array", "minItems": 2, "items": { "type": "integer", "minimum": 1 } },
+        "line": { "type": "integer", "minimum": 1 },
+        "params": { "type": "array", "items": { "type": "object" } },
+        "event": {
+          "type": "object",
+          "required": ["owner", "event", "binding"],
+          "properties": {
+            "owner": { "type": "string" },
+            "event": { "type": "string" },
+            "binding": { "type": "string" }
+          }
+        }
+      }
+    },
+    "occurrence": {
+      "type": "object",
+      "description": "A lexical use of a known name. candidates are chosen by VB6 scope rules named in basis (same_file | global | qualified | typed_variable | me); they are candidates, not resolved call edges.",
+      "required": ["name", "file", "line", "context", "candidates", "basis", "resolution"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "file": { "type": "string", "minLength": 1 },
+        "line": { "type": "integer", "minimum": 1 },
+        "context": { "type": "string", "minLength": 1 },
+        "candidates": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
+        "basis": { "type": "string", "minLength": 1 },
+        "resolution": { "type": "string", "minLength": 1 },
+        "qualifier": { "type": "string" }
+      }
+    },
+    "effect": {
+      "type": "object",
+      "description": "kind: file.<statement> | registry | com.create | com.new | db.method | db.engine | sql.literal | process.shell | api.call | ui.show | ui.load | ui.unload | ui.msgbox | ui.popupmenu | printer | sendkeys | app.end.",
+      "required": ["kind", "file", "line", "text"],
+      "properties": {
+        "kind": { "type": "string", "minLength": 1 },
+        "file": { "type": "string", "minLength": 1 },
+        "line": { "type": "integer", "minimum": 1 },
+        "text": { "type": "string" }
+      }
+    },
+    "chunk": {
+      "type": "object",
+      "description": "Readable unit for retrieval. code lines are '<physical line>| <source>'. sha256 is over code; tokens_est over header + code.",
+      "required": ["id", "symbol", "file", "span", "header", "code", "sha256", "tokens_est", "notes", "effects", "refs"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "symbol": { "type": "string", "minLength": 1 },
+        "file": { "type": "string", "minLength": 1 },
+        "span": { "type": "array", "minItems": 2, "items": { "type": "integer", "minimum": 0 } },
+        "header": { "type": "string", "minLength": 1 },
+        "code": { "type": "string" },
+        "sha256": { "type": "string", "minLength": 64 },
+        "tokens_est": { "type": "integer", "minimum": 0 },
+        "notes": { "type": "array", "items": { "type": "string" } },
+        "effects": { "type": "array", "items": { "type": "object" } },
+        "refs": { "type": "array", "items": { "type": "string" } }
+      }
+    }
+  }
+}

@@ -92,8 +92,22 @@ def run_pipeline() -> None:
         "comprehend suggest",
         ["comprehend", "--inventory", str(INV_JSON), "--suggest"],
     )
+    run_step(
+        "comprehend stale",
+        ["comprehend", "--inventory", str(INV_JSON), "--stale", "--json-only"],
+    )
     run_step("excerpt", ["excerpt", "--inventory", str(INV_JSON)])
     run_step("io-catalog", ["io-catalog", "--extract", str(EXTRACT)])
+    run_step("index", ["index", "--inventory", str(INV_JSON)])
+    index_dir = REPO / "working" / "index" / "mini_vbp"
+    missing = [n for n in ("manifest.json", "symbols.jsonl", "occurrences.jsonl",
+                           "effects.jsonl", "chunks.jsonl") if not (index_dir / n).is_file()]
+    if missing:
+        raise SystemExit(f"kit_smoke failed: index files missing: {', '.join(missing)}")
+    run_step(
+        "bundle",
+        ["bundle", "Command1_Click@Form1.frm", "--index", str(index_dir), "--budget", "1500"],
+    )
     # Skeletons exist after deep-read; persist show_style compare before status reads it.
     run_step("verify-show", ["verify-show", "--inventory", str(INV_JSON)])
     run_step("status", ["status", "--extract", str(EXTRACT), "--json-only"])

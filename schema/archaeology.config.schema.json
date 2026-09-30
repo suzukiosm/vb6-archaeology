@@ -49,6 +49,11 @@
       "minLength": 1,
       "description": "UTF-8 sidecar of an extract for Cursor Read (default working/readable). Not the analysis canon."
     },
+    "index_dir": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Where `python -m tools index` writes the AI index (manifest + JSONL per extract; default working/index)."
+    },
     "encoding": {
       "type": "string",
       "minLength": 1,

@@ -86,6 +86,14 @@ COMMANDS: dict[str, Command] = {
         "tools.io_catalog",
         "Catalog Open / Kill / Name / Get / Put (facts only; attach GoTo-skip)",
     ),
+    "index": Command(
+        "tools.index_build",
+        "Build the AI index: symbols / occurrences (candidates) / effects / chunks JSONL",
+    ),
+    "bundle": Command(
+        "tools.bundle",
+        "Token-budgeted context bundle for one procedure (code, notes, effects, references)",
+    ),
     "status": Command(
         "tools.status",
         "Print facts-only pipeline status from existing artifacts",
