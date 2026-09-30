@@ -23,6 +23,10 @@ VB6 を壊さず理解するための汎用 OS（docs / .cursor / tools）を維
 
 ## 3. 次手（キット）
 
+- 2026-09-30 レビュー改善第1段階: パス対応表・衝突防止、共通字句処理、deep-read 境界共通化、WithEvents/未解決 owner、Property accessor tick、欠落ファイル検証を実装。詳細は tools/README.md の Review fixes。
+- 続く段階: 同名ファイルを共存できる source/symbol ID、成果物スキーマ・ハッシュ照合、Global/Dim/Declare/Enum とメンバー属性の抽出、暗黙仕様と未対応診断。その後に DAO/ADO/SQL の証拠収集、チャンク・文脈バンドル・検索評価。完全 callgraph を正規表現で推定しない方針は維持。
+
+
 - （採用済 2026-09-03 · readable）`python -m tools readable` — extract の UTF-8 サイドカー（物理行一致。extract は触らない。`.frx` 等はスキップ）。Cursor Read 用。分析の正は extracts。`readable_dir`（既定 `working/readable`）
 - （採用済 2026-09-03 · demo / serve フォールバック / ライトテーマ）`python -m tools demo`（extract→inventory→excerpt→serve。tick しない。`--live-get` と混ぜない）。`serve` は占有ポートで空きへフォールバックし印刷 URL が正。レポート HTML は `lib/report_html.py` でライトテーマ固定。`tools/README.md` は英日同一ファイル（要約は COMMANDS）
 - （採用済 2026-08-29 · VBP Type/Attribute）inventory が `Type` / `CondComp` / `CompatibleMode` / `CompilationType` / `CompatibleEXE32` / `AutoIncrementVer` を生文字列で残す。表面に `vb_predeclared_id` / `vb_user_mem_id`（生 bool / 生 int。無ければ null）。解釈しない。PARSER_VERSION inv-8

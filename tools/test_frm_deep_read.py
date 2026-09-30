@@ -476,11 +476,11 @@ class ClassifyEventsTests(unittest.TestCase):
         self.assertEqual(events[0]["status"], "live")
         self.assertEqual(events[0]["note"], "orphan handler, called as sub")
 
-    def test_orphan_without_call_stays_dead(self) -> None:
+    def test_orphan_without_call_is_unresolved_not_proven_dead(self) -> None:
         events = [{"name": "Ghost_Click"}]
         classify_events(events, "Private Sub Ghost_Click()\nEnd Sub\n", "", [], "Form1")
-        self.assertEqual(events[0]["status"], "dead")
-        self.assertIn("orphan", events[0]["dead_reason"])
+        self.assertEqual(events[0]["status"], "unobserved")
+        self.assertIn("orphan", events[0]["unobserved_reason"])
 
 
 class ReportHonestyTests(unittest.TestCase):

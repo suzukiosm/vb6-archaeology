@@ -7,6 +7,14 @@ Versions are exposed by `python -m tools --version` (`tools/__init__.py`).
 
 ## [Unreleased]
 
+### Fixed — review regressions (2026-09-30)
+
+- Extract path manifest and collision preflight; inventory no longer follows parent references outside extracts.
+- Comment continuations, named arguments, numeric date/time literals, and false Show/I/O hits in strings.
+- Shared procedure extraction for inventory/deep-read; unresolved event owners no longer imply dead code.
+- Accessor-specific Property ticks (`--kind`) and conservative compatibility for old notes.
+- Verification rejects missing VBP files; parser cache inv-12 includes encoding configuration.
+
 ### Added
 
 - `python -m tools readable` — extract の UTF-8 サイドカー（物理行一致。extract は触らない。`.frx` 等はスキップ）。Cursor Read 用。分析の正は extracts。`readable_dir`（既定 `working/readable`）

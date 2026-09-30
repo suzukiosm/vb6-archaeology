@@ -75,7 +75,10 @@ def main(argv: list[str] | None = None) -> int:
     else:
         extract_dir = extract_dir.resolve()
 
-    mismatches: list[dict] = []
+    mismatches: list[dict] = [
+        {'file': name, 'error': 'VBP reference missing in extract; re-extract before verification'}
+        for name in data.get('missing_in_extract') or []
+    ]
     files = data.get("files") or []
     for entry in files:
         if str(entry.get("type") or "") in ("relateddoc", "resfile32"):

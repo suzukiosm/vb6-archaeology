@@ -40,7 +40,7 @@ COMMANDS: dict[str, Command] = {
     ),
     "extract": Command(
         "tools.extract_vbp",
-        "Copy a .vbp and the files it references into working/extracts/",
+        "Copy VBP sources with a path manifest; reject filename collisions",
     ),
     "readable": Command(
         "tools.readable",
@@ -76,7 +76,7 @@ COMMANDS: dict[str, Command] = {
     ),
     "comprehend": Command(
         "tools.comprehension_scaffold",
-        "Scaffold ticks, or list --unticked / --suggest (heuristic, no auto-tick)",
+        "Scaffold ticks (--kind selects Property accessors), or list --unticked / --suggest",
     ),
     "excerpt": Command(
         "tools.reimpl_excerpt",

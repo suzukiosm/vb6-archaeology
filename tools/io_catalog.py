@@ -29,7 +29,7 @@ from lib.config import (  # noqa: E402
     skeletons_root,
 )
 from lib.console import enable_utf8_stdio  # noqa: E402
-from lib.vbparse import iter_statements  # noqa: E402
+from lib.vbparse import code_mask, iter_statements  # noqa: E402
 
 SCAN_SUFFIXES = frozenset({".frm", ".bas", ".cls", ".ctl", ".pag", ".dob", ".dsr"})
 IO_KINDS = ("open", "kill", "name", "get", "put")
@@ -62,7 +62,7 @@ def classify_io_statement(text: str) -> str | None:
     s = text.strip()
     if not s or s.startswith("'"):
         return None
-    code = s.split("'")[0].strip()
+    code = code_mask(s)
     if not code:
         return None
     for kind, pattern in _KIND_RULES:

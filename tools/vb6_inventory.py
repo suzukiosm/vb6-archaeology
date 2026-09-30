@@ -32,8 +32,9 @@ sys.path.insert(0, str(REPO_ROOT / "tools"))
 from lib.cache import content_key  # noqa: E402
 from lib.cache import load as cache_load  # noqa: E402
 from lib.cache import store as cache_store  # noqa: E402
-from lib.config import decode_vb6_bytes, reports_root  # noqa: E402
+from lib.config import decode_vb6_bytes, load_config, reports_root  # noqa: E402
 from lib.console import enable_utf8_stdio  # noqa: E402
+from lib.extract_paths import load_source_map, resolve_source  # noqa: E402
 from lib.report_html import COLOR_SCHEME_META, LIGHT_THEME_CSS  # noqa: E402
 from lib.show_style import (  # noqa: E402
     attach_show_inbound,
@@ -41,11 +42,11 @@ from lib.show_style import (  # noqa: E402
     parse_show_calls_in_line,
     self_show_style,
 )
-from lib.vbparse import iter_statements  # noqa: E402
+from lib.vbparse import code_mask, iter_statements  # noqa: E402
 
 # Bump when parse_* output shape or semantics change (invalidates the cache).
 # Suffix is part of the key (see inventory_file): .frm vs .bas parse differently.
-PARSER_VERSION = "inv-11"
+PARSER_VERSION = "inv-12"
 
 # Designer-like text files: header + code, same family as .frm.
 DESIGNER_SUFFIXES = frozenset({".frm", ".ctl", ".pag", ".dob", ".dsr"})
@@ -365,7 +366,7 @@ def extract_params_returns(after_name: str) -> tuple[str, str | None]:
     if not s.startswith("("):
         return "", None
     depth = 0
-    for i, ch in enumerate(s):
+    for i, ch in enumerate(code_mask(s)):
         if ch == "(":
             depth += 1
         elif ch == ")":
@@ -500,6 +501,7 @@ def parse_procedures(lines: list[str]) -> tuple[list[dict], list[dict]]:
                     "name": pm.group(3),
                     "kind": kind,
                     "visibility": (pm.group(1) or "Public").capitalize(),
+                    "static": bool(re.match(r'(?:(?:Public|Private|Friend)\s+)?Static\b', stripped, re.IGNORECASE)),
                     "params": params,
                     "returns": returns,
                     "line_start": stmt.phys_start,
@@ -750,7 +752,9 @@ def inventory_file(path: Path, use_cache: bool = True) -> dict:
     # Include suffix: identical bytes as .frm vs .bas produce different results.
     key: str | None = None
     if use_cache:
-        key = content_key(raw, f"{PARSER_VERSION}|{path.suffix.lower()}")
+        cfg = load_config()
+        decoding = json.dumps([cfg.get('encoding'), cfg.get('encoding_fallbacks')])
+        key = content_key(raw, f"{PARSER_VERSION}|{path.suffix.lower()}|{decoding}")
         hit = cache_load(key)
         if hit is not None:
             hit["file"] = path.name  # same content, possibly different filename
@@ -820,9 +824,12 @@ def build_report(
         + [(r["file"], "resfile32") for r in vbp.get("res_files") or []]
     )
     present: list[tuple[str, str]] = []
+    source_map = load_source_map(extract_dir)
+    resolved: dict[str, Path] = {}
     for fname, ftype in ordered:
-        # Relative paths may include subdirs; resolve against extract_dir.
-        if (extract_dir / fname).is_file():
+        path = resolve_source(extract_dir, fname, source_map)
+        if path is not None:
+            resolved[fname] = path
             present.append((fname, ftype))
         else:
             missing.append(fname)
@@ -849,7 +856,9 @@ def build_report(
         fname, ftype = item
         if ftype in STUB_TYPES:
             return stub_file(fname, ftype)
-        info = inventory_file(extract_dir / fname, use_cache=use_cache)
+        info = inventory_file(resolved[fname], use_cache=use_cache)
+        info['file'] = resolved[fname].relative_to(extract_dir.resolve()).as_posix()
+        info['vbp_reference'] = fname
         info["type"] = ftype
         return info
 

@@ -30,6 +30,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT / "tools"))
 
 from lib.config import reports_root  # noqa: E402
+from lib.procedure_identity import is_ticked, normalize_ticks, target_name
 from lib.console import enable_utf8_stdio  # noqa: E402
 from lib.report_html import COLOR_SCHEME_META, LIGHT_THEME_CSS  # noqa: E402
 
@@ -224,11 +225,11 @@ def iter_inventory_procedures(data: dict) -> list[dict]:
 
 def list_unticked(data: dict, ticked: set[tuple[str, str]]) -> list[dict]:
     """Inventory procedures that have no comprehension tick (inventory order)."""
-    seen = {_proc_key(f, n) for f, n in ticked}
+    ticked = normalize_ticks(ticked)
     return [
         row
         for row in iter_inventory_procedures(data)
-        if _proc_key(row["file"], row["name"]) not in seen
+        if not is_ticked(row['file'], row, ticked)
     ]
 
 
@@ -239,7 +240,7 @@ def suggest_unticked(data: dict, unticked: list[dict]) -> list[dict]:
     ``show_calls`` targets' Form_Load → remaining unticked public Subs.
     Unresolved Show targets are skipped (no invented edge).
     """
-    by_key = {_proc_key(row["file"], row["name"]): row for row in unticked}
+    by_key = {_proc_key(row["file"], target_name(row)): row for row in unticked}
     ranked: list[dict] = []
     used: set[tuple[str, str]] = set()
 
@@ -273,7 +274,7 @@ def suggest_unticked(data: dict, unticked: list[dict]) -> list[dict]:
 
 
 def _ref(row: dict) -> str:
-    return f"{row['file']}#{row['name']}"
+    return f"{row['file']}#{target_name(row)}"
 
 
 def emit_listing(
@@ -316,7 +317,7 @@ def emit_listing(
     return 0
 
 
-def find_procedure(data: dict, proc: str, file_hint: str | None) -> dict:
+def find_procedure(data: dict, proc: str, file_hint: str | None, kind_hint: str | None = None) -> dict:
     """Locate a procedure in the inventory, or fail with the reason."""
     wanted = proc.strip().lower()
     hint = (Path(file_hint).name.lower() if file_hint else None)
@@ -327,6 +328,8 @@ def find_procedure(data: dict, proc: str, file_hint: str | None) -> dict:
         if hint and base != hint and Path(base).stem != Path(hint).stem:
             continue
         for record in entry.get("procedures") or []:
+            if kind_hint and str(record.get('kind', '')).casefold() != kind_hint.casefold():
+                continue
             if str(record.get("name", "")).strip().lower() == wanted:
                 matches.append({**record, "file": Path(fname).name})
     if not matches:
@@ -340,8 +343,8 @@ def find_procedure(data: dict, proc: str, file_hint: str | None) -> dict:
     if len(matches) > 1:
         files = ", ".join(sorted({m["file"] for m in matches}))
         raise SystemExit(
-            f"'{proc}' exists in several files ({files}); "
-            f"disambiguate with --add-tick {proc}@<file>"
+            f"'{proc}' matches multiple procedures ({files}); "
+            f"disambiguate with --add-tick {proc}@<file> and --kind 'Property Get/Let/Set'"
         )
     return matches[0]
 
@@ -415,8 +418,8 @@ def render_tick(number: int, record: dict, layer: str) -> str:
     start, end = record.get("line_start"), record.get("line_end")
     where = f"{file_name} L{start}-{end}" if start and end else file_name
     layer_title = LAYERS.get(layer, ("", ()))[0]
-    return f"""<section class="tick" data-tick="{number}" data-layer="{esc(layer)}" data-target="{esc(file_name)}#{esc(name)}">
-  <h3>Tick {number} — <code>{esc(name)}</code> <span class="src">{esc(where)} · 層 {esc(layer)} {esc(layer_title)}</span></h3>
+    return f"""<section class="tick" data-tick="{number}" data-layer="{esc(layer)}" data-target="{esc(file_name)}#{esc(target_name(record))}">
+  <h3>Tick {number} — <code>{esc(name)}</code> <span class="src">{esc(record.get('kind', ''))} · {esc(where)} · 層 {esc(layer)} {esc(layer_title)}</span></h3>
   <h4>事実</h4>
   <ul><li>（CP932 で本文を読み、確定した内容だけ書く）</li></ul>
   <h4>読解（推定）— 証拠必須</h4>
@@ -472,6 +475,8 @@ def main(argv: list[str] | None = None) -> int:
         help="Append a tick for an inventory procedure",
     )
     ap.add_argument("--layer", choices=sorted(LAYERS), default="A")
+    ap.add_argument('--kind', choices=['Sub', 'Function', 'Property Get', 'Property Let', 'Property Set'],
+                    help='Disambiguate same-name property accessors for --add-tick')
     ap.add_argument(
         "--unticked",
         action="store_true",
@@ -526,7 +531,7 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.add_tick:
         target, _, file_hint = args.add_tick.partition("@")
-        record = find_procedure(data, target, file_hint or None)
+        record = find_procedure(data, target, file_hint or None, args.kind)
         text = report.read_text(encoding="utf-8")
         number = next_tick_number(text)
         text = insert_tick(text, render_tick(number, record, args.layer), report)

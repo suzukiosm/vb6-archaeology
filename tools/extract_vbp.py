@@ -8,11 +8,12 @@ Never writes under protected source trees listed in archaeology.config.json
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import re
 import shutil
 import sys
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT / "tools"))
@@ -73,7 +74,7 @@ def parse_referenced_files(vbp_text: str) -> tuple[list[str], list[str]]:
             continue
 
         # Module=Module1; path.bas  /  Form=path.frm
-        path_part = value.split(";", 1)[-1].strip() if ";" in value else value
+        path_part = (value.split(";", 1)[-1] if ";" in value else value).strip().strip('"')
         if not path_part or path_part in seen:
             continue
         seen.add(path_part)
@@ -139,33 +140,48 @@ def extract(vbp_path: Path, out_dir: Path, source_root: Path) -> dict:
     text = decode_vbp(vbp_path.read_bytes())
     rel_files, skipped_refs = parse_referenced_files(text)
 
-    out_dir.mkdir(parents=True, exist_ok=True)
     copied: list[str] = []
     missing: list[str] = []
+    source_map: list[dict] = []
+    plan: dict[str, tuple[Path, Path]] = {}
 
-    # Always copy the vbp itself
-    dest_vbp = out_dir / vbp_path.name
-    shutil.copy2(vbp_path, dest_vbp)
-    copied.append(vbp_path.name)
+    def plan_copy(src: Path, name: str) -> None:
+        key = name.casefold()
+        if key == '_extract_report.json':
+            raise SystemExit(f'extract filename collision with reserved report: {name}')
+        if key in plan and plan[key][0].resolve() != src.resolve():
+            raise SystemExit(f'extract filename collision: {plan[key][0]} / {src}')
+        dest = out_dir / name
+        ensure_not_writing_source(dest, source_root)
+        if not dest.resolve().is_relative_to(out_dir.resolve()):
+            raise SystemExit(f'extract destination escapes output directory: {dest}')
+        plan[key] = (src, dest)
 
+    plan_copy(vbp_path, vbp_path.name)
     vbp_dir = vbp_path.parent
     for rel in rel_files:
-        src = (vbp_dir / rel).resolve()
+        src = (vbp_dir / Path(*PureWindowsPath(rel).parts)).resolve()
         # Stay within source tree when possible; still allow listed relative paths
         if not src.is_file():
             missing.append(rel)
             continue
-        dest = out_dir / Path(rel).name
-        ensure_not_writing_source(dest, source_root)
-        dest.parent.mkdir(parents=True, exist_ok=True)
+        name = src.name
+        plan_copy(src, name)
+        source_map.append({'reference': rel, 'copy': name,
+                           'source': str(src),
+                           'sha256': hashlib.sha256(src.read_bytes()).hexdigest()})
+        for companion in companion_paths(src):
+            plan_copy(companion, companion.name)
+
+    # Validate the complete plan before mutating even the destination VBP.
+    report_path = out_dir / "_extract_report.json"
+    ensure_not_writing_source(report_path, source_root)
+    if not report_path.resolve().is_relative_to(out_dir.resolve()):
+        raise SystemExit(f'extract report escapes output directory: {report_path}')
+    out_dir.mkdir(parents=True, exist_ok=True)
+    for src, dest in plan.values():
         shutil.copy2(src, dest)
         copied.append(dest.name)
-
-        for companion in companion_paths(src):
-            dest_comp = out_dir / companion.name
-            ensure_not_writing_source(dest_comp, source_root)
-            shutil.copy2(companion, dest_comp)
-            copied.append(dest_comp.name)
 
     report = {
         "vbp": str(vbp_path),
@@ -173,8 +189,10 @@ def extract(vbp_path: Path, out_dir: Path, source_root: Path) -> dict:
         "copied": copied,
         "missing": missing,
         "skipped_ref_count": len(skipped_refs),
+        "references": skipped_refs,
+        "source_map": source_map,
+        "manifest_version": 1,
     }
-    report_path = out_dir / "_extract_report.json"
     report_path.write_text(
         json.dumps(report, ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",

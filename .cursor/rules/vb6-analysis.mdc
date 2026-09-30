@@ -33,3 +33,6 @@ alwaysApply: false
 ## スコア
 
 - 「100%」はチェックリスト達成のみ。アプリ全体理解と混同しない
+
+- End 件数照合は内部整合性のみ。独立の期待値テストも必要。
+- deep-read の live は結合・参照候補。WithEvents を含め、owner 不明を dead と断定しない。

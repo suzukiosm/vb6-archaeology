@@ -20,6 +20,45 @@ from typing import Literal, NamedTuple
 
 _REM_HEAD_RE = re.compile(r"^Rem\b", re.IGNORECASE)
 _LABEL_IDENT_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+_DATE_LITERAL_RE = re.compile(r"#[0-9][0-9\s/:.\-]*(?:AM|PM)?\s*#", re.IGNORECASE)
+
+
+def code_mask(text: str) -> str:
+    """Blank literals/comments without shifting offsets; keep code tokens.
+
+    Operates on one physical/logical line. File channels (#1) and type suffixes
+    are not date literals. This is lexical filtering, not name resolution.
+    """
+    out = list(text)
+    i = 0
+    while i < len(text):
+        start = i
+        if text[i] == "'" or (
+            text[i:i + 3].casefold() == 'rem'
+            and re.match(r'Rem\b', text[i:], re.IGNORECASE)
+            and re.search(r'(?:^|:|\bThen|\bElse)\s*$', ''.join(out[:i]), re.IGNORECASE)
+        ):
+            out[i:] = ' ' * (len(text) - i)
+            break
+        if text[i] == '"':
+            i += 1
+            while i < len(text):
+                if text[i] == '"':
+                    i += 1
+                    if i < len(text) and text[i] == '"':
+                        i += 1
+                        continue
+                    break
+                i += 1
+            out[start:i] = ' ' * (i - start)
+            continue
+        date = _DATE_LITERAL_RE.match(text, i) if text[i] == '#' else None
+        if date:
+            i = date.end()
+            out[start:i] = ' ' * (i - start)
+            continue
+        i += 1
+    return ''.join(out)
 
 StatementKind = Literal["stmt", "label"]
 
@@ -67,7 +106,8 @@ def iter_logical_lines(lines: list[str]) -> list[LogicalLine]:
 
     for idx, raw in enumerate(lines, start=1):
         stripped = raw.rstrip()
-        is_cont = len(stripped) >= 2 and stripped[-1] == "_" and stripped[-2] in " \t"
+        mask = code_mask(stripped)
+        is_cont = len(stripped) >= 2 and mask[-1] == "_" and stripped[-2] in " \t"
         if start is None:
             start = idx
         if is_cont:
@@ -112,6 +152,7 @@ def _split_on_unquoted_colons(text: str) -> list[str]:
     in_str = False
     i = 0
     n = len(text)
+    mask = code_mask(text)
     while i < n:
         ch = text[i]
         if ch == '"':
@@ -123,7 +164,7 @@ def _split_on_unquoted_colons(text: str) -> list[str]:
             in_str = not in_str
             i += 1
             continue
-        if ch == ":" and not in_str:
+        if ch == ":" and mask[i] == ':' and not text.startswith(':=', i):
             parts.append("".join(buf).strip())
             buf = []
             i += 1

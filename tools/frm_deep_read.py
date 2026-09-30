@@ -40,8 +40,8 @@ from lib.show_style import (  # noqa: E402
     parse_show_calls_in_line,
     self_show_style,
 )
-from lib.vbparse import iter_statements  # noqa: E402
-from vb6_inventory import parse_surface  # noqa: E402
+from lib.vbparse import code_mask, iter_statements  # noqa: E402
+from vb6_inventory import parse_procedures, parse_surface  # noqa: E402
 
 MODULE_SUFFIXES = {".bas", ".cls"}
 FORM_SUFFIXES = {".frm"}
@@ -214,62 +214,28 @@ def _assign_value_re(markers: list[str]) -> re.Pattern[str] | None:
 
 
 def extract_events(lines: list[str], assign_markers: list[str] | None = None):
-    events = []
-    in_code = False
-    current = None
     if assign_markers is None:
         assign_markers = optional_assign_markers()
     marker_re = _assign_value_re(assign_markers)
-
-    for i, line in enumerate(lines):
-        s = line.strip()
-        if not in_code:
-            if s.startswith("Attribute VB_Name"):
-                in_code = True
-            continue
-
-        # VB6: Private Static Sub Foo( も拾う（processCalender Label2_Click 等）
-        sub_m = re.match(
-            r"(Private\s+|Public\s+)?(Static\s+)?(Sub|Function|Property\s+\w+)\s+(\w+)\s*\(",
-            s,
-        )
-        if sub_m:
-            if current:
-                current["end_line"] = i
-                current["size"] = current["end_line"] - current["start_line"] + 1
-                events.append(current)
-            scope = ((sub_m.group(1) or "") + (sub_m.group(2) or "")).strip()
-            current = {
-                "name": sub_m.group(4),
-                "kind": sub_m.group(3),
-                "scope": scope,
-                "start_line": i + 1, "end_line": None, "size": 0,
-                "comment_lines": 0,
-            }
-            continue
-
-        end_m = re.match(r"End\s+(Sub|Function|Property)", s)
-        if end_m and current:
-            current["end_line"] = i + 1
-            current["size"] = current["end_line"] - current["start_line"] + 1
-            events.append(current)
-            current = None
-            continue
-
-        if current and s.startswith("'"):
-            current["comment_lines"] += 1
-            continue
-
-        if current and s and not s.startswith("'"):
-            if marker_re:
-                pm = marker_re.search(s)
-                if pm:
-                    current.setdefault("para_sets", []).append(pm.group(1))
-
-    if current:
-        current["end_line"] = len(lines)
-        current["size"] = current["end_line"] - current["start_line"] + 1
-        events.append(current)
+    procedures, _ = parse_procedures(lines)
+    events = []
+    for proc in procedures:
+        start, end = proc['line_start'], proc['line_end']
+        body = lines[start:end - 1]
+        ev = {
+            'name': proc['name'], 'kind': proc['kind'],
+            'scope': proc['visibility'] + (' Static' if proc.get('static') else ''),
+            'start_line': start, 'end_line': end, 'size': end - start + 1,
+            'comment_lines': sum(line.strip().startswith("'") for line in body),
+        }
+        if proc.get('unterminated'):
+            ev['unterminated'] = True
+        if marker_re:
+            for stmt in iter_statements(body):
+                match = marker_re.search(stmt.text)
+                if match:
+                    ev.setdefault('para_sets', []).append(match.group(1))
+        events.append(ev)
 
     for ev in events:
         ev.setdefault("shows", [])
@@ -450,44 +416,56 @@ def classify_events(
     events: list[dict], code_text: str, bas_text: str,
     controls: list[dict] | None = None, form_name: str = "",
 ):
-    """Classify Subs as live / unobserved / dead (orphan).
+    """Classify lexical binding/reference candidates, not runtime reachability.
 
-    Event-named Subs are live when the owning control exists in the designer
-    (case-insensitive). Orphan handlers stay live only when called as a
-    normal Sub. A general Sub with no regex-observed caller is ``unobserved``
-    (not unreachable). ``dead`` is reserved for orphan handlers with no
-    observed call.
+    Legacy ``live`` means a designer/WithEvents owner or code reference exists.
+    Unresolved owners and unreferenced procedures are ``unobserved``. Neither
+    the absence of references nor an orphan-shaped name proves dead code.
     """
-    search_text = code_text + "\n" + bas_text
+    search_text = '\n'.join(code_mask(line) for line in (code_text + "\n" + bas_text).splitlines())
     control_names = {c["name"].lower() for c in (controls or [])}
+    with_events = {w['name'].lower() for w in parse_surface(code_text.splitlines())['with_events']}
     self_owners = {"form", "mdiform"}
     if form_name:
         self_owners.add(form_name.lower())
 
     def has_real_calls(name: str) -> bool:
-        pattern = re.compile(
-            rf"(?:Call\s+)?(?<!\bSub\s)(?<!\bFunction\s){re.escape(name)}\s*[\(\s\n]",
-            re.IGNORECASE,
-        )
-        for m in pattern.finditer(search_text):
-            ctx = search_text[max(0, m.start() - 30):m.start()]
-            if "Sub " not in ctx and "Function " not in ctx:
-                return True
+        pattern = re.compile(rf'\b{re.escape(name)}\b', re.IGNORECASE)
+        for stmt in iter_statements(search_text.splitlines()):
+            if stmt.kind != 'stmt' or re.match(
+                r'(?:(?:Public|Private|Friend|Static)\s+)*(?:Sub|Function|Property|Declare)\b',
+                stmt.text, re.IGNORECASE,
+            ):
+                continue
+            if pattern.search(stmt.text):
+                return True  # lexical reference only, not resolved reachability
         return False
 
     for ev in events:
         m = EVENT_SUFFIXES.match(ev["name"])
+        # Custom WithEvents names need not occur in the built-in suffix list.
+        we_owner = next((owner for owner in sorted(with_events, key=len, reverse=True)
+                         if ev['name'].lower().startswith(owner + '_')), None)
+        if we_owner:
+            ev['is_event'] = True
+            ev['binding'] = 'withevents_candidate'
+            ev['event_owner'] = we_owner
+            ev['status'] = 'live'
+            ev['note'] = 'WithEvents owner exists; event signature not verified'
+            continue
         ev["is_event"] = bool(m)
         if m:
             owner = m.group(1).lower()
             if owner in control_names or owner in self_owners:
                 ev["status"] = "live"
+                ev['binding'] = 'designer_candidate'
             elif has_real_calls(ev["name"]):
                 ev["status"] = "live"
                 ev["note"] = "orphan handler, called as sub"
             else:
-                ev["status"] = "dead"
-                ev["dead_reason"] = "orphan (control not in designer)"
+                ev["status"] = "unobserved"
+                ev['binding'] = 'unresolved'
+                ev["unobserved_reason"] = "orphan candidate (owner unresolved; no caller observed)"
             continue
 
         ev["status"] = "live" if has_real_calls(ev["name"]) else "unobserved"
@@ -666,7 +644,7 @@ def classify_goto_skip_stmt(text: str) -> str | None:
     s = text.strip()
     if not s or s.startswith("'"):
         return None
-    code = s.split("'")[0].strip()
+    code = code_mask(s)
     if not code:
         return None
     if _UNCOND_GOTO_RE.match(code) or _ON_ERROR_GOTO_RE.search(code):

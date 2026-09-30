@@ -22,6 +22,7 @@ REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO / "tools"))
 
 from lib.config import load_config, reports_root, skeletons_root  # noqa: E402
+from lib.procedure_identity import is_ticked, normalize_ticks
 from lib.console import enable_utf8_stdio  # noqa: E402
 from lib.report_html import COLOR_SCHEME_META, LIGHT_THEME_CSS  # noqa: E402
 from lib.show_style import invert_show_calls  # noqa: E402
@@ -256,6 +257,7 @@ def module_class_surface(
     inventory: dict, ticked: set[tuple[str, str]]
 ) -> list[dict]:
     """Per-file Module/Class facts: proc / Declare counts and unticked names."""
+    ticked = normalize_ticks(ticked)
     rows: list[dict] = []
     for entry in inventory.get("files") or []:
         if not is_module_or_class(entry):
@@ -268,7 +270,7 @@ def module_class_surface(
         unticked = [
             str(proc.get("name") or "")
             for proc in procs
-            if proc.get("name") and (file_name, proc.get("name")) not in ticked
+            if proc.get("name") and not is_ticked(file_name, proc, ticked)
         ]
         surf = entry.get("surface") or {}
         pub_prop = sum(
@@ -459,12 +461,13 @@ def build_excerpt_html(
             "</tr>"
         )
 
+    ticked = normalize_ticks(ticked)
     unticked = []
     for f in inventory.get("files") or []:
         file_name = f.get("file") or ""
         for proc in f.get("procedures") or []:
             name = proc.get("name") or ""
-            if (file_name, name) in ticked:
+            if is_ticked(file_name, proc, ticked):
                 continue
             unticked.append(
                 "<tr>"

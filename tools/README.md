@@ -286,3 +286,23 @@ python -m unittest discover -s tools -p "test_*.py" -v
 `VB6_source` で培った汎用部を移植。
 伝票 DAT・特定 Form・Next.js 配線などアプリ固有ツールは含まない。
 利用条件はリポ直下 `LICENSE`（許諾前提）。
+
+## Review fixes / レビュー改善（2026-09-30）
+
+- `extract` keeps the existing flat layout and writes `source_map` (VBP reference,
+  copy name, original path, SHA-256) in `_extract_report.json`. Filename collisions
+  fail before copying. `inventory` resolves mapped references only inside the
+  extract. Re-extract older projects containing parent/subdirectory references.
+- 抽出先は既存の平坦形式を維持。同名ファイルの共存は次段階であり、今回は
+  コピー前に停止して上書きを防ぐ。原本 VBP と抽出 VBP の内容は変更しない。
+- 字句処理はコメント末尾の `_`、名前付き引数 `:=`、数値形式の日付・時刻
+  リテラルを区別。Show / Load / Unload / I/O の走査は文字列・コメントを除外。
+- deep-read の手続き境界は inventory と共通。WithEvents 所有者と未解決 owner
+  を区別し、未観測を到達不能と断定しない。`live` は結合・参照候補の互換ラベル。
+- Property tick: `python -m tools comprehend --add-tick Value@Widget.cls --kind "Property Get"`.
+  Get / Let / Set are tracked separately. Legacy unqualified Property notes remain
+  intact but require accessor-specific review; Sub / Function ticks are compatible.
+- `verify` fails on `missing_in_extract` as well as End-count mismatch. It checks
+  internal consistency, not complete VB6 correctness. `test_review_regressions.py`
+  supplies explicit expected results independent of End counts.
+- Parser cache version is `inv-12`; encoding settings are included in cache keys.

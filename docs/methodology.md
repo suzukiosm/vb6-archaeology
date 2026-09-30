@@ -43,9 +43,9 @@
 - `frm_deep_read.py` は **対象 .frm 単体**の解析。他 .frm/.bas からの参照（`Show` 呼び元・外部操作）は見えない
 - `.bas` / `.cls` は同じコマンドで **表面レポート**（Implements / WithEvents / Instancing / プロシージャ / Show 文面 / GoTo）。メニュー・Ctrl・ライブ/デッド/未観測の分類はしない
 - イベント数 0 を「孤立・到達不能」と即断しない
-- deep-read の `live` はデザイナ結合のイベント、またはこの .frm/.bas の正規表現で呼び出しが観測された Sub
-- 一般 Sub で呼び出し未観測なら `unobserved`（`unobserved_reason=no_caller_observed`）。到達不能ではない。旧ラベル `dead` / `no caller` は使わない。`dead_reason` は orphan だけ
-- `dead` はデザイナに owner が無い orphan handler（かつ Sub としても未観測）に限る
+- deep-read の `live` は designer / WithEvents の所有者、または文字列・コメントを除いたコード参照が観測された手続きの互換ラベル。イベント型・到達性の証明ではない。`binding` に候補種別を残す
+- 一般 Sub で呼び出し未観測なら `unobserved`（`unobserved_reason=no_caller_observed`）。到達不能ではない。旧ラベル `dead` / `no caller` は使わない。旧成果物の `dead_reason` は読取互換のみ
+- owner 不明の orphan 候補も `unobserved`。外部・動的結合の不存在を証明できないため新たな `dead` は出さない
 - `show_map` はライブ Sub のみ。`unobserved` は旧 `dead` と同じく対象外（範囲を広げない）
 - `optional_assign_markers`（キット既定空）が無いとき、代入マーカー節（旧 PARA）は出さない。消費者固有の識別子でありキット必須ではない
 - 親が `VB.Frame` / `VB.PictureBox` で設計時 `Visible=0` かつコード非参照（dead container）のとき、子孫に `ancestor_hidden` / `ancestor_hidden_by` が付く（実行時非表示相当）
@@ -75,3 +75,10 @@
 | セッション現状（消費者） | `docs/ai-dev-context.md` | 人手 |
 | キット保守 | `docs/kit-dev-context.md` | 人手 |
 | フロー | `docs/flow/_master.md` | 人手 |
+
+## 2026-09-30 検証範囲
+
+`verify` は欠落ファイルと End 件数の内部整合性検証であり、独立した構文解析器ではない。
+正確性の回帰検証は、人工ソースに対する名前・種別・物理行・文・参照先の明示期待値で行う。
+条件付きコンパイル・数値行番号・DAO/ADO/SQL・暗黙型の完全な意味解析は未対応。
+新しい extract は source_map 経由で抽出内のコピーを読む。旧抽出の親参照は再抽出が必要。

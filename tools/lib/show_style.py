@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
+from .vbparse import code_mask
 
 SHOW_CALL_RE = re.compile(
     r"\b([A-Za-z_][\w]*)\.Show(?:\s+(vbModal|vbModeless|\d+))?\b",
@@ -89,7 +90,8 @@ def parse_show_calls_in_line(line: str, line_no: int) -> list[dict]:
     if not s or s.startswith("'") or _REM_HEAD_RE.match(s):
         return []
     out = []
-    for sm in SHOW_CALL_RE.finditer(s):
+    masked = code_mask(s)
+    for sm in SHOW_CALL_RE.finditer(masked):
         target = sm.group(1)
         arg = sm.group(2)
         out.append(
@@ -101,7 +103,7 @@ def parse_show_calls_in_line(line: str, line_no: int) -> list[dict]:
                 "text": s[:160],
             }
         )
-    for sm in SHOW_BARE_RE.finditer(s):
+    for sm in SHOW_BARE_RE.finditer(masked):
         arg = sm.group(1)
         out.append(
             {
@@ -129,9 +131,9 @@ def parse_lifetime_calls_in_line(line: str, line_no: int) -> list[dict]:
     if not s or s.startswith("'") or _REM_HEAD_RE.match(s):
         return []
     out = []
-    for sm in LIFETIME_CALL_RE.finditer(s):
+    for sm in LIFETIME_CALL_RE.finditer(code_mask(s)):
         verb = sm.group(1).lower()
-        target = sm.group(2)
+        target = s[sm.start(2):sm.end(2)]
         out.append(
             {
                 "kind": "unload" if verb == "unload" else "load",
