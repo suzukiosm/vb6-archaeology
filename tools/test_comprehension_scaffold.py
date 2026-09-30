@@ -129,6 +129,62 @@ class TestComprehensionScaffold(unittest.TestCase):
         self.assertIn(cs.TICKS_END, str(ctx.exception))
 
 
+class TestTickAnchors(unittest.TestCase):
+    """Ticks keep a SHA-256 of their source span so edits make them stale."""
+
+    SOURCE = ["Attribute VB_Name = \"M\"", "Public Sub Keep()", "    x = 1", "End Sub",
+              "Public Sub Edit()", "    y = 1", "End Sub", "Public Sub Gone()", "End Sub"]
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        root = Path(self.tmp.name)
+        self.src = root / "M.bas"
+        self.src.write_text("\n".join(self.SOURCE) + "\n", encoding="utf-8")
+        self.inventory = root / "m_inventory.json"
+        self.write_inventory([("Keep", 2, 4), ("Edit", 5, 7), ("Gone", 8, 9)])
+        self.report = root / "m_comprehension.html"
+
+    def write_inventory(self, procs):
+        self.inventory.write_text(json.dumps({
+            "stem": "m", "extract_dir": str(self.src.parent),
+            "files": [{"file": "M.bas", "procedures": [
+                {"name": n, "kind": "Sub", "line_start": s, "line_end": e} for n, s, e in procs]}],
+        }), encoding="utf-8")
+
+    def cli(self, *extra):
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            code = cs.main(["--inventory", str(self.inventory), "--out", str(self.report), *extra])
+        return code, buf.getvalue()
+
+    def test_anchor_records_the_span_digest(self):
+        self.cli("--add-tick", "Keep")
+        anchors = cs.load_anchors(self.report)
+        self.assertEqual([(a["tick"], a["target"], a["span"]) for a in anchors], [(1, "M.bas#Keep", [2, 4])])
+        self.assertEqual(anchors[0]["span_sha256"], cs.span_sha256(
+            json.loads(self.inventory.read_text(encoding="utf-8")), "M.bas", 2, 4))
+
+    def test_stale_lists_changed_and_missing_but_not_current(self):
+        for name in ("Keep", "Edit", "Gone"):
+            self.cli("--add-tick", name)
+        edited = list(self.SOURCE)
+        edited[5] = "    y = 2"
+        del edited[7:9]
+        self.src.write_text("\n".join(edited) + "\n", encoding="utf-8")
+        self.write_inventory([("Keep", 2, 4), ("Edit", 5, 7)])
+        code, out = self.cli("--stale", "--json-only")
+        self.assertEqual(code, 0)
+        rows = json.loads(out)["stale"]
+        self.assertEqual([(r["name"], r["status"]) for r in rows], [("Edit", "changed"), ("Gone", "missing")])
+        self.assertIn("stale ticks: 2", self.cli("--stale")[1])
+
+    def test_force_resets_anchors_with_the_ticks(self):
+        self.cli("--add-tick", "Keep")
+        self.cli("--force")
+        self.assertEqual(cs.load_anchors(self.report), [])
+
+
 SUGGEST_INVENTORY = {
     "vbp": "source/demo/demo.vbp",
     "stem": "demo",
@@ -270,6 +326,25 @@ class TestUntickedSuggest(unittest.TestCase):
         self.assertNotIn("MissingForm", out)
         self.assertNotIn("Hidden_Click", out)
         self.assertNotIn("Helper", out)
+
+    def test_sub_main_startup_is_suggested_first(self):
+        data = {
+            "meta": {"Startup": "Sub Main"},
+            "files": [
+                {"file": "Form1.frm", "type": "form", "procedures": [
+                    {"name": "Main", "kind": "Sub", "visibility": "Public"}]},
+                {"file": "Boot.bas", "type": "module", "procedures": [
+                    {"name": "Work", "kind": "Sub", "visibility": "Public"},
+                    {"name": "Main", "kind": "Sub", "visibility": "Private"}]},
+            ],
+        }
+        ranked = cs.suggest_unticked(data, cs.list_unticked(data, set()))
+        self.assertEqual(
+            [(r["reason"], r["file"], r["name"]) for r in ranked],
+            [(cs.SUGGEST_REASON_STARTUP_MAIN, "Boot.bas", "Main"),
+             (cs.SUGGEST_REASON_PUBLIC_SUB, "Form1.frm", "Main"),
+             (cs.SUGGEST_REASON_PUBLIC_SUB, "Boot.bas", "Work")],
+        )
 
     def test_ticked_procedure_drops_from_unticked(self):
         self.assertEqual(self.run_cli("--add-tick", "Form_Load@Form1.frm")[0], 0)

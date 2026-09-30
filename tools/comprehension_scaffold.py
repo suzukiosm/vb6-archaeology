@@ -20,6 +20,7 @@ and never write the report or add ticks.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import html
 import json
 import re
@@ -29,7 +30,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT / "tools"))
 
-from lib.config import reports_root  # noqa: E402
+from lib.config import decode_vb6_bytes, reports_root  # noqa: E402
 from lib.procedure_identity import is_ticked, normalize_ticks, target_name
 from lib.console import enable_utf8_stdio  # noqa: E402
 from lib.report_html import COLOR_SCHEME_META, LIGHT_THEME_CSS  # noqa: E402
@@ -44,6 +45,7 @@ TICK_TARGET_RE = re.compile(
 STARTUP_LOAD_NAMES = ("Form_Load", "MDIForm_Load")
 SUGGEST_CAPTION = "ヒューリスティック（自動 tick しない）"
 SUGGEST_REASON_STARTUP = "startup_load"
+SUGGEST_REASON_STARTUP_MAIN = "startup_main"
 SUGGEST_REASON_SHOW_TARGET = "show_target_load"
 SUGGEST_REASON_PUBLIC_SUB = "public_sub"
 FORMISH_SUFFIXES = {".frm"}
@@ -170,6 +172,13 @@ def _is_formish(entry: dict) -> bool:
     return Path(str(entry.get("file") or "")).suffix.lower() in FORMISH_SUFFIXES
 
 
+def _is_standard_module(entry: dict) -> bool:
+    kind = str(entry.get("type") or "").strip().lower()
+    if kind:
+        return kind == "module"
+    return Path(str(entry.get("file") or "")).suffix.lower() == ".bas"
+
+
 def _lookup_form(data: dict, name: str) -> dict | None:
     """Match one inventory Form by vb_name, else unique file stem.
 
@@ -236,7 +245,8 @@ def list_unticked(data: dict, ticked: set[tuple[str, str]]) -> list[dict]:
 def suggest_unticked(data: dict, unticked: list[dict]) -> list[dict]:
     """Rank unticked names. Heuristic only — does not add ticks.
 
-    Order: Startup Form_Load / MDIForm_Load → that form's outbound
+    Order: Startup Form_Load / MDIForm_Load (or ``Sub Main`` in a standard
+    module when the VBP says ``Startup="Sub Main"``) → that form's outbound
     ``show_calls`` targets' Form_Load → remaining unticked public Subs.
     Unresolved Show targets are skipped (no invented edge).
     """
@@ -252,6 +262,14 @@ def suggest_unticked(data: dict, unticked: list[dict]) -> list[dict]:
         ranked.append({**by_key[key], "reason": reason})
 
     startup = str((data.get("meta") or {}).get("Startup") or "").strip().strip('"')
+    if " ".join(startup.split()).casefold() == "sub main":
+        for entry in data.get("files") or []:
+            if not _is_standard_module(entry):
+                continue
+            for record in entry.get("procedures") or []:
+                if str(record.get("kind") or "").lower() == "sub" and \
+                        str(record.get("name") or "").lower() == "main":
+                    take(_file_name(entry), "Main", SUGGEST_REASON_STARTUP_MAIN)
     startup_form = _lookup_form(data, startup)
     if startup_form is not None:
         start_file = _file_name(startup_form)
@@ -443,6 +461,73 @@ def render_tick(number: int, record: dict, layer: str) -> str:
 </section>"""
 
 
+def anchors_path(report: Path) -> Path:
+    """Machine-readable tick anchors next to the HTML (``<report>.ticks.jsonl``)."""
+    return report.with_name(report.stem + ".ticks.jsonl")
+
+
+def span_sha256(data: dict, file_name: str, start: int | None, end: int | None) -> str | None:
+    """SHA-256 of the procedure's physical lines in the extract (None if unreadable)."""
+    root = data.get("extract_dir")
+    if not root or not start or not end:
+        return None
+    path = Path(str(root)) / file_name
+    if not path.is_file():
+        return None
+    lines = decode_vb6_bytes(path.read_bytes()).splitlines()
+    return hashlib.sha256("\n".join(lines[start - 1:end]).encode("utf-8")).hexdigest()
+
+
+def append_anchor(report: Path, number: int, record: dict, layer: str, digest: str | None) -> None:
+    anchor = {
+        "tick": number,
+        "target": f"{record['file']}#{target_name(record)}",
+        "file": record["file"],
+        "name": record.get("name"),
+        "kind": record.get("kind"),
+        "layer": layer,
+        "span": [record.get("line_start"), record.get("line_end")],
+        "span_sha256": digest,
+    }
+    with anchors_path(report).open("a", encoding="utf-8", newline="\n") as fh:
+        fh.write(json.dumps(anchor, ensure_ascii=False) + "\n")
+
+
+def load_anchors(report: Path) -> list[dict]:
+    path = anchors_path(report)
+    if not path.is_file():
+        return []
+    return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+
+
+def stale_ticks(data: dict, anchors: list[dict]) -> list[dict]:
+    """Anchors whose procedure is gone (``missing``), whose source span changed
+    (``changed``) or that were written without a digest (``unanchored``)."""
+    out: list[dict] = []
+    for anchor in anchors:
+        proc = next(
+            (
+                {**p, "file": Path(str(entry.get("file") or "")).name}
+                for entry in data.get("files") or []
+                if Path(str(entry.get("file") or "")).name.casefold() == str(anchor["file"]).casefold()
+                for p in entry.get("procedures") or []
+                if str(p.get("name") or "").casefold() == str(anchor.get("name") or "").casefold()
+                and str(p.get("kind") or "").casefold() == str(anchor.get("kind") or "").casefold()
+            ),
+            None,
+        )
+        if proc is None:
+            out.append({**anchor, "status": "missing"})
+            continue
+        current = span_sha256(data, proc["file"], proc.get("line_start"), proc.get("line_end"))
+        now_span = [proc.get("line_start"), proc.get("line_end")]
+        if anchor.get("span_sha256") is None:
+            out.append({**anchor, "status": "unanchored", "current_span": now_span})
+        elif current != anchor["span_sha256"]:
+            out.append({**anchor, "status": "changed", "current_span": now_span})
+    return out
+
+
 def next_tick_number(text: str) -> int:
     numbers = [int(m) for m in TICK_ATTR_RE.findall(text)]
     return max(numbers) + 1 if numbers else 1
@@ -490,7 +575,12 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument(
         "--json-only",
         action="store_true",
-        help="Print --unticked / --suggest as JSON only",
+        help="Print --unticked / --suggest / --stale as JSON only",
+    )
+    ap.add_argument(
+        "--stale",
+        action="store_true",
+        help="List ticks whose source span changed or whose procedure is gone (does not write)",
     )
     ap.add_argument(
         "--force",
@@ -499,10 +589,10 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = ap.parse_args(argv)
 
-    if args.json_only and not (args.unticked or args.suggest):
-        raise SystemExit("--json-only requires --unticked and/or --suggest")
-    if args.add_tick and (args.unticked or args.suggest):
-        raise SystemExit("--add-tick cannot be combined with --unticked / --suggest")
+    if args.json_only and not (args.unticked or args.suggest or args.stale):
+        raise SystemExit("--json-only requires --unticked, --suggest and/or --stale")
+    if args.add_tick and (args.unticked or args.suggest or args.stale):
+        raise SystemExit("--add-tick cannot be combined with --unticked / --suggest / --stale")
 
     inventory_path = resolve_inventory(args.inventory)
     data = load_inventory(inventory_path)
@@ -510,6 +600,16 @@ def main(argv: list[str] | None = None) -> int:
     report = args.out or (reports_root() / f"{stem}_comprehension.html")
     if not report.is_absolute():
         report = REPO_ROOT / report
+
+    if args.stale:
+        stale = stale_ticks(data, load_anchors(report))
+        if args.json_only:
+            print(json.dumps({"stale": stale}, ensure_ascii=False, indent=2))
+        else:
+            print(f"stale ticks: {len(stale)}")
+            for row in stale:
+                print(f"{row['status']}\ttick {row['tick']}\t{row['target']}\tL{row['span'][0]}-{row['span'][1]}")
+        return 0
 
     if args.unticked or args.suggest:
         return emit_listing(
@@ -524,6 +624,8 @@ def main(argv: list[str] | None = None) -> int:
     created = False
     if args.force or not report.is_file():
         report.write_text(render_skeleton(data, inventory_path), encoding="utf-8")
+        # The rewritten skeleton has no ticks, so their anchors go too.
+        anchors_path(report).unlink(missing_ok=True)
         created = True
         print(f"skeleton {'rewritten' if args.force else 'created'}: {report}")
     elif not args.add_tick:
@@ -536,6 +638,8 @@ def main(argv: list[str] | None = None) -> int:
         number = next_tick_number(text)
         text = insert_tick(text, render_tick(number, record, args.layer), report)
         report.write_text(text, encoding="utf-8")
+        append_anchor(report, number, record, args.layer,
+                      span_sha256(data, record["file"], record.get("line_start"), record.get("line_end")))
         print(f"tick {number} added: {record['file']}#{record['name']} -> {report}")
     elif not created:
         print("nothing to add (pass --add-tick PROC to append a tick)")

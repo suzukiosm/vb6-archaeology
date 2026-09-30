@@ -58,6 +58,33 @@ SUB_DECL_RE = re.compile(
     re.IGNORECASE,
 )
 
+# Backticked single identifiers with an upper-case letter (``CalculateTotal``).
+# snake_case JSON keys (``show_style``) stay out, as before.
+IDENT_TOKEN_RE = re.compile(r"^[^\W\d]\w*$")
+# VB6 keywords, intrinsic types / objects / events and common designer
+# properties: reports name them without them being project symbols.
+VB_BUILTIN_NAMES = frozenset(word.lower() for word in """
+True False Nothing Null Empty Me Not And Or Xor Mod Is Like New Set Let Dim ReDim Private Public
+Friend Global Static Const Sub Function Property Get End Exit Then Else ElseIf Select Case For
+Next Each Do Loop While Wend With Call GoTo GoSub Return Resume On Error Option Explicit Base
+Compare Binary Text Database Declare Lib Alias ByVal ByRef Optional ParamArray Any Boolean Byte
+Integer Long Single Double Currency Decimal Date String Object Variant Collection Form MDIForm
+UserControl PropertyPage UserDocument Class Module App Screen Printer Clipboard Err Debug Forms
+Controls Load Unload Show Hide Refresh Move SetFocus MsgBox InputBox Open Close Input Print Write
+Kill Name FileCopy MkDir RmDir Shell DoEvents Timer CreateObject GetObject Left Top Width Height
+Visible Enabled Caption Value Index Tag TabIndex ScaleWidth ScaleHeight ClientWidth ClientHeight
+MDIChild BorderStyle vbModal vbModeless vbCrLf vbNullString Click DblClick Change KeyPress KeyDown
+KeyUp GotFocus LostFocus Resize Activate Deactivate Initialize Terminate QueryUnload Validate Paint
+MouseDown MouseUp MouseMove VBA ADODB DAO Recordset Connection Execute Implements WithEvents Event
+RaiseEvent Attribute Instancing MultiUse Persistable DataSource DataField RecordSource DatabaseName
+VB_Name VB_UserMemId VB_PredeclaredId VB_Creatable VB_Exposed VB_GlobalNameSpace CP932 UTF
+Begin BeginProperty CellLeft CellTop CellWidth CellHeight
+""".split())
+# Keys the kit's own reports print in backticks (runtime-layout JSON and friends).
+KIT_REPORT_WORDS = frozenset(word.lower() for word in """
+formPlacements codeControlMoves mdiDefaults twipsNote vbName
+""".split())
+
 DEFAULT_EXTS = (".md", ".html", ".json")
 INVENTORY_NAME_RE = re.compile(r".*_inventory\.(json|md|html)$", re.IGNORECASE)
 
@@ -100,6 +127,65 @@ def load_inventory_sets(data: dict) -> tuple[set[str], set[str]]:
             files.add(base)
             files.add(Path(base).stem.lower())
     return files, procs
+
+
+def _type_words(text: str | None) -> set[str]:
+    """``ADODB.Connection`` / ``String * 10`` → identifier words, lowercased."""
+    return {w.lower() for w in re.findall(r"[^\W\d]\w*", str(text or ""))}
+
+
+def load_identifier_set(data: dict) -> set[str]:
+    """Every name the inventory knows, lowercased (symbols, labels, params, types)."""
+    names: set[str] = set()
+    for entry in data.get("files") or []:
+        for key in ("vb_name",):
+            if entry.get(key):
+                names.add(str(entry[key]).lower())
+        names.add(Path(str(entry.get("file") or "")).stem.lower())
+        for proc in (entry.get("procedures") or []) + (entry.get("declares") or []):
+            names.add(str(proc.get("name") or "").lower())
+            names |= _type_words(proc.get("alias"))
+            names |= _type_words(proc.get("returns"))
+            for label in proc.get("labels") or []:
+                names.add(str(label.get("name") or "").lower())
+            for param in proc.get("params_detail") or []:
+                names.add(str(param.get("name") or "").lower())
+                names |= _type_words(param.get("type"))
+        for item in entry.get("consts") or []:
+            names.add(str(item.get("name") or "").lower())
+        for enum in entry.get("enums") or []:
+            names.add(str(enum.get("name") or "").lower())
+            names |= {str(m.get("name") or "").lower().strip("[]") for m in enum.get("members") or []}
+        for typ in entry.get("types") or []:
+            names.add(str(typ.get("name") or "").lower())
+            for fld in typ.get("fields") or []:
+                names |= _type_words(fld.get("name")) | _type_words(fld.get("as"))
+        for event in entry.get("events") or []:
+            names.add(str(event.get("name") or "").lower())
+        for var in entry.get("variables") or []:
+            names.add(str(var.get("name") or "").lower())
+            names |= _type_words(var.get("type"))
+        for ctrl in entry.get("controls") or []:
+            names.add(str(ctrl.get("name") or "").lower())
+            names |= _type_words(ctrl.get("class"))
+        surface = entry.get("surface") or {}
+        for item in surface.get("implements") or []:
+            names.add(str(item.get("name") or "").lower())
+        for item in surface.get("with_events") or []:
+            names.add(str(item.get("name") or "").lower())
+            names |= _type_words(item.get("as_type"))
+    names.discard("")
+    return names
+
+
+def extract_identifier_mentions(text: str) -> set[str]:
+    """Backticked single identifiers with an upper-case letter, lowercased."""
+    found: set[str] = set()
+    for m in BACKTICK_RE.finditer(text):
+        inner = m.group(1).strip()
+        if len(inner) >= 3 and IDENT_TOKEN_RE.match(inner) and any(ch.isupper() for ch in inner):
+            found.add(inner.lower())
+    return found
 
 
 def is_proc_like(token: str) -> bool:
@@ -215,9 +301,12 @@ def verify(
 ) -> dict:
     data = json.loads(inventory_path.read_text(encoding="utf-8"))
     known_files, known_procs = load_inventory_sets(data)
+    known_identifiers = (load_identifier_set(data) | known_files | known_procs
+                         | VB_BUILTIN_NAMES | KIT_REPORT_WORDS)
 
     unknown_files: dict[str, list[str]] = {}
     unknown_procs: dict[str, list[str]] = {}
+    unknown_identifiers: dict[str, list[str]] = {}
 
     for path in report_paths:
         try:
@@ -234,12 +323,17 @@ def verify(
             unknown_files.setdefault(f, []).append(label)
         for p in sorted(ment_procs - known_procs):
             unknown_procs.setdefault(p, []).append(label)
+        for name in sorted(extract_identifier_mentions(text) - known_identifiers - ment_procs):
+            unknown_identifiers.setdefault(name, []).append(label)
 
     file_hits = [
         {"name": name, "reports": reps} for name, reps in sorted(unknown_files.items())
     ]
     proc_hits = [
         {"name": name, "reports": reps} for name, reps in sorted(unknown_procs.items())
+    ]
+    ident_hits = [
+        {"name": name, "reports": reps} for name, reps in sorted(unknown_identifiers.items())
     ]
     ok = not file_hits and not proc_hits
     return {
@@ -252,6 +346,9 @@ def verify(
         "unknown_proc_count": len(proc_hits),
         "unknown_files": file_hits,
         "unknown_procs": proc_hits,
+        # Warnings unless --strict: a backticked name the inventory does not know.
+        "unknown_identifier_count": len(ident_hits),
+        "unknown_identifiers": ident_hits,
     }
 
 
@@ -285,6 +382,11 @@ def main(argv: list[str] | None = None) -> int:
         default=[],
         help="fnmatch pattern to exclude (repeatable; matched against name or path)",
     )
+    ap.add_argument(
+        "--strict",
+        action="store_true",
+        help="Also fail on backticked identifiers absent from the inventory (default: warn)",
+    )
     args = ap.parse_args(argv)
 
     inv = resolve_inventory(args.inventory)
@@ -303,7 +405,16 @@ def main(argv: list[str] | None = None) -> int:
 
     report_paths = iter_report_files(roots, exts, list(args.exclude_glob or []), inv)
     summary = verify(inv, report_paths)
+    if args.strict and summary["unknown_identifier_count"]:
+        summary["ok"] = False
     print(json.dumps(summary, ensure_ascii=False, indent=2))
+    if summary["unknown_identifier_count"]:
+        names = ", ".join(h["name"] for h in summary["unknown_identifiers"][:10])
+        print(
+            f"identifier warnings: {summary['unknown_identifier_count']} ({names})"
+            + ("" if args.strict else " — pass --strict to fail on them"),
+            file=sys.stderr,
+        )
     if summary["ok"]:
         print(
             f"name mismatches: none "

@@ -120,6 +120,28 @@ class VerifyTests(unittest.TestCase):
             self.assertEqual(summary["unknown_file_count"], 0)
             self.assertEqual(summary["unknown_proc_count"], 0)
 
+    def test_general_identifiers_warn_by_default_and_fail_when_strict(self) -> None:
+        inv = sample_inventory()
+        inv["files"][1]["consts"] = [{"name": "MaxRows"}]
+        inv["files"][1]["procedures"][0]["labels"] = [{"name": "ErrH", "line": 3}]
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            inv_path = root / "mini_inventory.json"
+            inv_path.write_text(json.dumps(inv), encoding="utf-8")
+            note = root / "note.md"
+            note.write_text(
+                "`CalculateInvoiceTotal` を呼ぶ。`AddOne` · `MaxRows` · `ErrH` · `Boolean` · "
+                "`show_style` · `Me`\n",
+                encoding="utf-8",
+            )
+            summary = vrn.verify(inv_path, [note])
+            self.assertTrue(summary["ok"])
+            self.assertEqual([h["name"] for h in summary["unknown_identifiers"]],
+                             ["calculateinvoicetotal"])
+            args = ["--inventory", str(inv_path), "--reports", str(note)]
+            self.assertEqual(vrn.main(args), 0)
+            self.assertEqual(vrn.main([*args, "--strict"]), 1)
+
     def test_cli_fail_and_pass(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
