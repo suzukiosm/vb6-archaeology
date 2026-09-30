@@ -18,7 +18,7 @@
 
 | キー | 理由 |
 |---|---|
-| `Reference=` | COM/TLB。ファイルコピー対象外。`skipped_ref` に件数記録 |
+| `Reference=` | COM/TLB。ファイルコピー対象外。`skipped_ref` に件数記録（inventory は下表のとおり読む） |
 
 ## inventory が読むキー
 
@@ -27,7 +27,8 @@
 | 種別 | キー |
 |---|---|
 | ファイル一覧 | `Form=` · `Module=`（`Ident; path`）· `Class=`（同形） · `UserControl=` · `PropertyPage=` · `UserDocument=` · `Designer=`（`Ident; path`、裸パスも可） · `RelatedDoc=` · `ResFile32=`（パスのみ） |
-| コンポーネント | `Object=`（OCX 等。`;` 後のファイル名、無ければ `file: null` + `raw`） |
+| コンポーネント | `Object=`（OCX 等。`guid` / `version` / `;` 後のファイル名、無ければ `file: null` + `raw`） |
+| 参照 | `Reference=`（`references`。`*\G{GUID}#ver#lcid#path#説明` は `typelib`、`*\A<path>.vbp` は `project`。生値 `raw` も残す） |
 | メタ | `Startup=` · `Title=` · `ExeName32=` · `IconForm=` · `Name=` · `Command32=` · `HelpFile=` · `MajorVer=` · `MinorVer=` · `RevisionVer=` · `VersionComments=` · `VersionCompanyName=` · `VersionFileDescription=` · `VersionLegalCopyright=` · `VersionProductName=` · `Type=` · `CondComp=` · `CompatibleMode=` · `CompilationType=` · `CompatibleEXE32=` · `AutoIncrementVer=`（いずれも生文字列。解釈しない） |
 
 `RelatedDoc=` / `ResFile32=` はファイル一覧に載せるが、中身はプロシージャ解析しない（バイナリ・非コード）。  

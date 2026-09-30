@@ -36,6 +36,8 @@ It is closer to field archaeology than to a parser library: copy the site, catal
     → layout        runtime coordinates from code
     → comprehend    evidence ticks (human + citations)
     → excerpt       short handoff HTML for a later rewrite
+    → index         AI index (symbols, candidate references, effects, chunks as JSONL)
+    → bundle        token-budgeted context for one procedure
 ```
 
 Single entry: `python -m tools <command>` (`python -m tools --help`). No extra pip packages.

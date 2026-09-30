@@ -28,6 +28,8 @@ VBP を切り出し・棚卸し・深読み・証拠つき理解まで進める�
 | 報告書 | （skill `vb6-accurate-reports`） | `/vb6-report` |
 | 再実装抜粋 | `python -m tools excerpt` · serve /excerpt | — |
 | 横断 I/O | `python -m tools io-catalog` | `/vb6-io-catalog` |
+| AI 索引 | `python -m tools index`（symbols / occurrences / effects / chunks） | — |
+| 文脈束 | `python -m tools bundle <Proc>[@File]`（トークン予算つき） · `lines <file> --proc <Name>` | — |
 | パイプライン進捗 | `python -m tools status` | `/vb6-status` |
 | キットバックログ | `python -m tools ideas` | — |
 | レポート閲覧 | `python -m tools serve` | `/serve-reports` |
@@ -47,7 +49,7 @@ python -m tools smoke --kit-only
 ```
 
 フィクスチャパイプライン（config-check → extract → readable → inventory → verify → deep-read →
-layout → comprehend → excerpt → io-catalog → status → verify-names → serve --live-get → scan-chars）＋ `tools/` 配下の unittest。
+layout → comprehend → excerpt → io-catalog → index → bundle → status → verify-names → serve --live-get → scan-chars）＋ `tools/` 配下の unittest。
 失敗時は stdout のステップ名を見て `CONTRIBUTING.md` · `tools/README.md` を参照（専用ログファイルは無い）。
 再実装の製品面チェック: `docs/reimplementation-handoff.md`。
 
@@ -94,9 +96,10 @@ layout → comprehend → excerpt → io-catalog → status → verify-names →
 | `working/readable/` | UTF-8 読取コピー（Cursor Read。正は extracts） |
 | `working/reports/` | inventory / deep_read / comprehension 等 |
 | `working/skeletons/` | Form skeleton JSON（再実装に渡す中間成果） |
+| `working/index/` | AI 索引（`python -m tools index`。manifest + JSONL。形は `schema/index.schema.json`） |
 | `tools/` | 再利用解析 + CLI（`python -m tools`） |
 | `docs/` | 方法論・採用手順・テンプレ |
-| `schema/` | `archaeology.config.json` の JSON Schema |
+| `schema/` | `archaeology.config.json` と AI 索引の JSON Schema |
 | `.cursor/` | rules / skills / commands / hooks |
 | `archaeology.config.json` | 保護ディレクトリ名・出力先・`geometry_hints` / `mdi_chrome` / `layout_sub_scores` 等 |
 
@@ -107,7 +110,7 @@ layout → comprehend → excerpt → io-catalog → status → verify-names →
 1. `/vb6-extract` — 正本から `working/extracts/<stem>/`
 2. `/vb6-inventory` — 事実のみの構成正
 3. `/frm-deep-read` · `/runtime-layout` — Form 深読み・実行時座標
-4. `/vb6-comprehend` — 証拠つき tick 理解
+4. `/vb6-comprehend` — 証拠つき tick 理解（手続きの文脈は `python -m tools index` → `bundle <Proc>`。ソースが変わった tick は `comprehend --stale`）
 5. `/vb6-report` — 報告書の作成・訂正（`excerpt` · `/vb6-verify-reports`）
 6. （任意）消費者リポで再実装。確定事実のみ反映（製品面は `docs/reimplementation-handoff.md`）
 
@@ -126,9 +129,12 @@ layout → comprehend → excerpt → io-catalog → status → verify-names →
 - キット保守中は消費者リポへ書かない。参照は読取のみ。
 - キットの主体は道具（`tools/`）としての完成度。README の発見性や星獲得向けの宣伝は従。
 - LICENSE（source-available）はユーザーの明示なしで変えない。
+- 判断や許可を求める前に、何をしたいか・どうなるかを専門用語なしの平易な日本語で説明する（たとえ話でよい）。
 
 ## 技術スタック
 
 - 主な消費者リポは `Z:\_Python\VB6_source`（作業指示書）、`Z:\_Python\delivery_slip`（納品書Ⅱ・既存）、`Z:\_Python\delivery_slip_new`（納品書Ⅱ・新規調査）。
 - 公開リモートは `https://github.com/suzukiosm/vb6-archaeology`。
 - Linguist は `.gitattributes` で `linguist-language=vb6`。引用符付き `"Visual Basic 6.0"` は git が属性として壊す。
+- `.gitattributes` の `source/mini_vbp/** -text` は外さない。外すと `core.autocrlf=true` の Windows clone で `fixture` 後にフィクスチャが変更扱いになる。
+- Windows の Cursor は hook の stdin JSON を UTF-8 BOM 付きで渡す。`.cursor/hooks` は `utf-8-sig` で読む（素の `json.loads` は失敗する）。

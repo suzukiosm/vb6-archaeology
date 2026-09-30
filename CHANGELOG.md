@@ -7,6 +7,59 @@ Versions are exposed by `python -m tools --version` (`tools/__init__.py`).
 
 ## [Unreleased]
 
+### Added — AI index (review follow-up, phase 2)
+
+- `python -m tools index` — inventory と extract から `<index_dir>/<stem>/`（既定 `working/index`）に `manifest.json` と `symbols` / `occurrences` / `effects` / `chunks` の JSONL を出す。記録の形は `schema/index.schema.json`（schema_version 1）
+  - `symbols`: ファイル・手続き・Declare・Const・Enum（メンバー）・Type・Event・モジュール変数・コントロールに安定 ID（`<file>#<Kind>:<name>`）
+  - `occurrences`: 既知の名前の字句上の出現と、VB6 のスコープ規則で選んだ候補（`basis`: `same_file` / `global` / `qualified` / `typed_variable` / `me`）。呼び出しグラフではない（ローカル変数の隠蔽は見ない。`resolution` が `unique` / `ambiguous`）
+  - `effects`: ファイル文・レジストリ・`CreateObject` の ProgID・`New` の型・DB メソッド候補・SQL で始まる文字列リテラル・Shell・Declare 呼び出し・Show / Load / Unload / MsgBox / PopupMenu・Printer・SendKeys・`End`（業務意味なし）
+  - `chunks`: 手続き単位（＋宣言部・デザイナ）のコードを物理行番号つきで、文脈ヘッダ・VB6 の注意（`On Error Resume Next`・Option Explicit なし・省略時 ByRef・既定メンバー・Static・`#If`）・副作用・一意に解決した参照・`sha256`・トークン見積もりと一緒に
+- 設定 `index_dir`（schema に追加）
+- `python -m tools bundle <Proc>[@File]` — 索引から 1 手続きの文脈束をトークン予算内で出す（コード → VB6 の注意 → 副作用 → 参照先の要約 → 参照元候補 → 宣言部 / デザイナ → 参照先のコード。入らなかった節は「Omitted」に列挙）。`--json` 可
+- `python -m tools lines <file> --proc <Name>` — inventory と同じ規則の手続き範囲だけを行番号つきで出す
+- `verify` が共通の字句器を使わない独立検査を足す: 物理行の素朴な正規表現による手続きヘッダ数（食い違いは `warnings` の `independent_header_count`）、手続き範囲の逆転・重なり（`mismatches`・exit 1）、同じファイル内の同名同種（`duplicate_procedure` 警告。多くは `#If` 分岐）
+- tick の錨: `comprehend --add-tick` が `<report>.ticks.jsonl` に対象・範囲・範囲のソースの SHA-256 を残す。`comprehend --stale` が、ソースが変わった tick（`changed`）・手続きが消えた tick（`missing`）・錨の無い tick（`unanchored`）を一覧する（書込なし）。`--force` で骨格を作り直すと錨も消える
+- `verify-names` がバッククォート内の一般識別子（`` `CalculateInvoiceTotal` `` 等）も inventory の名前（手続き・変数・定数・Enum メンバー・コントロール・ラベル・引数・型）と照合する。既定は警告（`unknown_identifiers`・exit 0）、`--strict` で失敗。以前はイベント風の名前とファイル名だけで、存在しない一般 Sub 名を素通りさせていた
+
+### Fixed — review follow-up, phase 0 (2026-09-30)
+
+- 解析キャッシュのキーにパーサコードの指紋（SHA-256）を含める。版番号を上げ忘れた編集でも古い事実を返さない。inventory JSON に `provenance`（`parser_version` / `parser_fingerprint`）を出す。PARSER_VERSION inv-13
+- 保護 hooks が Windows の Cursor 上で実際には効いていなかった。Cursor は hook 入力を UTF-8 BOM 付きで渡し、`json.loads` が読めずに `allow` へ落ちていた（`cursor.hooks` ログで確認）。入力を `sys.stdin.buffer` から `utf-8-sig`（UTF-16 も可）で読み、読めないときは `protect_source` が deny、`guard_shell` が ask にする（`hooks.json` の `failClosed` と一致）。拒否理由には長さと先頭バイトだけを出す
+- イベントの持ち主判定を `lib/event_binding.py` に一本化した。deep-read は固定のイベント名一覧だけを見ていたため、`Form_QueryUnload` / `Form_Initialize` / `MSComm1_OnComm` / `Winsock1_DataArrival` などを `unobserved`、そのコントロールを `code_ref: false` と誤っていた（inventory はイベント扱い）。持ち主（デザイナのコントロール・自モジュール `Form` / `UserControl` / `Class` / `PropertyPage` / `UserDocument` / `DataEnvironment` / `DataReport`・WithEvents 変数）の `<owner>_<event>` で判定し、inventory の手続きに `event_binding`（`designer` / `self` / `withevents`）、`.bas` / `.cls` の表面 skeleton にも同じ持ち主を出す。持ち主のいないイベント風の名前（`Ghost_Click`）は従来どおり `unobserved`
+- VB6 はファイル番号の `#` を省略できる（`Open f For Input As fnum` / `Get fnum, , rec` / `Close fnum`）。io-catalog と deep-read の GoTo 飛び越え候補がこれを取りこぼしていた。ファイル文の認識を `lib/file_statements.py` に共通化（`#` 無し形は文頭か `Then` / `Else` 直後だけ。`rs.Open` / `rs.Close` / `Property Get` は拾わない）。io-catalog の対象は従来どおり 5 種
+- `comprehend --suggest` が `Startup="Sub Main"` の起点を出さなかった。標準モジュールの `Sub Main` を理由 `startup_main` で先頭に出す
+- deep-read の呼び出し観測が手続きごとに全文を字句解析し直していた（400 手続き・16,804 行の合成 Form 1 本で 90 秒）。識別子トークン集合を 1 回だけ作る方式にし、同じ判定のまま 0.5 秒。Show / Load の持ち主探しも二分探索にした
+- 保護 hooks の抜け穴を塞いだ: パス比較を大文字小文字無視（`Source\` も保護）、fixture の許可はコマンド全体一致のみ（`;` / `&&` の連結は対象外）、`Copy-Item` / `cp` / `xcopy` / `robocopy` / `mkdir`、`git checkout|restore|clean|reset|stash…`、`[IO.File]::Write…` を変更系として扱う。`test_hooks.py` は Cursor と同じ BOM 付き入力で hook を動かす
+
+### Changed — lexer follows MS-VBAL (review follow-up, phase 1)
+
+- コメント末尾の ` _` は次の物理行もコメントにする（[MS-VBAL] `comment-body` は行継続を含む）。以前は次の行をコードとして扱い、VB6 が実行しない文を I/O 等として拾っていた。飲み込まれた行は inventory の `diagnostics`（`comment_continuation`）と MD / HTML の「診断」に出る
+- `Else:` / `Loop:` 等の予約語はラベルではなく文。数値の行ラベル（`10 Print x` / `20:` / 行番号だけの行）を `kind=label` にする
+- 識別子の先頭に非 ASCII 文字を許す（日本語の Sub / Function / Const / Enum / Type / Event 名、Show / Load 対象）
+- `#If` / `#ElseIf` / `#Else` / `#End If` / `#Const` を評価せず領域として出す（inventory `conditional_compilation`、手続きの `conditional`）。同じ名前・種別の重複定義は `diagnostics`（`duplicate_procedure`）
+- `Event Changed`（括弧なし）を拾う。Enum メンバーの値（`value`）と `[_Hidden]` 名を残す
+- 実 VB6 の `.cls` では Instancing と既定プロパティが常に `null` だった。IDE は `Instancing =` 行を保存せず、既定メンバーは手続き内の `Attribute Value.VB_UserMemId = 0` で書く。表面に `class_header`（`BEGIN`/`END` の生値。翻訳しない）、手続きに `attributes`（`VB_UserMemId` / `VB_Description` / `VB_MemberFlags` / `VB_ProcData.*`）、表面に `default_member` / `enumerator_member`（`-4`）/ `member_attributes`（変数の `VB_VarUserMemId` 等）。fixture `Widget.cls` を IDE 保存形式の `BEGIN` ブロックにし、`Ready` を既定メンバーにした
+
+### Added — declarations (review follow-up, phase 1)
+
+- inventory のファイル項目に `variables`（モジュールレベルの `Public` / `Private` / `Global` / `Dim` / `WithEvents`。1 宣言子 1 件。`Dim a, b As Long` の `a` は Variant）と `options`（`explicit` / `base` / `compare` / `private_module` / `deftypes`）。型は VB6 の規則で機械的に解決し、根拠を `type_source`（`as` / `suffix` / `deftype` / `default`）に残す。MD / HTML に「Option Explicit なし」を明示
+- 手続きに `params_detail`（`passing` は省略時 `ByRef`、`passing_explicit`・`optional`・`default`・`param_array`・`is_array`・解決済み `type`）と、Function / Property Get の `return_type` / `return_type_source`。宣言の分解は `lib/declarators.py`
+- `Function Calc$(ByVal n As Long)` のように型文字付きの名前で引数と戻り値が落ちていた。`type_suffix` を分けて読む
+- 外部依存: VBP の `Reference=` を inventory の `references`（`typelib` は GUID・版・LCID・パス・説明、`project` は `.vbp` パス）に載せる（以前は extract の生文字列だけ）。`objects` に `guid` / `version`。`Declare` に `alias` / `params` / `returns` / `params_detail` / `return_type`。`.frm` 等の先頭 `Object = "{…}"; "X.OCX"` を `ocx_objects`、`VB.` 以外のコントロールを `external_control_classes`（件数つき）。fixture VBP に `stdole2.tlb` の Reference
+
+### Added — error handling and statement-based GoTo (review follow-up, phase 1)
+
+- inventory の手続きに `error_handling`（`on_error_resume_next` / `on_error_goto_0` / `on_error_goto_minus1` / `on_error_goto`+`target` / `resume` / `resume_next` / `resume_label` / `err_raise` を行順に）と `labels`。フロー解析はしない。無い手続きにはキーを出さない
+- deep-read の GoTo / ラベル地図と飛び越え候補を文単位にした。物理行の正規表現では `ErrH: MsgBox …`（同じ行に文が続くラベル）と `x = 1: GoTo Done`（コロン連結の GoTo）を落とし、飛び越え候補が 0 件になっていた。GoTo と同じ行の後続文、数値行ラベルへの GoTo も扱う
+
+### Changed — shared designer parser (review follow-up, phase 1)
+
+- 以下フェーズ 1 の出力形の変更で PARSER_VERSION inv-14
+
+- デザイナの `Begin … End` を `lib/designer.py` に一本化し、inventory と deep-read が同じ木を読む。`BeginProperty` 内の `Caption` / `Width` が親コントロールを上書きしていた（例: Toolbar のボタン名がツールバーの Caption になる）。`""` を含む Caption が途中で切れていた
+- deep-read のコントロールに `props`（型付けしない生プロパティ）・`data_binding`（`DataSource` / `DataField` / `RecordSource` / `DatabaseName` / `ConnectionString` …）・`frx_refs`（`$"F.frx":0000` 等。中身は読まない）・`property_blocks`（値があるときだけ）。座標・可視性・並び順は従来と同じ（fixture で旧出力と一致を確認）
+- inventory の `controls` に `line` / `parent` / `index`、ファイルに `data_bindings`
+
 ### Fixed — review regressions (2026-09-30)
 
 - Extract path manifest and collision preflight; inventory no longer follows parent references outside extracts.

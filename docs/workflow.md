@@ -95,9 +95,21 @@ python -m tools comprehend                                   # 骨格（初回�
 python -m tools comprehend --unticked                        # 未 tick 一覧（書込なし）
 python -m tools comprehend --suggest                         # ヒューリスティック（自動 tick しない）
 python -m tools comprehend --add-tick <Proc>[@<File>] --layer C
+python -m tools comprehend --stale                           # ソースが変わった / 消えた tick（書込なし）
 ```
 
 inventory に無い名前は拒否される。拒否されたら名前を疑う（手書きで押し通さない）。
+tick は `<report>.ticks.jsonl` に範囲の SHA-256 を残す。再抽出・再 inventory の後は `--stale` を見る。
+
+読む前に手続きの文脈を束ねる（任意。索引は inventory の後に作る）:
+
+```powershell
+python -m tools index                                        # working/index/<stem>/ に JSONL
+python -m tools bundle <Proc>[@<File>] --budget 3000          # コード · VB6 の注意 · 副作用 · 参照候補
+python -m tools lines working\extracts\<stem>\<File> --proc <Proc>
+```
+
+`occurrences` と bundle の参照は VB6 のスコープ規則で選んだ**候補**（`basis` つき）。呼び出しグラフではないので、tick に書く前に精読で確かめる。
 
 層モデル:
 

@@ -24,7 +24,9 @@ VB6 を壊さず理解するための汎用 OS（docs / .cursor / tools）を維
 ## 3. 次手（キット）
 
 - 2026-09-30 レビュー改善第1段階: パス対応表・衝突防止、共通字句処理、deep-read 境界共通化、WithEvents/未解決 owner、Property accessor tick、欠落ファイル検証を実装。詳細は tools/README.md の Review fixes。
-- 続く段階: 同名ファイルを共存できる source/symbol ID、成果物スキーマ・ハッシュ照合、Global/Dim/Declare/Enum とメンバー属性の抽出、暗黙仕様と未対応診断。その後に DAO/ADO/SQL の証拠収集、チャンク・文脈バンドル・検索評価。完全 callgraph を正規表現で推定しない方針は維持。
+- （採用済 2026-09-30 · レビュー追補 第2段階）穴 F21–F32（`kit-improvement-ideas.md`）: キャッシュ指紋、保護 hooks の BOM・抜け穴、イベント持ち主の一本化、`#` 無しファイル番号、`Sub Main`、deep-read の計算量、MS-VBAL の字句規則と `#If` 診断、`.cls` ヘッダとメンバー属性、変数・Option・Deftype・引数、Reference / Declare / OCX、エラー処理と文単位 GoTo、共通デザイナパーサ。PARSER_VERSION inv-14。
+- （採用済 2026-09-30 · レビュー追補 第3段階）穴 F33–F37: AI 索引 `index`（symbols / occurrences=スコープ規則の候補 / effects / chunks、`schema/index.schema.json`）、`bundle` と `lines --proc`、verify-names の一般識別子（警告・`--strict`）、tick の錨と `comprehend --stale`、verify の独立検査。完全 callgraph を正規表現で推定しない方針は維持（参照は `basis` つきの候補）。
+- 次（未着手）: 同名ファイルを共存できる抽出 ID、ローカル変数を追跡した参照候補の精度向上、SQL の文をまたぐ連結、IDE 保存形式の正解コーパス（実案件由来のため許諾が要る）、検索評価（質問 → 期待シンボル ID の再現率）。
 
 
 - （採用済 2026-09-03 · readable）`python -m tools readable` — extract の UTF-8 サイドカー（物理行一致。extract は触らない。`.frx` 等はスキップ）。Cursor Read 用。分析の正は extracts。`readable_dir`（既定 `working/readable`）

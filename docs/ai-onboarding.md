@@ -87,6 +87,8 @@ clone 直後の 5 分入口は `python -m tools demo`（extract → inventory �
     → verify-show      → show_style 照合（範囲差は警告。どちらが正かは決めない）
     → excerpt          → <stem>_reimpl_excerpt.html（Form · Module/Class · Show · GoTo件数 · 未 tick）
     → io-catalog       → <stem>_io_catalog.{json,md}（Open / Kill / Name / Get / Put。業務意味なし）
+    → index            → working/index/<stem>/（symbols · occurrences=候補 · effects · chunks の JSONL）
+    → bundle <Proc>    → 1 手続きの文脈束（コード・VB6 の注意・副作用・参照。トークン予算つき）
     → status           → 既存成果物の有無・件数（再実行しない）
     →（任意）smoke     → キット自己点検（`python -m tools smoke`）
 ```
@@ -104,7 +106,7 @@ clone 直後の 5 分入口は `python -m tools demo`（extract → inventory �
 | 推定 | 役割・業務意味・「たぶんこう動く」 | 証拠（ファイル / Sub / 行 or 引用）必須 |
 
 - inventory に無いファイル名・Sub 名をレポートに書かない
-- 呼び出し関係は **読んだ Sub の分だけ**
+- 呼び出し関係は **読んだ Sub の分だけ**（`index` の `occurrences` / `bundle` の参照はスコープ規則による候補。精読で確かめてから書く）
 - 「100%」はチェックリスト達成率。アプリ全体の完全理解を意味しない
 
 方法論の正: `.cursor/rules/vb6-analysis.mdc` · `docs/methodology.md`

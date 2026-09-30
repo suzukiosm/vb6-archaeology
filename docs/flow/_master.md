@@ -27,7 +27,7 @@
 5. inventory + verify
 6. Startup / 主要 Form の deep-read（GoTo 飛び越え候補・ラベル地図を含む）。`.bas`/`.cls` は表面レポート
 7. runtime layout（`/runtime-layout`）— デザイナ座標だけで確定しない
-8. comprehension ticks（層 A→E。枠は `python -m tools comprehend --add-tick`。未 tick は `--unticked` / `--suggest`）
+8. comprehension ticks（層 A→E。枠は `python -m tools comprehend --add-tick`。未 tick は `--unticked` / `--suggest`、ソースが変わった tick は `--stale`）。読む前に `python -m tools index` → `bundle <Proc>[@File]` で手続きの文脈を束ねてよい（参照は候補。呼び出しグラフではない）
 9. 名前集合の照合（`python -m tools verify-names`）
 10. show_style 照合（`python -m tools verify-show`。inventory=全文 / deep-read=ライブ Sub。どちらが正かは決めない）
 11. 再実装向け抜粋（`python -m tools excerpt` · serve `/excerpt`）

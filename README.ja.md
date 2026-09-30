@@ -36,6 +36,8 @@
     → layout        コード上の実行時座標
     → comprehend    証拠つき tick（人手 + 引用）
     → excerpt       再実装向けの短い HTML
+    → index         AI 向け索引（シンボル · 参照候補 · 副作用 · チャンクの JSONL）
+    → bundle        1 手続きの文脈束（トークン予算つき）
 ```
 
 入口は `python -m tools <command>`（`python -m tools --help`）。追加の pip 依存は無い。

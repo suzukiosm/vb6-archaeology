@@ -30,7 +30,10 @@
 - 正本ディレクトリ: 読取専用（hooks）
 - 成果: `working/reports/` に JSON + MD + 必要なら HTML
 - HTML 閲覧: ローカル HTTP（`file://` 不可）
-- 論理行とコロン文。`iter_logical_lines` は空白＋末尾 `_` だけを折り、物理行番号（`phys_start` / `phys_end`）を保持する。1物理行に `:` で並んだ文は `iter_statements` が **同じ物理行番号のまま** 分割する（`If Err Then Unload Me: Exit Sub` は2文）。行番号の正は常に物理行。文字列内の `:` と `'` コメントは切らない。行ラベル `Foo:` は文ではない（`kind=label`）。到達判定はしない。`#If`・古い数値行番号・DATA 文の `:` は既知制限。inventory `parse_procedures` / `parse_declarations` / `parse_surface` と verify `count_ends` は同じ文分割。`Const A = 1, B = 2` はカンマ分割（文字列・括弧内は残す）。
+- 論理行とコロン文。`iter_logical_lines` は空白＋末尾 `_` だけを折り、物理行番号（`phys_start` / `phys_end`）を保持する。1物理行に `:` で並んだ文は `iter_statements` が **同じ物理行番号のまま** 分割する（`If Err Then Unload Me: Exit Sub` は2文）。行番号の正は常に物理行。文字列内の `:` と `'` コメントは切らない。行ラベル `Foo:` と数値行ラベル（`10 x = 1` / `20:`）は文ではない（`kind=label`）。`Else:` 等の予約語はラベルにしない。到達判定はしない。inventory `parse_procedures` / `parse_declarations` / `parse_surface` と verify `count_ends` は同じ文分割。`Const A = 1, B = 2` はカンマ分割（文字列・括弧内は残す）。
+- 字句規則は [MS-VBAL] に合わせる。コメント（`'` / `Rem`）の末尾が ` _` なら次の物理行もコメント（VB6 は実行しない）。飲み込まれた行は inventory `diagnostics` の `comment_continuation`。識別子は日本語などの非 ASCII 文字で始まってよい。
+- `#If` / `#ElseIf` / `#Else` / `#End If` / `#Const` は評価しない。両方の分岐が手続き一覧に残り、手続きの `conditional` と `conditional_compilation` で分岐を示す。同名同種の重複は `diagnostics` の `duplicate_procedure`。DATA 文の `:` は既知制限。
+- 型は VB6 の規則で機械的に解決した事実として出す（`As` > 型文字 > `DefXxx` > Variant。根拠は `type_source`）。引数は `ByVal` と書かなければ `ByRef`（`passing_explicit`）。`On Error Resume Next` 等は手続きの `error_handling` に行順で並べるだけで、どの文がどのモードで動くかの流れ解析はしない。
 
 ## 理解度スコア
 
@@ -44,6 +47,7 @@
 - `.bas` / `.cls` は同じコマンドで **表面レポート**（Implements / WithEvents / Instancing / プロシージャ / Show 文面 / GoTo）。メニュー・Ctrl・ライブ/デッド/未観測の分類はしない
 - イベント数 0 を「孤立・到達不能」と即断しない
 - deep-read の `live` は designer / WithEvents の所有者、または文字列・コメントを除いたコード参照が観測された手続きの互換ラベル。イベント型・到達性の証明ではない。`binding` に候補種別を残す
+- イベントの持ち主は inventory と deep-read で同じ規則（`lib.event_binding`）: `<持ち主>_<イベント>` の持ち主がデザイナのコントロール・自モジュール（`Form` / `UserControl` / `Class` など）・WithEvents 変数なら結合候補。イベント名の一覧は「持ち主のいないイベント風の名前」を orphan 候補にするときだけ使う
 - 一般 Sub で呼び出し未観測なら `unobserved`（`unobserved_reason=no_caller_observed`）。到達不能ではない。旧ラベル `dead` / `no caller` は使わない。旧成果物の `dead_reason` は読取互換のみ
 - owner 不明の orphan 候補も `unobserved`。外部・動的結合の不存在を証明できないため新たな `dead` は出さない
 - `show_map` はライブ Sub のみ。`unobserved` は旧 `dead` と同じく対象外（範囲を広げない）
@@ -80,5 +84,6 @@
 
 `verify` は欠落ファイルと End 件数の内部整合性検証であり、独立した構文解析器ではない。
 正確性の回帰検証は、人工ソースに対する名前・種別・物理行・文・参照先の明示期待値で行う。
-条件付きコンパイル・数値行番号・DAO/ADO/SQL・暗黙型の完全な意味解析は未対応。
+条件付きコンパイルは評価しない（領域と診断のみ）。DAO/ADO/SQL の意味解析は未対応。
 新しい extract は source_map 経由で抽出内のコピーを読む。旧抽出の親参照は再抽出が必要。
+保護 hooks は Cursor と同じ BOM 付き入力でテストする（`test_hooks.py`）。hook 入力を読めないときは拒否（書込）/ 確認（shell）。

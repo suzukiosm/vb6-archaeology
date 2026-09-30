@@ -47,6 +47,23 @@
 | F18 | ~~`parse_surface` が論理行。`Const A = 1, B = 2` は先頭名だけ~~ **採用済 2026-08-29** PARSER_VERSION inv-11 | `vb6_inventory.parse_surface` · `parse_const_declarators` |
 | F19 | ~~`serve` がポート占有で黙死。stdout がバッファされ URL も出ない~~ **採用済 2026-09-03** 空きポートへフォールバックし印刷 URL が正 | `serve_reports.bind_reports_server` |
 | F20 | ~~レポート HTML がダークモードで表が空に見える。5 分手順が 8 コマンド~~ **採用済 2026-09-03** ライトテーマ固定 · `python -m tools demo` | `lib.report_html` · `demo.py` |
+| F21 | ~~解析キャッシュが版番号だけをキーにし、パーサを直しても古い事実を返す~~ **採用済 2026-09-30** キーにパーサコードの SHA-256 · inventory `provenance` | `lib.cache.code_fingerprint` · `vb6_inventory.parser_fingerprint` |
+| F22 | ~~保護 hooks が Cursor の BOM 付き入力を読めず全許可。大文字 `Source\`・許可コマンドの連結・コピー系や git 書き戻しが素通り~~ **採用済 2026-09-30** | `.cursor/hooks/protect_source.py` · `guard_shell.py` · `test_hooks.py` |
+| F23 | ~~イベント判定が inventory（持ち主の接頭辞）と deep-read（固定のイベント名一覧）で食い違う~~ **採用済 2026-09-30** | `lib.event_binding` |
+| F24 | ~~`#` を省略したファイル番号（`Open … As fnum` / `Get fnum,`）を取りこぼす~~ **採用済 2026-09-30** | `lib.file_statements` |
+| F25 | ~~`Startup="Sub Main"` の起点が `--suggest` に出ない~~ **採用済 2026-09-30** | `comprehension_scaffold.suggest_unticked` |
+| F26 | ~~deep-read の呼び出し観測が手続きごとに全文を字句解析し直す（大規模 Form で数十秒）~~ **採用済 2026-09-30** | `frm_deep_read.reference_tokens` |
+| F27 | ~~コメント末尾 ` _` の継続・`Else:`・数値行ラベル・日本語識別子・`#If` が MS-VBAL とずれる~~ **採用済 2026-09-30**（`#If` は評価せず領域と診断） | `lib.vbparse` · inventory `diagnostics` |
+| F28 | ~~実 `.cls` の Instancing / 既定プロパティが常に null（fixture が IDE 非保存形式）~~ **採用済 2026-09-30** `class_header` · 手続き `attributes` · `default_member` | `vb6_inventory.parse_surface` · `make_fixture.CLS` |
+| F29 | ~~モジュール変数・Option・Deftype・暗黙型・引数の ByRef 既定が無い~~ **採用済 2026-09-30** | `lib.declarators` |
+| F30 | ~~`Reference=`・Declare の Alias と引数・フォームごとの OCX が構成の正に無い~~ **採用済 2026-09-30** | `vb6_inventory.parse_reference` · `parse_designer_objects` |
+| F31 | ~~`On Error Resume Next` 等のエラー処理が見えない。GoTo 地図が物理行単位で `ErrH: …` / `x = 1: GoTo` を落とす~~ **採用済 2026-09-30** | inventory `error_handling` · `frm_deep_read._sub_body` |
+| F32 | ~~デザイナ解析が二重実装。`BeginProperty` 内の値が親を上書き・`""` で Caption が切れる・データバインドが無い~~ **採用済 2026-09-30** | `lib.designer` |
+| F33 | ~~AI 向けの中間表現（安定 ID のシンボル・参照候補・副作用・チャンク・スキーマ）が無い~~ **採用済 2026-09-30** `python -m tools index` | `index_build.py` · `lib.effects` · `schema/index.schema.json` |
+| F34 | ~~1 手続きを読むための文脈をトークン予算内で渡す手段が無い~~ **採用済 2026-09-30** `bundle` · `lines --proc` | `bundle.py` · `frm_lines.py` |
+| F35 | ~~verify-names が一般の Sub 名などを照合せず、存在しない名前を素通りさせる~~ **採用済 2026-09-30**（既定は警告、`--strict` で失敗） | `verify_report_names.load_identifier_set` |
+| F36 | ~~tick がソースの版を持たず、ソースが変わっても古い理解が残る~~ **採用済 2026-09-30** `.ticks.jsonl` · `comprehend --stale` | `comprehension_scaffold.stale_ticks` |
+| F37 | ~~verify が inventory と同じ字句器で数えるだけで独立していない~~ **採用済 2026-09-30** 物理行ヘッダ数・範囲の重なり・重複 | `verify_inventory.raw_header_count` |
 
 `show_calls` の出方向・入方向転置と `status` の機械集計は採用済。未着手は §3「後回し」と §0「やらない」だけ。
 
@@ -179,4 +196,4 @@ inventory の `parse_procedures` / `parse_declarations` が `iter_statements` �
 3. 採用したら [`kit-dev-context.md`](kit-dev-context.md) の「次手」に「採用済」と日付を足し、本ファイルの該当節を短くする
 4. 捨てる案は「やらない」表へ移す（消して忘れない）
 
-P0 · P1 · P2 · P3 · P4 と穴 F1–F18 は採用済。残るのは「後回し」表と「やらない」表。`python -m tools ideas` が機械集計する。
+P0 · P1 · P2 · P3 · P4 と穴 F1–F37 は採用済。残るのは「後回し」表と「やらない」表。`python -m tools ideas` が機械集計する。
