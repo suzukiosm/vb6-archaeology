@@ -29,6 +29,19 @@ class ContentKeyTests(unittest.TestCase):
         )
 
 
+class CodeFingerprintTests(unittest.TestCase):
+    def test_fingerprint_follows_source_bytes_not_order(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            a = Path(tmp) / "a.py"
+            b = Path(tmp) / "b.py"
+            a.write_bytes(b"x = 1\n")
+            b.write_bytes(b"y = 2\n")
+            first = cache.code_fingerprint([a, b])
+            self.assertEqual(first, cache.code_fingerprint([b, a]))
+            b.write_bytes(b"y = 3\n")
+            self.assertNotEqual(first, cache.code_fingerprint([a, b]))
+
+
 class StoreLoadTests(unittest.TestCase):
     def setUp(self) -> None:
         load_config.cache_clear()  # config is lru_cached; isolate temp root

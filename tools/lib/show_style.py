@@ -11,10 +11,10 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
-from .vbparse import code_mask
+from .vbparse import IDENT, code_mask
 
 SHOW_CALL_RE = re.compile(
-    r"\b([A-Za-z_][\w]*)\.Show(?:\s+(vbModal|vbModeless|\d+))?\b",
+    rf"\b({IDENT})\.Show(?:\s+(vbModal|vbModeless|\d+))?\b",
     re.IGNORECASE,
 )
 # Bare Show: statement starts with Show, or Then/Else then Show.
@@ -24,7 +24,7 @@ SHOW_BARE_RE = re.compile(
     re.IGNORECASE,
 )
 LIFETIME_CALL_RE = re.compile(
-    r"\b(Load|Unload)\s+([A-Za-z_][\w]*(?:\([^)]*\))?)",
+    rf"\b(Load|Unload)\s+({IDENT}(?:\([^)]*\))?)",
     re.IGNORECASE,
 )
 _REM_HEAD_RE = re.compile(r"^Rem\b", re.IGNORECASE)

@@ -228,8 +228,8 @@ Const Callish = Foo(1, 2)
 
 
 class ParserVersionTests(unittest.TestCase):
-    def test_parser_version_is_inv12(self) -> None:
-        self.assertEqual(inv.PARSER_VERSION, "inv-12")
+    def test_parser_version_is_inv14(self) -> None:
+        self.assertEqual(inv.PARSER_VERSION, "inv-14")
 
 
 class DecodeTests(unittest.TestCase):
@@ -687,6 +687,101 @@ End Sub
         self.assertIn("Instancing: `2`", md)
         self.assertIn("Implements / WithEvents / Instancing", html)
         self.assertIn("IFoo", html)
+
+
+class SpecAlignedInventoryTests(unittest.TestCase):
+    def parse(self, src: str, name: str = "M.bas") -> dict:
+        return inv._parse_bytes(src.encode("cp932"), Path(name))
+
+    def test_japanese_procedure_names_are_inventoried(self) -> None:
+        info = self.parse('Attribute VB_Name = "M"\nPublic Sub 登録処理()\nEnd Sub\n'
+                          "Private Function 税額(ByVal 金額 As Long) As Long\nEnd Function\n")
+        self.assertEqual([p["name"] for p in info["procedures"]], ["登録処理", "税額"])
+        self.assertEqual(info["procedures"][1]["params"], "ByVal 金額 As Long")
+
+    def test_conditional_branches_and_duplicate_diagnostic(self) -> None:
+        info = self.parse(
+            'Attribute VB_Name = "M"\n'
+            "#If DEBUG_MODE Then\n"
+            "Public Sub Log(ByVal s As String)\n    Debug.Print s\nEnd Sub\n"
+            "#Else\n"
+            "Public Sub Log(ByVal s As String)\nEnd Sub\n"
+            "#End If\n"
+        )
+        logs = [p for p in info["procedures"] if p["name"] == "Log"]
+        self.assertEqual([p["conditional"]["directive"] for p in logs], ["#If", "#Else"])
+        self.assertEqual(logs[0]["conditional"]["expr"], "DEBUG_MODE")
+        self.assertIn({"kind": "duplicate_procedure", "name": "Log", "proc_kind": "Sub",
+                       "lines": [3, 7]}, info["diagnostics"])
+        self.assertEqual([r["directive"] for r in info["conditional_compilation"]], ["#If", "#Else"])
+
+    def test_comment_continuation_is_a_diagnostic(self) -> None:
+        info = self.parse('Attribute VB_Name = "M"\nPublic Sub A()\n    \' x _\n    Kill p\nEnd Sub\n')
+        self.assertEqual(info["diagnostics"],
+                         [{"kind": "comment_continuation", "line": 3, "absorbed_lines": [4]}])
+
+    def test_diagnostics_are_visible_in_markdown(self) -> None:
+        info = self.parse('Attribute VB_Name = "M"\nPublic Sub A()\n    \' x _\n    Kill p\nEnd Sub\n')
+        with tempfile.TemporaryDirectory() as td:
+            out = Path(td) / "inv.md"
+            inv.write_markdown({"vbp": "t.vbp", "meta": {}, "file_count": 1, "proc_total": 1,
+                                "objects": [], "missing_in_extract": [], "not_in_vbp": [],
+                                "files": [{**info, "type": "module"}]}, out)
+            md = out.read_text(encoding="utf-8")
+        self.assertIn("> 診断: L3 のコメントが ` _` で続くため、L4 は VB6 ではコメント", md)
+
+    def test_clean_file_has_no_diagnostic_keys(self) -> None:
+        info = self.parse('Attribute VB_Name = "M"\nPublic Sub A()\nEnd Sub\n')
+        self.assertNotIn("diagnostics", info)
+        self.assertNotIn("conditional_compilation", info)
+        self.assertNotIn("conditional", info["procedures"][0])
+
+    def test_member_attributes_default_member_and_enumerator(self) -> None:
+        info = self.parse(
+            "VERSION 1.0 CLASS\nBEGIN\n  MultiUse = -1  'True\nEND\n"
+            'Attribute VB_Name = "Items"\n'
+            "Public Property Get Item(ByVal i As Long) As Variant\n"
+            "Attribute Item.VB_UserMemId = 0\n"
+            'Attribute Item.VB_Description = "Returns ""one"" item"\n'
+            "End Property\n"
+            "Public Function NewEnum() As IUnknown\n"
+            "Attribute NewEnum.VB_UserMemId = -4\n"
+            'Attribute NewEnum.VB_MemberFlags = "40"\n'
+            "End Function\n",
+            "Items.cls",
+        )
+        item, new_enum = info["procedures"]
+        self.assertEqual(item["attributes"], {"VB_UserMemId": 0,
+                                              "VB_Description": 'Returns "one" item'})
+        self.assertEqual(new_enum["attributes"], {"VB_UserMemId": -4, "VB_MemberFlags": "40"})
+        surf = info["surface"]
+        self.assertEqual((surf["default_member"], surf["enumerator_member"]), ("Item", "NewEnum"))
+        self.assertEqual(surf["class_header"], {"MultiUse": -1})
+        self.assertEqual(item["line_end"] - item["line_start"], 3)
+
+    def test_variable_default_member_via_var_user_mem_id(self) -> None:
+        info = self.parse(
+            'Attribute VB_Name = "C"\n'
+            "Public Value As Long\n"
+            "Attribute Value.VB_VarUserMemId = 0\n",
+            "C.cls",
+        )
+        self.assertEqual(info["surface"]["member_attributes"], [
+            {"member": "Value", "attribute": "VB_VarUserMemId", "value": 0, "line": 3}])
+        self.assertEqual(info["surface"]["default_member"], "Value")
+
+    def test_event_without_parentheses_and_enum_values(self) -> None:
+        d = inv.parse_declarations([
+            'Attribute VB_Name = "C"',
+            "Public Event Changed",
+            "Public Enum Kinds", "    [_First] = 0", "    KindA = 1", "    KindB", "End Enum",
+        ])
+        self.assertEqual([(e["name"], e["args"]) for e in d["events"]], [("Changed", "")])
+        self.assertEqual(d["enums"][0]["members"], [
+            {"name": "[_First]", "line": 4, "value": "0"},
+            {"name": "KindA", "line": 5, "value": "1"},
+            {"name": "KindB", "line": 6},
+        ])
 
 
 if __name__ == "__main__":

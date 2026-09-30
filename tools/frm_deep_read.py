@@ -21,6 +21,8 @@ import json
 import pathlib
 import re
 import sys
+from bisect import bisect_right
+from collections.abc import Callable
 from datetime import date
 
 REPO = pathlib.Path(__file__).resolve().parents[1]
@@ -35,12 +37,19 @@ from lib.config import (  # noqa: E402
     skeletons_root,
 )
 from lib.console import enable_utf8_stdio  # noqa: E402
+from lib.designer import data_binding, parse_designer  # noqa: E402
+from lib.event_binding import (  # noqa: E402
+    BINDING_WITHEVENTS,
+    resolve_event_owner,
+    self_owners_for,
+)
+from lib.file_statements import is_file_statement  # noqa: E402
 from lib.show_style import (  # noqa: E402
     parse_lifetime_calls_in_line,
     parse_show_calls_in_line,
     self_show_style,
 )
-from lib.vbparse import code_mask, iter_statements  # noqa: E402
+from lib.vbparse import Statement, code_mask, iter_statements  # noqa: E402
 from vb6_inventory import parse_procedures, parse_surface  # noqa: E402
 
 MODULE_SUFFIXES = {".bas", ".cls"}
@@ -99,12 +108,22 @@ def load_project_code_text() -> str:
 
 # ── Controls ──────────────────────────────────────────────
 
+_TYPED_DESIGNER_PROPS = frozenset({
+    "caption", "left", "top", "width", "height", "clientwidth", "clientheight",
+    "index", "visible", "enabled", "mdichild",
+})
+
+
 def extract_controls(lines: list[str]):
-    """Parse Begin..End control tree.
+    """Parse Begin..End control tree (``lib.designer``, shared with inventory).
 
     Important: match ActiveX too (e.g. MSFlexGridLib.MSFlexGrid). Skipping those
     causes their End to pop the parent and corrupt Form Width/Height / depth.
-    BeginProperty/EndProperty are ignored (not Begin <kind> <name>).
+    BeginProperty/EndProperty blocks stay in ``property_blocks``; their values
+    never overwrite the control's own Caption / Width.
+    Other raw properties are in ``props``; ``DataSource`` / ``DataField`` /
+    ``RecordSource`` … are repeated in ``data_binding``; ``.frx`` references
+    are in ``frx_refs`` (only when present).
     Nested Left/Top are parent-relative; abs_left/abs_top are form-client absolute.
     Form size prefers ClientWidth/ClientHeight over outer Width/Height.
     Form-level ``MDIChild`` is copied into ``form_info`` for show_style heuristics.
@@ -116,91 +135,70 @@ def extract_controls(lines: list[str]):
         "kind": "",
         "mdi_child": None,
     }
+    nodes = parse_designer(lines)
+    built: list[dict] = []
+    for node in nodes:
+        lower = {k.lower(): v for k, v in node["props"].items()}
+
+        def num(key: str) -> int | None:
+            value = lower.get(key)
+            return value if isinstance(value, int) else None
+
+        caption = lower.get("caption")
+        ctrl = {
+            "kind": node["kind"], "name": node["name"], "line": node["line"],
+            "caption": caption if isinstance(caption, str) else "",
+            "left": num("left"), "top": num("top"),
+            "width": num("width"), "height": num("height"),
+            "clientWidth": num("clientwidth"), "clientHeight": num("clientheight"),
+            "depth": node["depth"],
+            "parent": nodes[node["parent"]]["name"] if node["parent"] is not None else None,
+            "abs_left": 0, "abs_top": 0,
+            "index": num("index"),
+            # VB6 writes Visible/Enabled = 0 'False; anything else is True.
+            "visible": lower.get("visible", -1) != 0,
+            "enabled": lower.get("enabled", -1) != 0,
+            "mdi_child": (lower["mdichild"] != 0) if "mdichild" in lower else None,
+        }
+        # Nested Left/Top are parent-relative; the Form/MDIForm origin is 0,0.
+        al, at = ctrl["left"] or 0, ctrl["top"] or 0
+        parent = node["parent"]
+        while parent is not None:
+            anc = built[parent]
+            if anc["kind"] not in ("VB.Form", "VB.MDIForm"):
+                al += anc["left"] or 0
+                at += anc["top"] or 0
+            parent = nodes[parent]["parent"]
+        ctrl["abs_left"], ctrl["abs_top"] = al, at
+        extra = {k: v for k, v in node["props"].items() if k.lower() not in _TYPED_DESIGNER_PROPS}
+        if extra:
+            ctrl["props"] = extra
+        binding = data_binding(node["props"])
+        if binding:
+            ctrl["data_binding"] = binding
+        if node["frx_refs"]:
+            ctrl["frx_refs"] = node["frx_refs"]
+        if node["property_blocks"]:
+            ctrl["property_blocks"] = node["property_blocks"]
+        built.append(ctrl)
+
     controls = []
-    stack: list[dict] = []
-
-    for i, line in enumerate(lines):
-        s = line.strip()
-
-        # Begin VB.CommandButton Foo  /  Begin MSFlexGridLib.MSFlexGrid MS1
-        m = re.match(r"Begin\s+(\S+)\s+(\S+)\s*$", s)
-        if m and not s.startswith("BeginProperty"):
-            parent = stack[-1] if stack else None
-            stack.append({
-                "kind": m.group(1), "name": m.group(2), "line": i + 1,
-                "caption": "", "left": None, "top": None,
-                "width": None, "height": None,
-                "clientWidth": None, "clientHeight": None,
-                "depth": len(stack),
-                "parent": parent["name"] if parent else None,
-                "abs_left": 0, "abs_top": 0,
-                "index": None, "visible": True, "enabled": True,
-                "mdi_child": None,
-            })
-            continue
-
-        if s == "End" and stack:
-            ctrl = stack.pop()
-            # Nested Left/Top are parent-relative. Parents already have Left/Top
-            # (VB6 writes them before nested Begin). Form/MDIForm origin = 0,0.
-            al = ctrl["left"] or 0
-            at = ctrl["top"] or 0
-            for p in stack:
-                if p["kind"] in ("VB.Form", "VB.MDIForm"):
-                    continue
-                al += p["left"] or 0
-                at += p["top"] or 0
-            ctrl["abs_left"] = al
-            ctrl["abs_top"] = at
-
-            if ctrl["kind"] in ("VB.Form", "VB.MDIForm"):
-                cw = ctrl.get("clientWidth")
-                ch = ctrl.get("clientHeight")
-                form_info = {
-                    "name": ctrl["name"],
-                    "caption": ctrl["caption"],
-                    "width": cw if cw is not None else ctrl["width"],
-                    "height": ch if ch is not None else ctrl["height"],
-                    "clientWidth": cw,
-                    "clientHeight": ch,
-                    "kind": ctrl["kind"],
-                    "mdi_child": ctrl.get("mdi_child"),
-                }
-            else:
-                controls.append(ctrl)
-            continue
-
-        if stack:
-            cur = stack[-1]
-            cm = re.match(r'Caption\s*=\s*"([^"]*)"', s)
-            if cm:
-                cur["caption"] = cm.group(1)
-            for prop in ("Left", "Top", "Width", "Height"):
-                pm = re.match(rf"{prop}\s*=\s*(-?\d+)", s)
-                if pm:
-                    cur[prop.lower()] = int(pm.group(1))
-            for prop, key in (
-                ("ClientWidth", "clientWidth"),
-                ("ClientHeight", "clientHeight"),
-            ):
-                pm = re.match(rf"{prop}\s*=\s*(-?\d+)", s)
-                if pm:
-                    cur[key] = int(pm.group(1))
-            im = re.match(r"Index\s*=\s*(\d+)", s)
-            if im:
-                cur["index"] = int(im.group(1))
-            # VB6: Visible/Enabled = 0 'False
-            vm = re.match(r"Visible\s*=\s*(-?\d+)", s)
-            if vm:
-                cur["visible"] = vm.group(1) != "0"
-            em = re.match(r"Enabled\s*=\s*(-?\d+)", s)
-            if em:
-                cur["enabled"] = em.group(1) != "0"
-            # Form / control MDIChild (typically on the Form root)
-            mm = re.match(r"MDIChild\s*=\s*(-?\d+)", s, re.IGNORECASE)
-            if mm:
-                cur["mdi_child"] = mm.group(1) != "0"
-
+    # Post-order (a control after its children), as the End lines close them.
+    for node, ctrl in sorted(zip(nodes, built), key=lambda pair: pair[0]["end_line"]):
+        if ctrl["kind"] in ("VB.Form", "VB.MDIForm"):
+            cw, ch = ctrl["clientWidth"], ctrl["clientHeight"]
+            form_info = {
+                "name": ctrl["name"],
+                "caption": ctrl["caption"],
+                "width": cw if cw is not None else ctrl["width"],
+                "height": ch if ch is not None else ctrl["height"],
+                "clientWidth": cw,
+                "clientHeight": ch,
+                "kind": ctrl["kind"],
+                "mdi_child": ctrl.get("mdi_child"),
+            }
+        else:
+            controls.append(ctrl)
     return form_info, controls
 
 
@@ -260,18 +258,15 @@ def _attach_show_and_lifetime(events: list[dict], lines: list[str]) -> None:
     """
     if not events:
         return
+    # Procedure spans come from parse_procedures: file order, non-overlapping.
+    starts = [ev.get("start_line") or 0 for ev in events]
     for stmt in iter_statements(lines):
         if stmt.kind != "stmt":
             continue
-        owner = None
-        for ev in events:
-            start = ev.get("start_line") or 0
-            end = ev.get("end_line") or 0
-            if start <= stmt.phys_start <= end:
-                owner = ev
-                break
-        if owner is None:
+        idx = bisect_right(starts, stmt.phys_start) - 1
+        if idx < 0 or stmt.phys_start > (events[idx].get("end_line") or 0):
             continue
+        owner = events[idx]
         for call in parse_show_calls_in_line(stmt.text, stmt.phys_start):
             owner["shows"].append(call["target"])
             owner["show_calls"].append(call)
@@ -412,6 +407,23 @@ def form_show_style_block(form_info: dict) -> dict:
 
 # ── Dead code ─────────────────────────────────────────────
 
+_DEFINITION_STMT_RE = re.compile(
+    r'(?:(?:Public|Private|Friend|Static)\s+)*(?:Sub|Function|Property|Declare)\b',
+    re.IGNORECASE,
+)
+_WORD_RE = re.compile(r"\w+")
+
+
+def reference_tokens(masked_text: str) -> set[str]:
+    """Lower-cased word tokens of every non-definition statement (one pass)."""
+    tokens: set[str] = set()
+    for stmt in iter_statements(masked_text.splitlines()):
+        if stmt.kind != 'stmt' or _DEFINITION_STMT_RE.match(stmt.text):
+            continue
+        tokens.update(tok.lower() for tok in _WORD_RE.findall(stmt.text))
+    return tokens
+
+
 def classify_events(
     events: list[dict], code_text: str, bas_text: str,
     controls: list[dict] | None = None, form_name: str = "",
@@ -423,43 +435,46 @@ def classify_events(
     the absence of references nor an orphan-shaped name proves dead code.
     """
     search_text = '\n'.join(code_mask(line) for line in (code_text + "\n" + bas_text).splitlines())
-    control_names = {c["name"].lower() for c in (controls or [])}
-    with_events = {w['name'].lower() for w in parse_surface(code_text.splitlines())['with_events']}
-    self_owners = {"form", "mdiform"}
-    if form_name:
-        self_owners.add(form_name.lower())
+    control_names = [c["name"] for c in (controls or [])]
+    with_events = [w['name'] for w in parse_surface(code_text.splitlines())['with_events']]
+    self_owners = [*self_owners_for(".frm"), *([form_name] if form_name else [])]
+
+    referenced: set[str] | None = None
 
     def has_real_calls(name: str) -> bool:
-        pattern = re.compile(rf'\b{re.escape(name)}\b', re.IGNORECASE)
-        for stmt in iter_statements(search_text.splitlines()):
-            if stmt.kind != 'stmt' or re.match(
-                r'(?:(?:Public|Private|Friend|Static)\s+)*(?:Sub|Function|Property|Declare)\b',
-                stmt.text, re.IGNORECASE,
-            ):
-                continue
-            if pattern.search(stmt.text):
-                return True  # lexical reference only, not resolved reachability
-        return False
+        # Lexical reference only, not resolved reachability. Identifiers are
+        # word characters, so "a whole \w+ token equals name" is the same test
+        # as re.search(r'\bname\b'); the token set is built once per call.
+        nonlocal referenced
+        if referenced is None:
+            referenced = reference_tokens(search_text)
+        return name.lower() in referenced
 
     for ev in events:
-        m = EVENT_SUFFIXES.match(ev["name"])
-        # Custom WithEvents names need not occur in the built-in suffix list.
-        we_owner = next((owner for owner in sorted(with_events, key=len, reverse=True)
-                         if ev['name'].lower().startswith(owner + '_')), None)
-        if we_owner:
+        # Owner first (VB6 binds by <owner>_<event>); the suffix list only labels
+        # orphan-shaped names such as Ghost_Click with no Ghost control.
+        bound = resolve_event_owner(
+            ev["name"], controls=control_names, self_owners=self_owners, with_events=with_events,
+        )
+        if bound is not None and bound["binding"] == BINDING_WITHEVENTS:
             ev['is_event'] = True
             ev['binding'] = 'withevents_candidate'
-            ev['event_owner'] = we_owner
+            ev['event_owner'] = bound["owner"]
+            ev['event_name'] = bound["event"]
             ev['status'] = 'live'
             ev['note'] = 'WithEvents owner exists; event signature not verified'
             continue
+        if bound is not None:
+            ev["is_event"] = True
+            ev["status"] = "live"
+            ev['binding'] = 'designer_candidate'
+            ev['event_owner'] = bound["owner"]
+            ev['event_name'] = bound["event"]
+            continue
+        m = EVENT_SUFFIXES.match(ev["name"])
         ev["is_event"] = bool(m)
         if m:
-            owner = m.group(1).lower()
-            if owner in control_names or owner in self_owners:
-                ev["status"] = "live"
-                ev['binding'] = 'designer_candidate'
-            elif has_real_calls(ev["name"]):
+            if has_real_calls(ev["name"]):
                 ev["status"] = "live"
                 ev["note"] = "orphan handler, called as sub"
             else:
@@ -493,15 +508,11 @@ def classify_controls(controls, code_text, project_text, events=None, form_name=
     Note: ``\\bCommand1\\b`` does NOT match ``Command1_Click`` (underscore is a
     word char). Event owners must be treated as live explicitly.
     """
-    event_owners: set[str] = set()
-    for ev in events or []:
-        if ev.get("status") in SHOW_MAP_EXCLUDED_STATUS:
-            continue
-        m = EVENT_SUFFIXES.match(ev["name"])
-        if m:
-            event_owners.add(m.group(1))
-
-    owners_lower = {o.lower() for o in event_owners}
+    owners_lower = {
+        str(ev["event_owner"]).lower()
+        for ev in events or []
+        if ev.get("event_owner") and ev.get("status") not in SHOW_MAP_EXCLUDED_STATUS
+    }
     for ctrl in controls:
         name = ctrl["name"]
         if name in FONT_FACE_BLACKLIST:
@@ -564,7 +575,7 @@ def extract_data_paths(lines: list[str], api_names: set[str] | None = None):
             paths["mdb"].append({"line": ln, "text": s[:200]})
         if re.search(r"\bShell\b", s):
             paths["shell"].append({"line": ln, "text": s[:200]})
-        if re.match(r".*\bOpen\b.*\bAs\s*#\s*\w+", s, re.IGNORECASE):
+        if is_file_statement(code_mask(s), "open"):
             paths["open"].append({"line": ln, "text": s[:200]})
         if api_names and not re.match(r"(Private\s+|Public\s+)?Declare\b", s, re.IGNORECASE):
             for name in api_names:
@@ -598,10 +609,8 @@ def extract_para(lines: list[str], markers: list[str] | None = None):
     return hits
 
 
-# VB6 line labels that collide with block syntax (not GoTo targets we care about).
-_GOTO_RESERVED_LABELS = frozenset({"else", "case"})
-_OPEN_AS_RE = re.compile(r".*\bOpen\b.*\bAs\s*#\s*\w+", re.IGNORECASE)
 _LABEL_RE = re.compile(r"^(\w+)\s*:\s*('.*)?$", re.IGNORECASE)
+_END_PROC_RE = re.compile(r"^End\s+(Sub|Function|Property)\b", re.IGNORECASE)
 # Bare / trailing-comment GoTo (not On Error GoTo, not Then/Else GoTo).
 _UNCOND_GOTO_RE = re.compile(r"^GoTo\s+(\w+)\s*('.*)?$", re.IGNORECASE)
 _COND_GOTO_RE = re.compile(
@@ -618,24 +627,29 @@ _COND_GOSUB_RE = re.compile(
 # Only these kinds open a skip span. on_error / gosub stay on the label map.
 SKIP_SPAN_GOTO_KINDS = frozenset({"unconditional", "conditional"})
 
+def _file_rule(kind: str):
+    return lambda code: is_file_statement(code, kind)
+
+
 # Statements worth flagging when skipped by a forward GoTo (I/O · Call · Load).
 # Assignments / Dim are omitted to avoid flooding; tick still reads the span.
-_SKIP_STMT_RULES: list[tuple[str, re.Pattern[str]]] = [
-    ("open", _OPEN_AS_RE),
-    ("line_input", re.compile(r"\bLine\s+Input\s+#", re.IGNORECASE)),
-    ("input_file", re.compile(r"\bInput\s+#", re.IGNORECASE)),
-    ("print_file", re.compile(r"\bPrint\s+#", re.IGNORECASE)),
-    ("write_file", re.compile(r"\bWrite\s+#", re.IGNORECASE)),
-    ("get_file", re.compile(r"\bGet\s+#", re.IGNORECASE)),
-    ("put_file", re.compile(r"\bPut\s+#", re.IGNORECASE)),
-    ("close", re.compile(r"\bClose\s+#", re.IGNORECASE)),
-    ("kill", re.compile(r"\bKill\b", re.IGNORECASE)),
-    ("shell", re.compile(r"\bShell\b", re.IGNORECASE)),
-    ("call", re.compile(r"^(?:Call\s+)\w+", re.IGNORECASE)),
-    ("unload", re.compile(r"\bUnload\b", re.IGNORECASE)),
-    ("load", re.compile(r"^Load\s+\w+", re.IGNORECASE)),
-    ("msgbox", re.compile(r"\bMsgBox\b", re.IGNORECASE)),
-    ("gosub", _GOSUB_RE),
+# File statements come from lib.file_statements (same rules as io-catalog).
+_SKIP_STMT_RULES: list[tuple[str, Callable[[str], object]]] = [
+    ("open", _file_rule("open")),
+    ("line_input", _file_rule("line_input")),
+    ("input_file", _file_rule("input")),
+    ("print_file", _file_rule("print")),
+    ("write_file", _file_rule("write")),
+    ("get_file", _file_rule("get")),
+    ("put_file", _file_rule("put")),
+    ("close", _file_rule("close")),
+    ("kill", _file_rule("kill")),
+    ("shell", re.compile(r"\bShell\b", re.IGNORECASE).search),
+    ("call", re.compile(r"^(?:Call\s+)\w+", re.IGNORECASE).search),
+    ("unload", re.compile(r"\bUnload\b", re.IGNORECASE).search),
+    ("load", re.compile(r"^Load\s+\w+", re.IGNORECASE).search),
+    ("msgbox", re.compile(r"\bMsgBox\b", re.IGNORECASE).search),
+    ("gosub", _GOSUB_RE.search),
 ]
 
 
@@ -651,8 +665,8 @@ def classify_goto_skip_stmt(text: str) -> str | None:
         return None
     if _LABEL_RE.match(code):
         return None
-    for kind, pattern in _SKIP_STMT_RULES:
-        if pattern.search(code):
+    for kind, matches in _SKIP_STMT_RULES:
+        if matches(code):
             return kind
     return None
 
@@ -669,47 +683,67 @@ def _open_path_fragment(text: str) -> str:
     return text[:120]
 
 
+def _sub_body(lines: list[str], start: int, end: int) -> list[Statement]:
+    """Colon-split statements of one procedure, without its header and End.
+
+    Physical line numbers are those of the file. Statements (not physical
+    lines) are the unit, so ``ErrH: MsgBox …`` is a label plus a statement and
+    ``x = 1: GoTo Done`` is a GoTo.
+    """
+    stmts = [
+        Statement(s.phys_start + start - 1, s.phys_end + start - 1, s.text, s.kind)
+        for s in iter_statements(lines[start - 1:end])
+    ]
+    if stmts and stmts[-1].kind == "stmt" and _END_PROC_RE.match(stmts[-1].text):
+        stmts = stmts[:-1]
+    return stmts[1:]
+
+
+def _scan_body(
+    body: list[Statement],
+) -> tuple[dict[str, tuple[int, int]], list[tuple[int, int, str, str]]]:
+    """(labels lower → (index, line), gotos as (index, line, target, kind))."""
+    labels: dict[str, tuple[int, int]] = {}
+    gotos: list[tuple[int, int, str, str]] = []
+    for idx, stmt in enumerate(body):
+        if stmt.kind == "label":
+            labels.setdefault(stmt.text.lower(), (idx, stmt.phys_start))
+            continue
+        code = code_mask(stmt.text).strip()
+        line = stmt.phys_start
+        oem = _ON_ERROR_GOTO_TARGET_RE.match(code)
+        if oem:
+            gotos.append((idx, line, oem.group(1), "on_error"))
+            continue
+        gsm = _GOSUB_RE.match(code)
+        if gsm:
+            gotos.append((idx, line, gsm.group(1), "gosub"))
+            continue
+        um = _UNCOND_GOTO_RE.match(code)
+        if um:
+            gotos.append((idx, line, um.group(1), "unconditional"))
+            continue
+        if _ON_ERROR_GOTO_RE.search(code):
+            continue
+        cm = _COND_GOTO_RE.search(code)
+        if cm:
+            gotos.append((idx, line, cm.group(1), "conditional"))
+            continue
+        cgs = _COND_GOSUB_RE.search(code)
+        if cgs:
+            gotos.append((idx, line, cgs.group(1), "gosub_conditional"))
+    return labels, gotos
+
+
 def _scan_sub_gotos_and_labels(
     lines: list[str], start: int, end: int,
 ) -> tuple[dict[str, int], list[tuple[int, str, str]]]:
-    """Return (labels lower→line, gotos) for body lines after Sub header."""
-    body = lines[start:end]
-    labels: dict[str, int] = {}
-    gotos: list[tuple[int, str, str]] = []
-    for offset, raw in enumerate(body):
-        ln = start + 1 + offset
-        s = raw.strip()
-        if not s or s.startswith("'"):
-            continue
-        lm = _LABEL_RE.match(s)
-        if lm:
-            name = lm.group(1)
-            if name.lower() not in _GOTO_RESERVED_LABELS:
-                labels.setdefault(name.lower(), ln)
-            continue
-        oem = _ON_ERROR_GOTO_TARGET_RE.match(s)
-        if oem:
-            gotos.append((ln, oem.group(1), "on_error"))
-            continue
-        gsm = _GOSUB_RE.match(s)
-        if gsm:
-            gotos.append((ln, gsm.group(1), "gosub"))
-            continue
-        um = _UNCOND_GOTO_RE.match(s)
-        if um:
-            gotos.append((ln, um.group(1), "unconditional"))
-            continue
-        code_only = s.split("'")[0]
-        if _ON_ERROR_GOTO_RE.search(code_only):
-            continue
-        cm = _COND_GOTO_RE.search(code_only)
-        if cm:
-            gotos.append((ln, cm.group(1), "conditional"))
-            continue
-        cgs = _COND_GOSUB_RE.search(code_only)
-        if cgs:
-            gotos.append((ln, cgs.group(1), "gosub_conditional"))
-    return labels, gotos
+    """Return (labels lower→line, gotos) for the procedure body (statements)."""
+    labels, gotos = _scan_body(_sub_body(lines, start, end))
+    return (
+        {name: line for name, (_idx, line) in labels.items()},
+        [(line, target, kind) for _idx, line, target, kind in gotos],
+    )
 
 
 def collect_goto_label_maps(
@@ -764,32 +798,33 @@ def find_goto_skipped_stmts(
         events = extract_events(lines)
 
     findings: list[dict] = []
-    seen: set[tuple[str, int, int, int]] = set()
+    seen: set[tuple[str, int, int]] = set()
 
     for ev in events:
         start = ev.get("start_line")
         end = ev.get("end_line")
         if not start or not end or end < start:
             continue
-        body = lines[start:end]
-        labels, gotos = _scan_sub_gotos_and_labels(lines, start, end)
+        body = _sub_body(lines, start, end)
+        labels, gotos = _scan_body(body)
 
-        for goto_line, label_name, kind in gotos:
+        for goto_idx, goto_line, label_name, kind in gotos:
             if kind not in SKIP_SPAN_GOTO_KINDS:
                 continue
-            label_line = labels.get(label_name.lower())
-            if label_line is None or label_line <= goto_line:
+            label = labels.get(label_name.lower())
+            if label is None or label[0] <= goto_idx:
                 continue
+            label_idx, label_line = label
 
-            for offset, raw in enumerate(body):
-                ln = start + 1 + offset
-                if not (goto_line < ln < label_line):
+            for idx in range(goto_idx + 1, label_idx):
+                stmt = body[idx]
+                if stmt.kind != "stmt":
                     continue
-                s = raw.strip()
+                s = stmt.text.strip()
                 stmt_kind = classify_goto_skip_stmt(s)
                 if not stmt_kind:
                     continue
-                key = (ev["name"], goto_line, label_line, ln)
+                key = (ev["name"], goto_idx, idx)
                 if key in seen:
                     continue
                 seen.add(key)
@@ -798,7 +833,7 @@ def find_goto_skipped_stmts(
                     "goto_line": goto_line,
                     "label": label_name,
                     "label_line": label_line,
-                    "stmt_line": ln,
+                    "stmt_line": stmt.phys_start,
                     "stmt_text": s[:200],
                     "stmt_kind": stmt_kind,
                     "goto_kind": kind,
@@ -806,7 +841,7 @@ def find_goto_skipped_stmts(
                         _open_path_fragment(s) if stmt_kind == "open" else ""
                     ),
                     # Compat aliases used by older report/tests
-                    "open_line": ln,
+                    "open_line": stmt.phys_start,
                     "open_text": s[:200],
                 }
                 findings.append(entry)
@@ -1267,9 +1302,28 @@ def _source_kind(path: pathlib.Path) -> str:
 def analyze_module_file(lines: list[str], path: pathlib.Path, vb_name: str) -> dict:
     """Facts for one .bas/.cls. No designer live/dead and no Form chrome."""
     events = extract_events(lines)
+    surface = parse_surface(lines)
+    with_events = [w["name"] for w in surface["with_events"]]
+    procedures: list[dict] = []
     for ev in events:
         ev["status"] = "listed"
         ev["note"] = "module/class: no designer live/dead"
+        row = {
+            "name": ev.get("name"),
+            "kind": ev.get("kind"),
+            "start_line": ev.get("start_line"),
+            "end_line": ev.get("end_line"),
+            "size": ev.get("size"),
+        }
+        bound = resolve_event_owner(
+            str(ev.get("name") or ""),
+            self_owners=self_owners_for(path.suffix),
+            with_events=with_events,
+        )
+        if bound is not None:
+            row["event_owner"] = bound["owner"]
+            row["event_binding"] = bound["binding"]
+        procedures.append(row)
     show_calls: list[dict] = []
     for ev in events:
         show_calls.extend(ev.get("show_calls") or [])
@@ -1277,17 +1331,8 @@ def analyze_module_file(lines: list[str], path: pathlib.Path, vb_name: str) -> d
         "kind": _source_kind(path),
         "file": path.name,
         "vb_name": vb_name or path.stem,
-        "surface": parse_surface(lines),
-        "procedures": [
-            {
-                "name": ev.get("name"),
-                "kind": ev.get("kind"),
-                "start_line": ev.get("start_line"),
-                "end_line": ev.get("end_line"),
-                "size": ev.get("size"),
-            }
-            for ev in events
-        ],
+        "surface": surface,
+        "procedures": procedures,
         "show_calls": show_calls,
         "goto_skipped_stmts": find_goto_skipped_stmts(lines, events),
         "goto_label_maps": [

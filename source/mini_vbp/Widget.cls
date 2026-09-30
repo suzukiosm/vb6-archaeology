@@ -1,7 +1,10 @@
 VERSION 1.0 CLASS
 BEGIN
   MultiUse = -1  'True
-  Instancing = 5
+  Persistable = 0  'NotPersistable
+  DataBindingBehavior = 0  'vbNone
+  DataSourceBehavior  = 0  'vbNone
+  MTSTransactionMode  = 0  'NotAnMTSObject
 END
 Attribute VB_Name = "Widget"
 Attribute VB_GlobalNameSpace = False
@@ -15,6 +18,7 @@ Implements IPing
 Private WithEvents Bus As AppEvents
 
 Public Property Get Ready() As Boolean
+Attribute Ready.VB_UserMemId = 0
     Ready = True
 End Property
 

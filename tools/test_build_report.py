@@ -139,6 +139,32 @@ End Sub
         self.assertEqual(as_frm["procedures"][0]["role"], "event")
         self.assertEqual(as_bas["procedures"][0]["role"], "general")
 
+    def test_parser_edit_without_version_bump_misses_the_cache(self) -> None:
+        """A stale entry written by other parser code must not be served."""
+        body = BAS1.encode("cp932")
+        with tempfile.TemporaryDirectory() as td:
+            croot = Path(td) / ".cache"
+            bas = Path(td) / "m.bas"
+            bas.write_bytes(body)
+            stale = {"file": "m.bas", "procedures": [{"name": "Stale"}]}
+            with patch.object(cache, "cache_root", return_value=croot):
+                with patch.object(inv, "parser_fingerprint", return_value="older-parser"), \
+                        patch.object(inv, "_parse_bytes", return_value=stale):
+                    inv.inventory_file(bas, use_cache=True)
+                with patch.object(inv, "parser_fingerprint", return_value="older-parser"):
+                    self.assertEqual(
+                        inv.inventory_file(bas, use_cache=True)["procedures"],
+                        [{"name": "Stale"}],
+                    )
+                fresh = inv.inventory_file(bas, use_cache=True)
+        self.assertEqual([p["name"] for p in fresh["procedures"]], ["A"])
+
+    def test_report_records_parser_provenance(self) -> None:
+        rep = inv.build_report(self.d, self.vbp, use_cache=False, jobs=1)
+        self.assertEqual(rep["provenance"]["parser_version"], inv.PARSER_VERSION)
+        self.assertEqual(rep["provenance"]["parser_fingerprint"], inv.parser_fingerprint())
+        self.assertRegex(rep["provenance"]["parser_fingerprint"], r"^[0-9a-f]{64}$")
+
     def test_html_search_ties_toc_to_section(self) -> None:
         rep = inv.build_report(self.d, self.vbp, use_cache=False, jobs=1)
         with tempfile.TemporaryDirectory() as td:

@@ -25,15 +25,26 @@ import json
 import re
 import sys
 from concurrent.futures import ThreadPoolExecutor
-from pathlib import Path
+from functools import lru_cache
+from pathlib import Path, PureWindowsPath
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT / "tools"))
-from lib.cache import content_key  # noqa: E402
+from lib.cache import code_fingerprint, content_key  # noqa: E402
 from lib.cache import load as cache_load  # noqa: E402
 from lib.cache import store as cache_store  # noqa: E402
 from lib.config import decode_vb6_bytes, load_config, reports_root  # noqa: E402
 from lib.console import enable_utf8_stdio  # noqa: E402
+from lib.declarators import (  # noqa: E402
+    TYPE_SUFFIXES,
+    deftype_letters,
+    parse_deftype,
+    parse_params,
+    parse_var_declarators,
+    resolve_type,
+)
+from lib.designer import data_binding, parse_designer  # noqa: E402
+from lib.event_binding import resolve_event_owner, self_owners_for  # noqa: E402
 from lib.extract_paths import load_source_map, resolve_source  # noqa: E402
 from lib.report_html import COLOR_SCHEME_META, LIGHT_THEME_CSS  # noqa: E402
 from lib.show_style import (  # noqa: E402
@@ -42,11 +53,19 @@ from lib.show_style import (  # noqa: E402
     parse_show_calls_in_line,
     self_show_style,
 )
-from lib.vbparse import code_mask, iter_statements  # noqa: E402
+from lib.vbparse import (  # noqa: E402
+    IDENT,
+    code_mask,
+    conditional_regions,
+    find_comment_continuations,
+    innermost_region,
+    iter_statements,
+)
 
-# Bump when parse_* output shape or semantics change (invalidates the cache).
+# Bump when parse_* output shape or semantics change. The cache key also carries
+# parser_fingerprint(), so an edit without a bump no longer serves stale facts.
 # Suffix is part of the key (see inventory_file): .frm vs .bas parse differently.
-PARSER_VERSION = "inv-12"
+PARSER_VERSION = "inv-14"
 
 # Designer-like text files: header + code, same family as .frm.
 DESIGNER_SUFFIXES = frozenset({".frm", ".ctl", ".pag", ".dob", ".dsr"})
@@ -102,20 +121,20 @@ AS_RETURN_RE = re.compile(r"(?i)^As\s+(.+?)\s*$")
 
 PROC_RE = re.compile(
     r"^(?:(Public|Private|Friend)\s+)?(?:Static\s+)?"
-    r"(Sub|Function|Property\s+(?:Get|Let|Set))\s+([A-Za-z_]\w*)",
+    rf"(Sub|Function|Property\s+(?:Get|Let|Set))\s+({IDENT})",
     re.IGNORECASE,
 )
 DECLARE_RE = re.compile(
-    r"^(?:(Public|Private)\s+)?Declare\s+(Sub|Function)\s+(\w+)\s+Lib\s+\"([^\"]+)\"",
+    r"^(?:(Public|Private)\s+)?Declare\s+(Sub|Function)\s+(\w+)([%&!#@$])?\s+Lib\s+\"([^\"]+)\""
+    r"(?:\s+Alias\s+\"([^\"]+)\")?",
     re.IGNORECASE,
 )
 END_RE = re.compile(r"^End\s+(Sub|Function|Property)\b", re.IGNORECASE)
-CONTROL_RE = re.compile(r"^\s*Begin\s+([\w.]+)\s+(\w+)")
 VBNAME_RE = re.compile(r'^Attribute\s+VB_Name\s*=\s*"([^"]+)"', re.IGNORECASE)
-IMPLEMENTS_RE = re.compile(r"^Implements\s+([A-Za-z_]\w*)\s*$", re.IGNORECASE)
+IMPLEMENTS_RE = re.compile(rf"^Implements\s+({IDENT})\s*$", re.IGNORECASE)
 WITHEVENTS_RE = re.compile(
     r"^(?:(Public|Private|Friend|Dim|Global)\s+)?WithEvents\s+"
-    r"([A-Za-z_]\w*)\s+As\s+(.+)$",
+    rf"({IDENT})\s+As\s+(.+)$",
     re.IGNORECASE,
 )
 INSTANCING_RE = re.compile(r"^Instancing\s*=\s*(-?\d+)", re.IGNORECASE)
@@ -134,6 +153,18 @@ ATTR_USER_MEM_ID_RE = re.compile(
     r"^Attribute\s+VB_UserMemId\s*=\s*(-?\d+)\s*$",
     re.IGNORECASE,
 )
+# Member-level attributes, written by the IDE inside the member they describe:
+#   Attribute Value.VB_UserMemId = 0        (default member)
+#   Attribute NewEnum.VB_UserMemId = -4     (For Each enumerator)
+#   Attribute Value.VB_ProcData.VB_Invoke_Property = ";Text"
+MEMBER_ATTR_RE = re.compile(
+    rf"^Attribute\s+({IDENT})\.(VB_[\w.]+)\s*=\s*(.+?)\s*$", re.IGNORECASE
+)
+# ``VERSION 1.0 CLASS`` header block (MultiUse / Persistable / DataBindingBehavior …).
+CLASS_VERSION_RE = re.compile(r"^VERSION\s+\S+\s+CLASS$", re.IGNORECASE)
+HEADER_ITEM_RE = re.compile(r"^(\w+)\s*=\s*(.+?)\s*$")
+DEFAULT_MEMBER_ID = 0
+ENUMERATOR_MEMBER_ID = -4
 
 # Module-level declarations (facts only; locals inside procedures are excluded)
 CONST_HEAD_RE = re.compile(
@@ -141,22 +172,35 @@ CONST_HEAD_RE = re.compile(
     re.IGNORECASE,
 )
 CONST_ITEM_HEAD_RE = re.compile(
-    r"([A-Za-z_]\w*)(?:\s+As\s+.+?)?\s*=\s*",
+    rf"({IDENT})(?:\s+As\s+.+?)?\s*=\s*",
     re.IGNORECASE,
 )
 ENUM_RE = re.compile(
-    r"^(?:(Public|Private)\s+)?Enum\s+([A-Za-z_]\w*)", re.IGNORECASE
+    rf"^(?:(Public|Private)\s+)?Enum\s+({IDENT})", re.IGNORECASE
 )
 TYPE_RE = re.compile(
-    r"^(?:(Public|Private)\s+)?Type\s+([A-Za-z_]\w*)\s*$", re.IGNORECASE
+    rf"^(?:(Public|Private)\s+)?Type\s+({IDENT})\s*$", re.IGNORECASE
 )
+# Parentheses are optional for an event without arguments.
 EVENT_RE = re.compile(
-    r"^(?:(Public)\s+)?Event\s+([A-Za-z_]\w*)\s*\((.*)\)\s*$", re.IGNORECASE
+    rf"^(?:(Public)\s+)?Event\s+({IDENT})\s*(?:\((.*)\))?\s*$", re.IGNORECASE
+)
+OPTION_RE = re.compile(
+    r"^Option\s+(Explicit|Base\s+([01])|Compare\s+(Binary|Text|Database)|Private\s+Module)\s*$",
+    re.IGNORECASE,
+)
+# Module-level variables: Public/Private/Global/Dim [WithEvents] declarators.
+VAR_HEAD_RE = re.compile(r"^(Public|Private|Global|Dim|Static)\s+(?:(WithEvents)\s+)?(.+)$",
+                         re.IGNORECASE)
+# ``Private Declare …`` / ``Public Const …`` etc. are not variable declarations.
+VAR_NOT_VARIABLE_RE = re.compile(
+    r"^(?:Const|Declare|Enum|Type|Event|Sub|Function|Property|Static|Friend)\b", re.IGNORECASE
 )
 END_ENUM_RE = re.compile(r"^End\s+Enum\b", re.IGNORECASE)
 END_TYPE_RE = re.compile(r"^End\s+Type\b", re.IGNORECASE)
-ENUM_MEMBER_RE = re.compile(r"^([A-Za-z_]\w*)\s*(?:=\s*(.+))?$")
-TYPE_FIELD_RE = re.compile(r"^([A-Za-z_][\w]*(?:\([^)]*\))?)\s+As\s+(.+)$", re.IGNORECASE)
+# ``[_First]`` is a bracketed (hidden) member name.
+ENUM_MEMBER_RE = re.compile(rf"^(\[[^\]]+\]|{IDENT})\s*(?:=\s*(.+))?$")
+TYPE_FIELD_RE = re.compile(rf"^({IDENT}(?:\([^)]*\))?)\s+As\s+(.+)$", re.IGNORECASE)
 
 
 def parse_const_declarators(rest: str) -> list[tuple[str, str]]:
@@ -212,6 +256,22 @@ def decode(raw: bytes) -> str:
     return decode_vb6_bytes(raw)
 
 
+def attribute_value(raw: str) -> int | bool | str:
+    """Raw attribute / header value: int, bool, unquoted string, else as written."""
+    text = raw.strip()
+    if re.fullmatch(r"-?\d+", text):
+        return int(text)
+    if text.lower() in ("true", "false"):
+        return text.lower() == "true"
+    if len(text) >= 2 and text[0] == text[-1] == '"':
+        return text[1:-1].replace('""', '"')
+    return text
+
+
+def _attr(attributes: dict, name: str):
+    return next((v for k, v in attributes.items() if k.lower() == name.lower()), None)
+
+
 def looks_like_parent_common(path: str) -> bool:
     """True when a VBP path climbs two or more parent dirs (shared-lib style).
 
@@ -220,6 +280,39 @@ def looks_like_parent_common(path: str) -> bool:
     """
     norm = path.replace("/", "\\")
     return sum(1 for part in norm.split("\\") if part == "..") >= 2
+
+
+def parse_reference(value: str) -> dict:
+    """``Reference=`` value: type library (``*\\G{GUID}#ver#lcid#path#desc``) or
+    project (``*\\A<path>.vbp``). Unknown shapes keep ``raw`` only."""
+    raw = value.strip()
+    if raw[:3].upper() == "*\\A":
+        return {"kind": "project", "path": raw[3:], "raw": raw}
+    if raw[:3].upper() == "*\\G":
+        parts = raw[3:].split("#")
+        return {
+            "kind": "typelib",
+            "guid": parts[0],
+            "version": parts[1] if len(parts) > 1 else None,
+            "lcid": parts[2] if len(parts) > 2 else None,
+            "path": parts[3] if len(parts) > 3 else None,
+            "description": "#".join(parts[4:]) if len(parts) > 4 else None,
+            "raw": raw,
+        }
+    return {"kind": "unknown", "raw": raw}
+
+
+def parse_object_ref(raw: str) -> dict:
+    """``{GUID}#ver#lcid; FILE.OCX`` (VBP) → guid / version / file, raw kept."""
+    head, _, tail = raw.partition(";")
+    ident = head.strip().strip('"')
+    guid, _, rest = ident.partition("#")
+    return {
+        "raw": raw,
+        "guid": guid if guid.startswith("{") else None,
+        "version": rest.split("#")[0] if rest else None,
+        "file": tail.strip().strip('"') or None,
+    }
 
 
 def parse_ident_path(value: str) -> tuple[str, str]:
@@ -252,6 +345,7 @@ def parse_vbp(vbp_path: Path, *, skip_parent_common: bool = False) -> dict:
         "res_files": [],
     }
     objects: list[dict] = []
+    references: list[dict] = []
     skipped_parent_common: list[dict] = []
     warnings: list[dict] = []
     meta: dict[str, str] = {k: "" for k in VBP_META_ALWAYS}
@@ -332,12 +426,10 @@ def parse_vbp(vbp_path: Path, *, skip_parent_common: bool = False) -> dict:
                 continue
             extra[bucket].append({"file": fname})
         elif line.startswith("Object="):
-            raw = line.split("=", 1)[1].strip()
-            if ";" in raw:
-                file_part = raw.split(";")[-1].strip() or None
-            else:
-                file_part = None  # malformed / GUID-only; keep raw for evidence
-            objects.append({"raw": raw, "file": file_part})
+            # GUID-only / malformed values keep raw for evidence (file is None).
+            objects.append(parse_object_ref(line.split("=", 1)[1].strip()))
+        elif line.startswith("Reference="):
+            references.append(parse_reference(line.split("=", 1)[1]))
         else:
             key, sep, val = line.partition("=")
             canon = VBP_META_CANON.get(key.lower()) if sep else None
@@ -354,6 +446,7 @@ def parse_vbp(vbp_path: Path, *, skip_parent_common: bool = False) -> dict:
         "related_docs": extra["related_docs"],
         "res_files": extra["res_files"],
         "objects": objects,
+        "references": references,
         "skipped_parent_common": skipped_parent_common,
         "warnings": warnings,
         "meta": meta,
@@ -405,21 +498,66 @@ def file_kind_label(f: dict) -> str:
 
 
 def parse_form_header(lines: list[str]) -> tuple[str | None, list[dict]]:
-    """Return (form kind e.g. VB.Form / VB.MDIForm, controls) from a .frm header."""
-    form_kind: str | None = None
+    """Return (root kind e.g. VB.Form / VB.MDIForm, controls) from a designer header.
+
+    Controls are in document order with ``line``, ``parent`` (the root's name
+    for top-level controls) and ``index`` for control-array members. Uses
+    ``lib.designer`` (the same tree deep-read builds).
+    """
+    nodes = parse_designer(lines)
+    if not nodes:
+        return None, []
     controls: list[dict] = []
-    for line in lines:
-        if VBNAME_RE.match(line):
-            break  # header ends where attributes/code begin
-        m = CONTROL_RE.match(line)
-        if not m:
-            continue
-        cls, name = m.group(1), m.group(2)
-        if form_kind is None:
-            form_kind = cls
-        else:
-            controls.append({"class": cls, "name": name})
-    return form_kind, controls
+    for node in nodes[1:]:
+        ctrl = {"class": node["kind"], "name": node["name"], "line": node["line"],
+                "parent": nodes[node["parent"]]["name"] if node["parent"] is not None else None}
+        index = next((v for k, v in node["props"].items() if k.lower() == "index"), None)
+        if isinstance(index, int):
+            ctrl["index"] = index
+        controls.append(ctrl)
+    return nodes[0]["kind"], controls
+
+
+def parse_data_bindings(lines: list[str]) -> list[dict]:
+    """Controls whose designer properties bind data (DataSource / RecordSource …)."""
+    out: list[dict] = []
+    for node in parse_designer(lines)[1:]:
+        binding = data_binding(node["props"])
+        if binding:
+            out.append({"control": node["name"], "class": node["kind"], "line": node["line"], **binding})
+    return out
+
+
+DESIGNER_OBJECT_RE = re.compile(r'^Object\s*=\s*"([^"]*)"(?:\s*;\s*"([^"]*)")?', re.IGNORECASE)
+
+
+def parse_designer_objects(lines: list[str]) -> list[dict]:
+    """``Object = "{GUID}#ver#lcid"; "FILE.OCX"`` lines before the designer root.
+
+    These name the OCX / project a form's controls come from (per-form fact;
+    the VBP ``Object=`` list is project-wide).
+    """
+    out: list[dict] = []
+    for idx, line in enumerate(lines, start=1):
+        s = line.strip()
+        if s.startswith("Begin ") or VBNAME_RE.match(s):
+            break
+        m = DESIGNER_OBJECT_RE.match(s)
+        if m:
+            ref = parse_object_ref(m.group(1))
+            out.append({"ref": m.group(1), "guid": ref["guid"], "version": ref["version"],
+                        "file": m.group(2) or None, "line": idx})
+    return out
+
+
+def external_control_classes(controls: list[dict]) -> list[dict]:
+    """Non-intrinsic control classes (not ``VB.*``) with their counts."""
+    counts: dict[str, int] = {}
+    for ctrl in controls:
+        cls = str(ctrl.get("class") or "")
+        if cls and not cls.upper().startswith("VB."):
+            counts[cls] = counts.get(cls, 0) + 1
+    return [{"class": cls, "count": n} for cls, n in sorted(counts.items())]
 
 
 def scan_form_show_facts(lines: list[str], form_kind: str | None) -> dict:
@@ -457,6 +595,38 @@ def scan_form_show_facts(lines: list[str], form_kind: str | None) -> dict:
     }
 
 
+_STMT_HEAD = r"(?:^|\b(?:Then|Else)\s+)"
+ERROR_HANDLING_RULES: tuple[tuple[str, re.Pattern[str]], ...] = (
+    ("on_error_resume_next", re.compile(_STMT_HEAD + r"On\s+Error\s+Resume\s+Next\b", re.IGNORECASE)),
+    ("on_error_goto_0", re.compile(_STMT_HEAD + r"On\s+Error\s+GoTo\s+0\s*$", re.IGNORECASE)),
+    ("on_error_goto_minus1", re.compile(_STMT_HEAD + r"On\s+Error\s+GoTo\s+-1\s*$", re.IGNORECASE)),
+    ("on_error_goto", re.compile(_STMT_HEAD + r"On\s+(?:Local\s+)?Error\s+GoTo\s+(\w+)\s*$",
+                                 re.IGNORECASE)),
+    ("resume_next", re.compile(_STMT_HEAD + r"Resume\s+Next\s*$", re.IGNORECASE)),
+    ("resume_label", re.compile(_STMT_HEAD + r"Resume\s+(\w+)\s*$", re.IGNORECASE)),
+    ("resume", re.compile(_STMT_HEAD + r"Resume\s*$", re.IGNORECASE)),
+    ("err_raise", re.compile(r"\bErr\.Raise\b", re.IGNORECASE)),
+)
+
+
+def error_handling_fact(stmt_text: str, line: int) -> dict | None:
+    """One ``On Error`` / ``Resume`` / ``Err.Raise`` statement as a fact.
+
+    ``On Error Resume Next`` silently skips failing statements until the next
+    ``On Error`` in the same procedure; the list keeps them in source order so
+    a reader can see which lines run under which mode (no flow analysis).
+    """
+    code = code_mask(stmt_text).strip()
+    for kind, pattern in ERROR_HANDLING_RULES:
+        m = pattern.search(code)
+        if m:
+            fact = {"kind": kind, "line": line}
+            if m.groups():
+                fact["target"] = m.group(1)
+            return fact
+    return None
+
+
 def parse_procedures(lines: list[str]) -> tuple[list[dict], list[dict]]:
     """Return (procedures, declares).
 
@@ -472,7 +642,9 @@ def parse_procedures(lines: list[str]) -> tuple[list[dict], list[dict]]:
     in_header = bool(stmts) and stmts[0].text.startswith("VERSION")
     open_proc: dict | None = None
     for stmt in stmts:
-        if stmt.kind != "stmt":
+        if stmt.kind == "label":
+            if open_proc is not None and not in_header:
+                open_proc.setdefault("labels", []).append({"name": stmt.text, "line": stmt.phys_start})
             continue
         stripped = stmt.text
         if in_header:
@@ -481,22 +653,30 @@ def parse_procedures(lines: list[str]) -> tuple[list[dict], list[dict]]:
             continue
         dm = DECLARE_RE.match(stripped)
         if dm and open_proc is None:
-            declares.append(
-                {
-                    "name": dm.group(3),
-                    "kind": dm.group(2).capitalize(),
-                    "visibility": (dm.group(1) or "Public").capitalize(),
-                    "lib": dm.group(4),
-                    "line": stmt.phys_start,
-                }
-            )
+            params, returns = extract_params_returns(stripped[dm.end() :])
+            declare = {
+                "name": dm.group(3),
+                "kind": dm.group(2).capitalize(),
+                "visibility": (dm.group(1) or "Public").capitalize(),
+                "lib": dm.group(5),
+                "alias": dm.group(6),
+                "params": params,
+                "returns": returns,
+                "line": stmt.phys_start,
+            }
+            if dm.group(4):
+                declare["type_suffix"] = dm.group(4)
+            declares.append(declare)
             continue
         if open_proc is None:
             pm = PROC_RE.match(stripped)
             # a Declare line also matches PROC_RE via "Sub|Function"? no: Declare comes first
             if pm and not stripped.lower().startswith("declare"):
                 kind = re.sub(r"\s+", " ", pm.group(2)).title()
-                params, returns = extract_params_returns(stripped[pm.end() :])
+                rest = stripped[pm.end() :]
+                # ``Function Calc$(…)``: the type suffix sits between name and '('.
+                suffix = rest[:1] if rest[:1] in TYPE_SUFFIXES else None
+                params, returns = extract_params_returns(rest[1:] if suffix else rest)
                 open_proc = {
                     "name": pm.group(3),
                     "kind": kind,
@@ -506,7 +686,16 @@ def parse_procedures(lines: list[str]) -> tuple[list[dict], list[dict]]:
                     "returns": returns,
                     "line_start": stmt.phys_start,
                 }
+                if suffix:
+                    open_proc["type_suffix"] = suffix
         else:
+            ma = MEMBER_ATTR_RE.match(stripped)
+            if ma and ma.group(1).casefold() == open_proc["name"].casefold():
+                open_proc.setdefault("attributes", {})[ma.group(2)] = attribute_value(ma.group(3))
+                continue
+            handling = error_handling_fact(stripped, stmt.phys_start)
+            if handling is not None:
+                open_proc.setdefault("error_handling", []).append(handling)
             if END_RE.match(stripped):
                 open_proc["line_end"] = stmt.phys_end
                 open_proc["lines"] = stmt.phys_end - open_proc["line_start"] + 1
@@ -533,6 +722,9 @@ def parse_declarations(lines: list[str]) -> dict:
     enums: list[dict] = []
     types: list[dict] = []
     events: list[dict] = []
+    variables: list[dict] = []
+    deftypes: list[dict] = []
+    options: dict = {"explicit": False, "base": None, "compare": None, "private_module": False}
     stmts = iter_statements(lines)
     in_header = bool(stmts) and stmts[0].text.startswith("VERSION")
     in_proc = False
@@ -556,7 +748,10 @@ def parse_declarations(lines: list[str]) -> dict:
             elif not s.startswith("'") and s:
                 mm = ENUM_MEMBER_RE.match(s)
                 if mm:
-                    open_enum["members"].append({"name": mm.group(1), "line": stmt.phys_start})
+                    member = {"name": mm.group(1), "line": stmt.phys_start}
+                    if mm.group(2) is not None:
+                        member["value"] = mm.group(2).strip()
+                    open_enum["members"].append(member)
             continue
         if open_type is not None:
             if END_TYPE_RE.match(s):
@@ -609,7 +804,7 @@ def parse_declarations(lines: list[str]) -> dict:
                 {
                     "name": vm.group(2),
                     "visibility": (vm.group(1) or "Public").capitalize(),
-                    "args": vm.group(3).strip(),
+                    "args": (vm.group(3) or "").strip(),
                     "line": stmt.phys_start,
                 }
             )
@@ -626,6 +821,49 @@ def parse_declarations(lines: list[str]) -> dict:
                         "line": stmt.phys_start,
                     }
                 )
+            continue
+        om = OPTION_RE.match(s)
+        if om:
+            word = om.group(1).split()[0].lower()
+            if word == "explicit":
+                options["explicit"] = True
+            elif word == "base":
+                options["base"] = int(om.group(2))
+            elif word == "compare":
+                options["compare"] = om.group(3).capitalize()
+            else:
+                options["private_module"] = True
+            continue
+        deftype = parse_deftype(s, stmt.phys_start)
+        if deftype is not None:
+            deftypes.append(deftype)
+            continue
+        var = VAR_HEAD_RE.match(s)
+        if var and not VAR_NOT_VARIABLE_RE.match(var.group(3)):
+            keyword = var.group(1).capitalize()
+            visibility = {"Dim": "Private", "Global": "Public"}.get(keyword, keyword)
+            variables.append({
+                "keyword": keyword,
+                "visibility": visibility,
+                "with_events": var.group(2) is not None,
+                "text": var.group(3),
+                "line": stmt.phys_start,
+            })
+
+    letters = deftype_letters(deftypes)
+    resolved: list[dict] = []
+    for var in variables:
+        for decl in parse_var_declarators(var["text"], letters):
+            resolved.append({
+                "name": decl["name"],
+                "keyword": var["keyword"],
+                "visibility": var["visibility"],
+                "with_events": var["with_events"],
+                **{k: decl[k] for k in ("type", "type_source", "type_suffix", "new",
+                                        "is_array", "dims")},
+                "line": var["line"],
+            })
+    options["deftypes"] = deftypes
 
     if open_enum is not None:  # unterminated
         open_enum["unterminated"] = True
@@ -633,7 +871,8 @@ def parse_declarations(lines: list[str]) -> dict:
     if open_type is not None:
         open_type["unterminated"] = True
         types.append(open_type)
-    return {"consts": consts, "enums": enums, "types": types, "events": events}
+    return {"consts": consts, "enums": enums, "types": types, "events": events,
+            "variables": resolved, "options": options}
 
 
 def empty_surface() -> dict:
@@ -646,6 +885,10 @@ def empty_surface() -> dict:
         "vb_global_name_space": None,
         "vb_predeclared_id": None,
         "vb_user_mem_id": None,
+        "class_header": None,
+        "member_attributes": [],
+        "default_member": None,
+        "enumerator_member": None,
     }
 
 
@@ -654,15 +897,32 @@ def parse_surface(lines: list[str]) -> dict:
 
     Walks colon-split statements. Instancing / Attribute are taken in the
     designer header too. Implements / WithEvents are module-level only.
+    ``class_header`` keeps the ``VERSION … CLASS`` ``BEGIN``/``END`` values raw
+    (VB6 stores no ``Instancing`` line there; it is not translated here).
+    ``member_attributes`` are module-level ``Attribute <member>.VB_*`` lines
+    (variables); procedure-level ones live on the procedure's ``attributes``.
     """
     out = empty_surface()
     stmts = iter_statements(lines)
     in_header = bool(stmts) and stmts[0].text.startswith("VERSION")
+    is_class = bool(stmts) and bool(CLASS_VERSION_RE.match(stmts[0].text))
+    in_class_block = False
     in_proc = False
     for stmt in stmts:
         if stmt.kind != "stmt":
             continue
         s = stmt.text
+        if is_class and in_header:
+            if s == "BEGIN":
+                in_class_block = True
+                out["class_header"] = {}
+                continue
+            if s == "END":
+                in_class_block = False
+                continue
+            hm = HEADER_ITEM_RE.match(s) if in_class_block else None
+            if hm:
+                out["class_header"][hm.group(1)] = attribute_value(hm.group(2))
         im = INSTANCING_RE.match(s)
         if im:
             out["instancing"] = int(im.group(1))
@@ -683,6 +943,13 @@ def parse_surface(lines: list[str]) -> dict:
                 in_header = False
             continue
         if not in_proc:
+            ma = MEMBER_ATTR_RE.match(s)
+            if ma:
+                out["member_attributes"].append({
+                    "member": ma.group(1), "attribute": ma.group(2),
+                    "value": attribute_value(ma.group(3)), "line": stmt.phys_start,
+                })
+                continue
             pm = PROC_RE.match(s)
             if pm and not s.lower().startswith("declare"):
                 in_proc = True
@@ -727,24 +994,37 @@ def is_module_or_class_file(entry: dict) -> bool:
     return Path(str(entry.get("file") or "")).suffix.lower() in {".bas", ".cls"}
 
 
-def classify_events(procs: list[dict], control_names: set[str], is_form: bool) -> None:
-    prefixes = {n.lower() for n in control_names}
-    if is_form:
-        prefixes |= {"form", "mdiform"}
+def classify_events(
+    procs: list[dict],
+    control_names: set[str],
+    self_owners: tuple[str, ...],
+    with_events: list[str] | None = None,
+) -> None:
     for p in procs:
-        name = p["name"]
-        owner = None
-        # longest matching "<owner>_" prefix wins (owners may contain underscores)
-        for i in range(len(name) - 1, 0, -1):
-            if name[i] == "_" and name[:i].lower() in prefixes:
-                owner = name[:i]
-                break
-        if owner is not None:
+        bound = resolve_event_owner(
+            p["name"],
+            controls=control_names,
+            self_owners=self_owners,
+            with_events=with_events or (),
+        )
+        if bound is not None:
             p["role"] = "event"
-            p["event_owner"] = owner
-            p["event_name"] = name[len(owner) + 1 :]
+            p["event_owner"] = bound["owner"]
+            p["event_name"] = bound["event"]
+            p["event_binding"] = bound["binding"]
         else:
             p["role"] = "general"
+
+
+@lru_cache(maxsize=1)
+def parser_fingerprint() -> str:
+    """SHA-256 of the code that shapes inventory output (this file + tools/lib)."""
+    here = Path(__file__).resolve()
+    return code_fingerprint([here, *sorted((here.parent / "lib").glob("*.py"))])
+
+
+def provenance() -> dict:
+    return {"parser_version": PARSER_VERSION, "parser_fingerprint": parser_fingerprint()}
 
 
 def inventory_file(path: Path, use_cache: bool = True) -> dict:
@@ -754,7 +1034,10 @@ def inventory_file(path: Path, use_cache: bool = True) -> dict:
     if use_cache:
         cfg = load_config()
         decoding = json.dumps([cfg.get('encoding'), cfg.get('encoding_fallbacks')])
-        key = content_key(raw, f"{PARSER_VERSION}|{path.suffix.lower()}|{decoding}")
+        key = content_key(
+            raw,
+            f"{PARSER_VERSION}|{parser_fingerprint()}|{path.suffix.lower()}|{decoding}",
+        )
         hit = cache_load(key)
         if hit is not None:
             hit["file"] = path.name  # same content, possibly different filename
@@ -763,6 +1046,120 @@ def inventory_file(path: Path, use_cache: bool = True) -> dict:
     if use_cache and key is not None:
         cache_store(key, result)
     return result
+
+
+def add_signature_details(procs: list[dict], deftypes: list[dict]) -> None:
+    """``params_detail`` (ByRef default, Optional, ParamArray, resolved type) and
+    ``return_type`` / ``return_type_source`` for Function and Property Get
+    (procedures and ``Declare`` entries alike)."""
+    letters = deftype_letters(deftypes)
+    for proc in procs:
+        proc["params_detail"] = parse_params(proc.get("params") or "", letters)
+        if proc["kind"] in ("Function", "Property Get"):
+            proc["return_type"], proc["return_type_source"] = resolve_type(
+                proc["name"], proc.get("type_suffix"), proc.get("returns"), letters
+            )
+
+
+def mark_special_members(surface: dict, procs: list[dict]) -> None:
+    """Default member (``VB_UserMemId = 0``) and enumerator (``-4``) by attribute.
+
+    A module-level variable can be the default member via ``VB_VarUserMemId``.
+    """
+    for proc in procs:
+        mem_id = _attr(proc.get("attributes") or {}, "VB_UserMemId")
+        if mem_id == DEFAULT_MEMBER_ID and surface["default_member"] is None:
+            surface["default_member"] = proc["name"]
+        elif mem_id == ENUMERATOR_MEMBER_ID and surface["enumerator_member"] is None:
+            surface["enumerator_member"] = proc["name"]
+    for item in surface["member_attributes"]:
+        if item["attribute"].lower() == "vb_varusermemid" and item["value"] == DEFAULT_MEMBER_ID \
+                and surface["default_member"] is None:
+            surface["default_member"] = item["member"]
+
+
+def file_diagnostics(lines: list[str], procs: list[dict]) -> list[dict]:
+    """Facts a reader must know before trusting the procedure list.
+
+    ``comment_continuation``: physical lines VB6 treats as comment text because
+    a comment ended in `` _``. ``duplicate_procedure``: the same name and kind
+    defined more than once in one file (usually ``#If`` branches, which are not
+    evaluated). Neither is an error verdict.
+    """
+    out: list[dict] = [
+        {"kind": "comment_continuation", "line": hit["line"], "absorbed_lines": hit["absorbed"]}
+        for hit in find_comment_continuations(lines)
+    ]
+    seen: dict[tuple[str, str], list[int]] = {}
+    for proc in procs:
+        seen.setdefault((proc["name"].casefold(), proc["kind"]), []).append(proc["line_start"])
+    for proc in procs:
+        starts = seen.get((proc["name"].casefold(), proc["kind"])) or []
+        if len(starts) > 1 and proc["line_start"] == starts[0]:
+            out.append({"kind": "duplicate_procedure", "name": proc["name"],
+                        "proc_kind": proc["kind"], "lines": starts})
+    return out
+
+
+def reference_text(ref: dict) -> str:
+    if ref.get("kind") == "typelib":
+        desc = ref.get("description") or ref.get("guid") or ""
+        where = " ".join(
+            bit for bit in (PureWindowsPath(ref.get("path") or "").name, ref.get("version")) if bit
+        )
+        return f"{desc}（{where}）" if where else desc
+    if ref.get("kind") == "project":
+        return f"project {ref.get('path')}"
+    return str(ref.get("raw") or "")
+
+
+def dependency_text(entry: dict) -> str | None:
+    """Per-form OCX lines and external control classes in one line."""
+    bits = [f"OCX {o.get('file') or o.get('ref')}（L{o['line']}）" for o in entry.get("ocx_objects") or []]
+    bits += [f"{c['class']}×{c['count']}" for c in entry.get("external_control_classes") or []]
+    return " / ".join(bits) or None
+
+
+def option_text(entry: dict) -> str | None:
+    """``Option`` / Deftype facts in one line (None for non-code entries)."""
+    opts = entry.get("options")
+    if not opts:
+        return None
+    bits = ["Option Explicit" if opts.get("explicit") else "Option Explicit なし（未宣言の名前は暗黙に宣言される）"]
+    if opts.get("base") is not None:
+        bits.append(f"Option Base {opts['base']}")
+    if opts.get("compare"):
+        bits.append(f"Option Compare {opts['compare']}")
+    if opts.get("private_module"):
+        bits.append("Option Private Module")
+    for d in opts.get("deftypes") or []:
+        bits.append(f"Def{d['type']} {', '.join(d['ranges'])}（L{d['line']}）")
+    return " / ".join(bits)
+
+
+def variable_text(var: dict) -> str:
+    dims = f"({var['dims']})" if var.get("is_array") else ""
+    new = "New " if var.get("new") else ""
+    we = "WithEvents " if var.get("with_events") else ""
+    return (f"{var['keyword']} {we}{var['name']}{dims} As {new}{var['type']}"
+            f"（{var['type_source']}）L{var['line']}")
+
+
+def diagnostic_texts(entry: dict) -> list[str]:
+    """One plain line per diagnostic for the MD / HTML reports."""
+    texts: list[str] = []
+    for diag in entry.get("diagnostics") or []:
+        if diag.get("kind") == "comment_continuation":
+            absorbed = ", ".join(f"L{n}" for n in diag.get("absorbed_lines") or [])
+            texts.append(
+                f"L{diag.get('line')} のコメントが ` _` で続くため、{absorbed} は VB6 ではコメント（実行されない）"
+            )
+        elif diag.get("kind") == "duplicate_procedure":
+            where = ", ".join(f"L{n}" for n in diag.get("lines") or [])
+            texts.append(
+                f"`{diag.get('name')}`（{diag.get('proc_kind')}）が {where} に複数定義（#If の分岐は評価しない）"
+            )
+    return texts
 
 
 def _parse_bytes(raw: bytes, path: Path) -> dict:
@@ -778,7 +1175,21 @@ def _parse_bytes(raw: bytes, path: Path) -> dict:
     show_facts = scan_form_show_facts(lines, form_kind) if is_form else None
     procs, declares = parse_procedures(lines)
     decls = parse_declarations(lines)
-    classify_events(procs, {c["name"] for c in controls}, is_form)
+    surface = parse_surface(lines)
+    classify_events(
+        procs,
+        {c["name"] for c in controls},
+        self_owners_for(path.suffix),
+        [w["name"] for w in surface["with_events"]],
+    )
+    mark_special_members(surface, procs)
+    add_signature_details([*procs, *declares], decls["options"]["deftypes"])
+    regions = conditional_regions(iter_statements(lines))
+    for proc in procs:
+        region = innermost_region(regions, proc["line_start"])
+        if region is not None:
+            proc["conditional"] = {k: region[k] for k in ("line", "directive", "expr")}
+    diagnostics = file_diagnostics(lines, procs)
     out = {
         "file": path.name,
         "vb_name": vb_name,
@@ -791,9 +1202,25 @@ def _parse_bytes(raw: bytes, path: Path) -> dict:
         "enums": decls["enums"],
         "types": decls["types"],
         "events": decls["events"],
+        "variables": decls["variables"],
+        "options": decls["options"],
         "procedures": procs,
-        "surface": parse_surface(lines),
+        "surface": surface,
     }
+    if regions:
+        out["conditional_compilation"] = regions
+    if diagnostics:
+        out["diagnostics"] = diagnostics
+    if is_form:
+        ocx = parse_designer_objects(lines)
+        external = external_control_classes(controls)
+        bindings = parse_data_bindings(lines)
+        if ocx:
+            out["ocx_objects"] = ocx
+        if external:
+            out["external_control_classes"] = external
+        if bindings:
+            out["data_bindings"] = bindings
     if show_facts is not None:
         out["show_style"] = show_facts["self"]
         out["mdi_child"] = show_facts["mdi_child"]
@@ -848,6 +1275,7 @@ def build_report(
             "enums": [],
             "types": [],
             "events": [],
+            "variables": [],
             "procedures": [],
             "surface": empty_surface(),
         }
@@ -888,9 +1316,11 @@ def build_report(
     report = {
         "vbp": vbp_path.name,
         "stem": vbp_path.stem,
+        "provenance": provenance(),
         "extract_dir": str(extract_dir.resolve()),
         "meta": vbp["meta"],
         "objects": vbp["objects"],
+        "references": vbp["references"],
         "file_count": len(files),
         "proc_total": sum(len(f["procedures"]) for f in files),
         "files": files,
@@ -937,7 +1367,22 @@ def _has_surface_facts(surf: dict) -> bool:
         or surf.get("instancing") is not None
         or surf.get("vb_predeclared_id") is not None
         or surf.get("vb_user_mem_id") is not None
+        or surf.get("default_member") is not None
+        or surf.get("enumerator_member") is not None
     )
+
+
+def special_member_texts(surf: dict) -> list[str]:
+    """Plain lines for class header / default member / enumerator (raw values)."""
+    texts: list[str] = []
+    header = surf.get("class_header")
+    if header:
+        texts.append("Class header: " + ", ".join(f"{k}={v}" for k, v in header.items()))
+    if surf.get("default_member"):
+        texts.append(f"既定メンバー（VB_UserMemId=0）: {surf['default_member']}")
+    if surf.get("enumerator_member"):
+        texts.append(f"列挙子（VB_UserMemId=-4）: {surf['enumerator_member']}")
+    return texts
 
 
 def surface_md_lines(entry: dict) -> list[str]:
@@ -970,6 +1415,7 @@ def surface_md_lines(entry: dict) -> list[str]:
         f"- WithEvents: {we_s}",
         f"- Instancing: `{inst_s}`",
         f"- Attribute: {attr_s}",
+        *(f"- {text}" for text in special_member_texts(surf)),
         f"- 公開 Property: {pub_prop}",
         "",
     ]
@@ -1007,7 +1453,8 @@ def surface_html_block(entry: dict, e) -> str:
         f"<li>WithEvents: {we_s}</li>"
         f"<li>Instancing: <code>{e(inst_s)}</code></li>"
         f"<li>Attribute: {attr_s}</li>"
-        f"<li>公開 Property: {pub_prop}</li>"
+        + "".join(f"<li>{e(text)}</li>" for text in special_member_texts(surf))
+        + f"<li>公開 Property: {pub_prop}</li>"
         "</ul>"
     )
 
@@ -1035,6 +1482,9 @@ def write_markdown(report: dict, out: Path) -> None:
             for o in report["objects"]
         )
         L.append(f"- Object（OCX 等）: {objs}")
+    if report.get("references"):
+        refs = ", ".join(f"`{reference_text(r)}`" for r in report["references"])
+        L.append(f"- Reference（型ライブラリ・参照プロジェクト）: {refs}")
     if report["missing_in_extract"]:
         L.append(f"- ⚠ VBP に記載だが抽出フォルダに無い: {', '.join(report['missing_in_extract'])}")
     if report["not_in_vbp"]:
@@ -1138,7 +1588,24 @@ def write_markdown(report: dict, out: Path) -> None:
         kind = file_kind_label(f)
         L.append(f"## {f['file']} — `{f['vb_name'] or '?'}`（{kind}, {f['total_lines']:,} 行）")
         L.append("")
+        diag_texts = diagnostic_texts(f)
+        if diag_texts:
+            L.extend(f"> 診断: {text}" for text in diag_texts)
+            L.append("")
+        opt = option_text(f)
+        if opt:
+            L.append(f"- {opt}")
+            L.append("")
+        dep = dependency_text(f)
+        if dep:
+            L.append(f"- 外部コンポーネント: {dep}")
+            L.append("")
         L.extend(surface_md_lines(f))
+        if f.get("variables"):
+            L.append(f"### モジュール変数（{len(f['variables'])}）")
+            L.append("")
+            L.extend(f"- `{variable_text(v)}`" for v in f["variables"])
+            L.append("")
         events = [p for p in f["procedures"] if p["role"] == "event"]
         general = [p for p in f["procedures"] if p["role"] == "general"]
         if events:
@@ -1283,10 +1750,19 @@ def write_html(report: dict, out: Path) -> None:
             key=lambda x: (x["event_owner"].lower(), x["event_name"].lower()),
         )
         general = [p for p in f["procedures"] if p["role"] == "general"]
-        blocks = []
+        blocks = [f"<p class='warn'>診断: {e(text)}</p>" for text in diagnostic_texts(f)]
+        opt = option_text(f)
+        if opt:
+            blocks.append(f"<p class='meta'>{e(opt)}</p>")
+        dep = dependency_text(f)
+        if dep:
+            blocks.append(f"<p class='meta'>外部コンポーネント: {e(dep)}</p>")
         surf_html = surface_html_block(f, e)
         if surf_html:
             blocks.append(surf_html)
+        if f.get("variables"):
+            items = "".join(f"<li><code>{e(variable_text(v))}</code></li>" for v in f["variables"])
+            blocks.append(f"<h4>モジュール変数（{len(f['variables'])}）</h4><ul>{items}</ul>")
         if events:
             blocks.append(
                 f"<h4>イベントハンドラ（{len(events)}）</h4>"
@@ -1368,6 +1844,10 @@ def write_html(report: dict, out: Path) -> None:
             + ", ".join(
                 f"<code>{e(o['file'] or o['raw'])}</code>" for o in report["objects"]
             )
+        )
+    if report.get("references"):
+        obj_html += "<br>Reference: " + ", ".join(
+            f"<code>{e(reference_text(r))}</code>" for r in report["references"]
         )
 
     unresolved_html = ""

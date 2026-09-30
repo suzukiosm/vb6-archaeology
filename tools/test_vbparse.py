@@ -8,6 +8,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from lib.vbparse import (  # noqa: E402
+    conditional_regions,
+    find_comment_continuations,
+    innermost_region,
     iter_logical_lines,
     iter_statements,
     split_colon_statements,
@@ -148,6 +151,79 @@ class IterStatementsTests(unittest.TestCase):
         self.assertEqual(len(out), 1)
         self.assertEqual(out[0].kind, "stmt")
         self.assertEqual(out[0].text, "Foo")
+
+
+class SpecAlignedLexingTests(unittest.TestCase):
+    def kinds(self, line: str) -> list[tuple[str, str]]:
+        return [(s.kind, s.text) for s in iter_statements([line])]
+
+    def test_keywords_before_a_colon_are_statements(self) -> None:
+        self.assertEqual(self.kinds("Else: x = 1"), [("stmt", "Else"), ("stmt", "x = 1")])
+        self.assertEqual(self.kinds("Loop: y = 2"), [("stmt", "Loop"), ("stmt", "y = 2")])
+
+    def test_numeric_line_labels(self) -> None:
+        self.assertEqual(self.kinds("10 Print x"), [("label", "10"), ("stmt", "Print x")])
+        self.assertEqual(self.kinds("20: GoTo 10"), [("label", "20"), ("stmt", "GoTo 10")])
+        self.assertEqual(self.kinds("30"), [("label", "30")])
+        self.assertEqual(self.kinds("40 ' just a line number"), [("label", "40")])
+
+    def test_frx_offset_after_a_colon_stays_a_statement(self) -> None:
+        self.assertEqual(self.kinds('Picture = "Form1.frx":0000'),
+                         [("stmt", 'Picture = "Form1.frx"'), ("stmt", "0000")])
+
+    def test_japanese_identifier_label(self) -> None:
+        self.assertEqual(self.kinds("処理終了:"), [("label", "処理終了")])
+
+    def test_comment_continuation_spans_several_lines(self) -> None:
+        lines = ["x = 1 ' note _", "  still comment _", "  and this", "y = 2"]
+        self.assertEqual([(s.text, s.phys_start) for s in iter_statements(lines)],
+                         [("x = 1", 1), ("y = 2", 4)])
+        self.assertEqual(find_comment_continuations(lines), [{"line": 1, "absorbed": [2, 3]}])
+
+    def test_code_continuation_then_comment_continuation(self) -> None:
+        lines = ["s = \"a\" & _", "    \"b\" ' tail _", "Kill p", "z = 3"]
+        self.assertEqual([s.text for s in iter_statements(lines)], ['s = "a" & "b"', "z = 3"])
+        self.assertEqual(find_comment_continuations(lines), [{"line": 2, "absorbed": [3]}])
+
+    def test_underscore_inside_a_word_or_string_is_not_continuation(self) -> None:
+        self.assertEqual(find_comment_continuations(["' my_var_", "x = 1"]), [])
+        self.assertEqual(len(iter_logical_lines(['s = "a _"', "t = 1"])), 2)
+
+
+class ConditionalRegionTests(unittest.TestCase):
+    LINES = [
+        "#Const DEBUG_MODE = 1",   # 1
+        "#If DEBUG_MODE Then",     # 2
+        "Sub A()",                 # 3
+        "End Sub",                 # 4
+        "  #If Win32 Then",        # 5
+        "Sub B()",                 # 6
+        "End Sub",                 # 7
+        "  #End If",               # 8
+        "#Else",                   # 9
+        "Sub A()",                 # 10
+        "End Sub",                 # 11
+        "#End If",                 # 12
+        "Sub C()",                 # 13
+    ]
+
+    def test_regions_and_innermost_branch(self) -> None:
+        regions = conditional_regions(iter_statements(self.LINES))
+        self.assertEqual(
+            [(r["line"], r["directive"], r["expr"], r["depth"], r["end"]) for r in regions],
+            [(1, "#Const", "DEBUG_MODE = 1", 0, 1),
+             (2, "#If", "DEBUG_MODE", 1, 9),
+             (5, "#If", "Win32", 2, 8),
+             (9, "#Else", "", 1, 12)],
+        )
+        self.assertEqual(innermost_region(regions, 3)["line"], 2)
+        self.assertEqual(innermost_region(regions, 6)["line"], 5)
+        self.assertEqual(innermost_region(regions, 10)["directive"], "#Else")
+        self.assertIsNone(innermost_region(regions, 13))
+
+    def test_unterminated_region_runs_to_the_end(self) -> None:
+        regions = conditional_regions(iter_statements(["#If X Then", "Sub A()", "End Sub"]))
+        self.assertEqual(innermost_region(regions, 3)["line"], 1)
 
 
 if __name__ == "__main__":

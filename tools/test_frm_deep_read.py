@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+import re
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
+from tools import frm_deep_read
 from tools.frm_deep_read import (
     FONT_FACE_BLACKLIST,
     analyze_module_file,
@@ -19,10 +22,12 @@ from tools.frm_deep_read import (
     find_goto_skipped_opens,
     find_goto_skipped_stmts,
     flatten_menu_tree,
+    reference_tokens,
     resolve_deep_read_out_key,
     write_module_report,
     write_report,
 )
+from tools.lib.vbparse import code_mask, iter_statements
 
 
 def ctrl(
@@ -481,6 +486,57 @@ class ClassifyEventsTests(unittest.TestCase):
         classify_events(events, "Private Sub Ghost_Click()\nEnd Sub\n", "", [], "Form1")
         self.assertEqual(events[0]["status"], "unobserved")
         self.assertIn("orphan", events[0]["unobserved_reason"])
+
+    def test_token_index_matches_the_per_name_regex_it_replaced(self) -> None:
+        text = "\n".join([
+            "Private Sub Work1()", "End Sub",
+            "Public Function Calc$(ByVal n As Long)", "End Function",
+            "Private Sub 登録処理()", "End Sub",
+            "Sub DoIt()",
+            "    x = calc$(1) + Work1_Extra",
+            "    Call 登録処理",
+            '    MsgBox "Helper"   \' Helper in a string and a comment',
+            "    y = Me.Refresh2: Start_Up",
+            "End Sub",
+        ])
+        masked = "\n".join(code_mask(line) for line in text.splitlines())
+
+        def old_has_real_calls(name: str) -> bool:
+            pattern = re.compile(rf"\b{re.escape(name)}\b", re.IGNORECASE)
+            for stmt in iter_statements(masked.splitlines()):
+                if stmt.kind != "stmt" or re.match(
+                    r"(?:(?:Public|Private|Friend|Static)\s+)*(?:Sub|Function|Property|Declare)\b",
+                    stmt.text, re.IGNORECASE,
+                ):
+                    continue
+                if pattern.search(stmt.text):
+                    return True
+            return False
+
+        tokens = reference_tokens(masked)
+        for name in ("Work1", "Calc", "登録処理", "Helper", "Refresh2", "Start", "Start_Up",
+                     "DoIt", "Extra", "x", "Missing"):
+            with self.subTest(name=name):
+                self.assertEqual(name.lower() in tokens, old_has_real_calls(name))
+
+    def test_reference_scan_lexes_the_project_once(self) -> None:
+        lines = ['Attribute VB_Name = "F"']
+        for i in range(30):
+            lines += [f"Private Sub Work{i}()", f"    Work{i + 1}", "End Sub"]
+        code = "\n".join(lines)
+        events = extract_events(lines)
+        calls = []
+        real = frm_deep_read.iter_statements
+
+        def counting(src):
+            calls.append(len(src))
+            return real(src)
+
+        with patch.object(frm_deep_read, "iter_statements", counting):
+            classify_events(events, code, "", [], "F")
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(events[0]["status"], "unobserved")
+        self.assertEqual(events[1]["status"], "live")
 
 
 class ReportHonestyTests(unittest.TestCase):

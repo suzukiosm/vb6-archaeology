@@ -17,6 +17,7 @@ OUT = REPO / "source" / "mini_vbp"
 
 VBP = """\
 Type=Exe
+Reference=*\\G{00020430-0000-0000-C000-000000000046}#2.0#0#..\\..\\WINDOWS\\system32\\stdole2.tlb#OLE Automation
 Form=Form1.frm
 Form=BackupDay.frm
 Module=Module1; Module1.bas
@@ -198,11 +199,16 @@ AfterSkip:
 End Sub
 """
 
+# Header block as the VB6 IDE saves it (no ``Instancing`` line; that property
+# is encoded by MultiUse + the VB_Creatable / VB_Exposed attributes).
 CLS = """\
 VERSION 1.0 CLASS
 BEGIN
   MultiUse = -1  'True
-  Instancing = 5
+  Persistable = 0  'NotPersistable
+  DataBindingBehavior = 0  'vbNone
+  DataSourceBehavior  = 0  'vbNone
+  MTSTransactionMode  = 0  'NotAnMTSObject
 END
 Attribute VB_Name = "Widget"
 Attribute VB_GlobalNameSpace = False
@@ -216,6 +222,7 @@ Implements IPing
 Private WithEvents Bus As AppEvents
 
 Public Property Get Ready() As Boolean
+Attribute Ready.VB_UserMemId = 0
     Ready = True
 End Property
 

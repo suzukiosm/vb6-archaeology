@@ -25,7 +25,7 @@ from tools.frm_deep_read import (  # noqa: E402
     find_goto_skipped_stmts,
 )
 from tools.io_catalog import scan_source_text  # noqa: E402
-from tools.vb6_inventory import parse_surface, parse_vbp  # noqa: E402
+from tools.vb6_inventory import _parse_bytes, parse_surface, parse_vbp  # noqa: E402
 
 
 def _write_fixture(root: Path) -> None:
@@ -121,12 +121,23 @@ class FixtureContractTests(unittest.TestCase):
 
     def test_widget_surface_facts(self):
         surf = parse_surface(make_fixture.CLS.splitlines())
-        self.assertEqual(surf["instancing"], 5)
+        # IDE-saved .cls: no Instancing line; the BEGIN block is kept raw.
+        self.assertIsNone(surf["instancing"])
+        self.assertEqual(surf["class_header"], {
+            "MultiUse": -1, "Persistable": 0, "DataBindingBehavior": 0,
+            "DataSourceBehavior": 0, "MTSTransactionMode": 0,
+        })
         self.assertEqual([i["name"] for i in surf["implements"]], ["IPing"])
         self.assertEqual(surf["with_events"][0]["name"], "Bus")
         self.assertTrue(surf["vb_creatable"])
         self.assertFalse(surf["vb_predeclared_id"])
         self.assertIsNone(surf["vb_user_mem_id"])
+
+    def test_widget_default_member_from_member_attribute(self):
+        info = _parse_bytes(make_fixture.CLS.encode("cp932"), Path("Widget.cls"))
+        ready = next(p for p in info["procedures"] if p["name"] == "Ready")
+        self.assertEqual(ready["attributes"], {"VB_UserMemId": 0})
+        self.assertEqual(info["surface"]["default_member"], "Ready")
 
     def test_form_predeclared_id(self):
         surf = parse_surface(make_fixture.FRM.splitlines())

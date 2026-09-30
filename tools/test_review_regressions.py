@@ -9,7 +9,7 @@ from pathlib import Path
 
 from tools.extract_vbp import extract
 from tools.vb6_inventory import build_report, parse_procedures
-from tools.lib.vbparse import iter_statements
+from tools.lib.vbparse import find_comment_continuations, iter_statements
 from tools.lib.show_style import parse_show_calls_in_line, parse_lifetime_calls_in_line
 from tools.io_catalog import scan_source_text
 from tools.frm_deep_read import extract_events, classify_events
@@ -98,12 +98,18 @@ class LexingRegressionTests(unittest.TestCase):
         self.assertEqual(procs[0]['returns'], 'Long')
         self.assertEqual(procs[0]['params'], 'Optional ByVal x As String = "("')
 
-    def test_comment_underscore_does_not_swallow_procedure(self):
+    def test_comment_line_continuation_follows_ms_vbal(self):
+        # [MS-VBAL] comment-body = *(line-continuation / non-line-termination-character):
+        # a comment ending in " _" also comments out the next physical line.
         for comment in ("' comment _", 'Rem comment _', "x = 1 ' comment _", 'x = 1: Rem comment _'):
             with self.subTest(comment=comment):
-                procs, _ = parse_procedures([comment, 'Public Sub Kept()', comment, 'End Sub'])
+                lines = ['Public Sub Kept()', '    ' + comment, '    Kill "important.dat"', 'End Sub']
+                procs, _ = parse_procedures(lines)
                 self.assertEqual([(p['name'], p['line_start'], p['line_end']) for p in procs],
-                                 [('Kept', 2, 4)])
+                                 [('Kept', 1, 4)])
+                self.assertEqual(scan_source_text('\n'.join(lines), 'M.bas'), [])
+                self.assertEqual(find_comment_continuations(lines),
+                                 [{'line': 2, 'absorbed': [3]}])
 
     def test_named_argument_and_time_literal_are_not_split(self):
         lines = ['Call F(x:=1): d = #12:30:00#']

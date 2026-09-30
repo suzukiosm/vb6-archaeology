@@ -29,25 +29,12 @@ from lib.config import (  # noqa: E402
     skeletons_root,
 )
 from lib.console import enable_utf8_stdio  # noqa: E402
+from lib.file_statements import file_statement_kind  # noqa: E402
 from lib.vbparse import code_mask, iter_statements  # noqa: E402
 
 SCAN_SUFFIXES = frozenset({".frm", ".bas", ".cls", ".ctl", ".pag", ".dob", ".dsr"})
 IO_KINDS = ("open", "kill", "name", "get", "put")
 VB_NAME_RE = re.compile(r'Attribute\s+VB_Name\s*=\s*"([^"]+)"', re.IGNORECASE)
-
-_OPEN_RE = re.compile(r".*\bOpen\b.*\bAs\s*#\s*\w+", re.IGNORECASE)
-_KILL_RE = re.compile(r"\bKill\b", re.IGNORECASE)
-# VB6 rename: Name <old> As <new>. Not ``Name =`` (property) or ``Name(``.
-_NAME_RE = re.compile(r"\bName\s+[^=(].*\sAs\s", re.IGNORECASE)
-_GET_RE = re.compile(r"\bGet\s+#", re.IGNORECASE)
-_PUT_RE = re.compile(r"\bPut\s+#", re.IGNORECASE)
-_KIND_RULES: tuple[tuple[str, re.Pattern[str]], ...] = (
-    ("open", _OPEN_RE),
-    ("kill", _KILL_RE),
-    ("name", _NAME_RE),
-    ("get", _GET_RE),
-    ("put", _PUT_RE),
-)
 
 
 def _rel(path: Path, repo_root: Path) -> str:
@@ -63,12 +50,9 @@ def classify_io_statement(text: str) -> str | None:
     if not s or s.startswith("'"):
         return None
     code = code_mask(s)
-    if not code:
+    if not code.strip():
         return None
-    for kind, pattern in _KIND_RULES:
-        if pattern.search(code):
-            return kind
-    return None
+    return file_statement_kind(code, IO_KINDS)
 
 
 def path_fragment(text: str) -> str:
