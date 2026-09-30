@@ -10,20 +10,24 @@ from pathlib import Path
 
 MUTATING = re.compile(
     r"(?i)\b("
-    r"remove-item|move-item|rename-item|"
+    r"remove-item|move-item|rename-item|copy-item|"
     r"set-content|add-content|out-file|new-item|clear-content|"
-    r"del|erase|rmdir|rd|move|ren|"
-    r"rm\b|mv\b|tee\b"
+    r"del|erase|rmdir|rd|move|ren|copy|xcopy|robocopy|mkdir|"
+    r"rm\b|mv\b|cp\b|tee\b"
     r")\b"
+    r"|\bgit\s+(?:-C\s+\S+\s+)?(?:checkout|restore|clean|reset|stash|rm|mv|apply|am|switch)\b"
+    r"|\[(?:system\.)?io\.(?:file|directory)\]::\s*(?:write|append|delete|move|copy|create|replace)"
 )
 
 # Explicit allowlist: regenerates fixture under source/mini_vbp only.
 # Both spellings are the same tool: the script path and the CLI subcommand.
+# The whole command must be the fixture call; anything chained after it
+# (``;``, ``&&``, a second line) is not covered by the allowlist.
 ALLOWLIST = re.compile(
-    r"(?i)python(\.exe)?\s+(?:"
-    r"([\"']?)(?:\.\\|/)?tools[/\\]make_fixture\.py\2"
-    r"|-m\s+tools\s+fixture\b"
-    r")"
+    r"(?i)\s*python(?:\.exe)?\s+(?:"
+    r"([\"']?)(?:\.[\\/])?tools[/\\]make_fixture\.py\1"
+    r"|-m\s+tools\s+fixture"
+    r")(?:\s+--?[\w-]+)*\s*"
 )
 
 
@@ -44,36 +48,70 @@ def protected_names() -> list[str]:
     return [str(n) for n in [*names, *markers]]
 
 
+def read_payload() -> tuple[object, str]:
+    """Return (payload or None, failure detail).
+
+    Cursor on Windows sends the payload with a UTF-8 BOM, which json.loads
+    rejects; UTF-16 is accepted too. The detail names byte length and the
+    first bytes only, never payload content.
+    """
+    try:
+        raw = sys.stdin.buffer.read()
+    except Exception as exc:
+        return None, f"stdin unreadable ({type(exc).__name__})"
+    if raw.startswith((b"\xff\xfe", b"\xfe\xff")):
+        text = raw.decode("utf-16", errors="replace")
+    else:
+        text = raw.decode("utf-8-sig", errors="replace")
+    text = text.strip()
+    try:
+        return (json.loads(text) if text else {}), ""
+    except ValueError as exc:
+        return None, f"{exc.__class__.__name__}; bytes={len(raw)} head={raw[:8].hex()}"
+
+
 def mentions_protected_path(command: str, names: list[str]) -> str | None:
     """Return protected dir name if command references it as a path segment."""
     # Normalize and split on common separators; avoid substring false positives
-    # like "resources" matching "source".
+    # like "resources" matching "source". Windows paths are case-insensitive.
     tokens = re.split(r"[\\/\"'\s;=]+", command)
     for tok in tokens:
         if not tok:
             continue
+        low = tok.casefold()
         for name in names:
-            if tok == name or tok.startswith(name + ".") or tok.endswith(":" + name):
+            key = name.casefold()
+            if low == key or low.startswith(key + ".") or low.endswith(":" + key):
                 return name
         # quoted path fragments already split; also check path-like pieces
-        parts = [p for p in tok.replace("\\", "/").split("/") if p]
+        parts = {p.casefold() for p in tok.replace("\\", "/").split("/") if p}
         for name in names:
-            if name in parts:
+            if name.casefold() in parts:
                 return name
     return None
 
 
+def ask(user_message: str, agent_message: str) -> None:
+    print(
+        json.dumps(
+            {"permission": "ask", "user_message": user_message, "agent_message": agent_message},
+            ensure_ascii=True,
+        )
+    )
+
+
 def main() -> int:
     names = protected_names()
-    try:
-        sys.stdin.reconfigure(encoding="utf-8", errors="replace")
-        data = json.loads(sys.stdin.read() or "{}")
-    except Exception:
-        print(json.dumps({"permission": "allow"}))
+    data, problem = read_payload()
+    if not isinstance(data, dict):
+        ask(
+            "シェルコマンドの内容を確認できませんでした（フック入力を読めません）。",
+            f"Hook payload could not be parsed ({problem or 'not an object'}); command unchecked.",
+        )
         return 0
 
     command = data.get("command") or ""
-    if ALLOWLIST.search(command):
+    if ALLOWLIST.fullmatch(command):
         print(json.dumps({"permission": "allow"}))
         return 0
 
@@ -81,25 +119,17 @@ def main() -> int:
     redirect_hit = False
     if hit_name:
         redirect_hit = bool(
-            re.search(rf"[>]{{1,2}}\s*\"?[^\s\"]*{re.escape(hit_name)}", command)
+            re.search(
+                rf"[>]{{1,2}}\s*\"?[^\s\"]*{re.escape(hit_name)}", command, re.IGNORECASE
+            )
         )
 
     if hit_name and (MUTATING.search(command) or redirect_hit):
-        print(
-            json.dumps(
-                {
-                    "permission": "ask",
-                    "user_message": (
-                        f"このコマンドは保護ディレクトリ（{hit_name}）を変更する可能性があります。"
-                    ),
-                    "agent_message": (
-                        "This shell command may mutate a protected VB6 source tree. "
-                        "Prefer read-only commands. Copies must target working/extracts/. "
-                        "Fixture regeneration: python tools/make_fixture.py (allowlisted)."
-                    ),
-                },
-                ensure_ascii=True,
-            )
+        ask(
+            f"このコマンドは保護ディレクトリ（{hit_name}）を変更する可能性があります。",
+            "This shell command may mutate a protected VB6 source tree. "
+            "Prefer read-only commands. Copies must target working/extracts/. "
+            "Fixture regeneration: python tools/make_fixture.py (allowlisted).",
         )
         return 0
 

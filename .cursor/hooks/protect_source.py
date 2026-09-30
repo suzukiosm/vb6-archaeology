@@ -38,6 +38,28 @@ def protected_names() -> list[str]:
     return [str(n) for n in [*names, *markers]]
 
 
+def read_payload() -> tuple[object, str]:
+    """Return (payload or None, failure detail).
+
+    Cursor on Windows sends the payload with a UTF-8 BOM, which json.loads
+    rejects; UTF-16 is accepted too. The detail names byte length and the
+    first bytes only, never payload content.
+    """
+    try:
+        raw = sys.stdin.buffer.read()
+    except Exception as exc:
+        return None, f"stdin unreadable ({type(exc).__name__})"
+    if raw.startswith((b"\xff\xfe", b"\xfe\xff")):
+        text = raw.decode("utf-16", errors="replace")
+    else:
+        text = raw.decode("utf-8-sig", errors="replace")
+    text = text.strip()
+    try:
+        return (json.loads(text) if text else {}), ""
+    except ValueError as exc:
+        return None, f"{exc.__class__.__name__}; bytes={len(raw)} head={raw[:8].hex()}"
+
+
 def collect_paths(node, out):
     if isinstance(node, dict):
         for key, val in node.items():
@@ -51,40 +73,42 @@ def collect_paths(node, out):
 
 
 def is_protected(path: str, names: list[str]) -> bool:
+    # Windows paths are case-insensitive: Source\ and source\ are the same tree.
     norm = path.replace("\\", "/")
-    parts = [p for p in norm.split("/") if p]
-    return any(name in parts for name in names)
+    parts = {p.casefold() for p in norm.split("/") if p}
+    return any(name.casefold() in parts for name in names)
+
+
+def deny(agent_message: str) -> None:
+    print(
+        json.dumps(
+            {
+                "permission": "deny",
+                "user_message": "保護された VB6 正本ディレクトリへの書込・削除をブロックしました。",
+                "agent_message": agent_message,
+            },
+            ensure_ascii=True,
+        )
+    )
 
 
 def main() -> int:
     names = protected_names()
-    try:
-        sys.stdin.reconfigure(encoding="utf-8", errors="replace")
-        data = json.loads(sys.stdin.read() or "{}")
-    except Exception:
-        print(json.dumps({"permission": "allow"}))
+    data, problem = read_payload()
+    if data is None:
+        # An unreadable payload cannot be checked; fail closed like hooks.json says.
+        deny(f"Blocked: hook payload could not be parsed ({problem}); target path unchecked.")
         return 0
 
     paths = []
     collect_paths(data, paths)
     hit = next((p for p in paths if is_protected(p, names)), None)
     if hit is not None:
-        print(
-            json.dumps(
-                {
-                    "permission": "deny",
-                    "user_message": (
-                        "保護された VB6 正本ディレクトリへの書込・削除をブロックしました。"
-                    ),
-                    "agent_message": (
-                        "Blocked: path is under a protected source tree "
-                        f"({', '.join(names)}). "
-                        "Copy targets belong in working/extracts/. Offending path: "
-                        + hit
-                    ),
-                },
-                ensure_ascii=True,
-            )
+        deny(
+            "Blocked: path is under a protected source tree "
+            f"({', '.join(names)}). "
+            "Copy targets belong in working/extracts/. Offending path: "
+            + hit
         )
         return 0
 
