@@ -20,6 +20,7 @@ Read-only on sources.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import html
 import json
 import re
@@ -38,6 +39,7 @@ from lib.console import enable_utf8_stdio  # noqa: E402
 from lib.declarators import (  # noqa: E402
     TYPE_SUFFIXES,
     deftype_letters,
+    implicit_type,
     parse_deftype,
     parse_params,
     parse_var_declarators,
@@ -65,7 +67,7 @@ from lib.vbparse import (  # noqa: E402
 # Bump when parse_* output shape or semantics change. The cache key also carries
 # parser_fingerprint(), so an edit without a bump no longer serves stale facts.
 # Suffix is part of the key (see inventory_file): .frm vs .bas parse differently.
-PARSER_VERSION = "inv-14"
+PARSER_VERSION = "inv-16"
 
 # Designer-like text files: header + code, same family as .frm.
 DESIGNER_SUFFIXES = frozenset({".frm", ".ctl", ".pag", ".dob", ".dsr"})
@@ -627,6 +629,13 @@ def error_handling_fact(stmt_text: str, line: int) -> dict | None:
     return None
 
 
+def _condition_at(regions: list[dict], line: int) -> dict | None:
+    region = innermost_region(regions, line)
+    if region is None:
+        return None
+    return {key: region[key] for key in ("line", "directive", "expr")}
+
+
 def parse_procedures(lines: list[str]) -> tuple[list[dict], list[dict]]:
     """Return (procedures, declares).
 
@@ -639,6 +648,7 @@ def parse_procedures(lines: list[str]) -> tuple[list[dict], list[dict]]:
     procs: list[dict] = []
     declares: list[dict] = []
     stmts = iter_statements(lines)
+    regions = conditional_regions(stmts)
     in_header = bool(stmts) and stmts[0].text.startswith("VERSION")
     open_proc: dict | None = None
     for stmt in stmts:
@@ -689,6 +699,31 @@ def parse_procedures(lines: list[str]) -> tuple[list[dict], list[dict]]:
                 if suffix:
                     open_proc["type_suffix"] = suffix
         else:
+            pm = PROC_RE.match(stripped)
+            if (
+                pm
+                and not stripped.lower().startswith("declare")
+                and pm.group(3).casefold() == open_proc["name"].casefold()
+                and innermost_region(regions, stmt.phys_start) is not None
+            ):
+                # ``#If`` / ``#Else`` each supply a header and share one End.
+                if "signatures" not in open_proc:
+                    open_proc["signatures"] = [{
+                        "line": open_proc["line_start"],
+                        "params": open_proc.get("params") or "",
+                        "returns": open_proc.get("returns"),
+                        "conditional": _condition_at(regions, open_proc["line_start"]),
+                    }]
+                rest = stripped[pm.end():]
+                suffix = rest[:1] if rest[:1] in TYPE_SUFFIXES else None
+                params, returns = extract_params_returns(rest[1:] if suffix else rest)
+                open_proc["signatures"].append({
+                    "line": stmt.phys_start,
+                    "params": params,
+                    "returns": returns,
+                    "conditional": _condition_at(regions, stmt.phys_start),
+                })
+                continue
             ma = MEMBER_ATTR_RE.match(stripped)
             if ma and ma.group(1).casefold() == open_proc["name"].casefold():
                 open_proc.setdefault("attributes", {})[ma.group(2)] = attribute_value(ma.group(3))
@@ -1048,17 +1083,33 @@ def inventory_file(path: Path, use_cache: bool = True) -> dict:
     return result
 
 
-def add_signature_details(procs: list[dict], deftypes: list[dict]) -> None:
+def add_signature_details(procs: list[dict], deftypes: list[dict],
+                          regions: list[dict] | None = None) -> None:
     """``params_detail`` (ByRef default, Optional, ParamArray, resolved type) and
     ``return_type`` / ``return_type_source`` for Function and Property Get
-    (procedures and ``Declare`` entries alike)."""
-    letters = deftype_letters(deftypes)
+    (procedures and ``Declare`` entries alike).
+
+    ``#If`` branches are not evaluated. When they disagree about a DefType,
+    the type is ``unknown`` and ``type_candidates`` keeps each branch.
+    """
+    regions = regions or []
+    letters = deftype_letters([item for item in deftypes if not item.get("conditional")])
     for proc in procs:
         proc["params_detail"] = parse_params(proc.get("params") or "", letters)
+        for param in proc["params_detail"]:
+            if param.get("name") and param.get("type_source") in ("deftype", "default"):
+                _apply_implicit(param, deftypes, regions)
+        _apply_alternate_signatures(proc, deftypes, regions)
         if proc["kind"] in ("Function", "Property Get"):
-            proc["return_type"], proc["return_type_source"] = resolve_type(
-                proc["name"], proc.get("type_suffix"), proc.get("returns"), letters
-            )
+            if proc.get("returns") or proc.get("type_suffix"):
+                proc["return_type"], proc["return_type_source"] = resolve_type(
+                    proc["name"], proc.get("type_suffix"), proc.get("returns"), letters
+                )
+            else:
+                typ, source, candidates = implicit_type(proc["name"], deftypes, regions)
+                proc["return_type"], proc["return_type_source"] = typ, source
+                if candidates:
+                    proc["return_type_candidates"] = candidates
 
 
 def mark_special_members(surface: dict, procs: list[dict]) -> None:
@@ -1078,7 +1129,52 @@ def mark_special_members(surface: dict, procs: list[dict]) -> None:
             surface["default_member"] = item["member"]
 
 
-def file_diagnostics(lines: list[str], procs: list[dict]) -> list[dict]:
+def _apply_implicit(record: dict, deftypes: list[dict], regions: list[dict]) -> None:
+    typ, source, candidates = implicit_type(record["name"], deftypes, regions)
+    record["type"] = typ
+    record["type_source"] = source
+    if candidates:
+        record["type_candidates"] = candidates
+    else:
+        record.pop("type_candidates", None)
+
+
+def _apply_alternate_signatures(proc: dict, deftypes: list[dict], regions: list[dict]) -> None:
+    """Headers that share one ``End`` under ``#If`` stay on ``signatures``."""
+    signatures = proc.get("signatures") or []
+    if len(signatures) < 2:
+        return
+    letters = deftype_letters([item for item in deftypes if not item.get("conditional")])
+    by_name: dict[str, list[dict]] = {}
+    for sig in signatures:
+        for param in parse_params(sig.get("params") or "", letters):
+            if not param.get("name"):
+                continue
+            if param.get("type_source") in ("deftype", "default"):
+                _apply_implicit(param, deftypes, regions)
+            by_name.setdefault(param["name"].casefold(), []).append({
+                "type": param.get("type"),
+                "line": sig.get("line"),
+                "conditional": sig.get("conditional"),
+            })
+    for param in proc.get("params_detail") or []:
+        alts = by_name.get((param.get("name") or "").casefold(), [])
+        if len({item["type"] for item in alts}) > 1:
+            param["type"] = "unknown"
+            param["type_source"] = "conditional"
+            param["type_candidates"] = alts
+
+
+def reresolve_implicit_variables(variables: list[dict], deftypes: list[dict],
+                                 regions: list[dict]) -> None:
+    """Recompute DefType results after ``#If`` regions are known."""
+    for var in variables:
+        if var.get("type_source") in ("deftype", "default"):
+            _apply_implicit(var, deftypes, regions)
+
+
+def file_diagnostics(lines: list[str], procs: list[dict],
+                     deftypes: list[dict] | None = None) -> list[dict]:
     """Facts a reader must know before trusting the procedure list.
 
     ``comment_continuation``: physical lines VB6 treats as comment text because
@@ -1098,6 +1194,26 @@ def file_diagnostics(lines: list[str], procs: list[dict]) -> list[dict]:
         if len(starts) > 1 and proc["line_start"] == starts[0]:
             out.append({"kind": "duplicate_procedure", "name": proc["name"],
                         "proc_kind": proc["kind"], "lines": starts})
+        signatures = proc.get("signatures") or []
+        if len(signatures) > 1 and proc["line_start"] == starts[0]:
+            out.append({
+                "kind": "conditional_signature",
+                "name": proc["name"],
+                "proc_kind": proc["kind"],
+                "lines": [item["line"] for item in signatures],
+            })
+    for item in deftypes or []:
+        cond = item.get("conditional")
+        if not cond:
+            continue
+        out.append({
+            "kind": "conditional_deftype",
+            "line": item["line"],
+            "type": item["type"],
+            "ranges": item.get("ranges") or [],
+            "directive": cond.get("directive"),
+            "expr": cond.get("expr"),
+        })
     return out
 
 
@@ -1159,7 +1275,53 @@ def diagnostic_texts(entry: dict) -> list[str]:
             texts.append(
                 f"`{diag.get('name')}`（{diag.get('proc_kind')}）が {where} に複数定義（#If の分岐は評価しない）"
             )
+        elif diag.get("kind") == "conditional_signature":
+            where = ", ".join(f"L{n}" for n in diag.get("lines") or [])
+            texts.append(
+                f"`{diag.get('name')}` の宣言が {where} にあり、共通の End を共有する（#If は評価しない）"
+            )
+        elif diag.get("kind") == "conditional_deftype":
+            texts.append(
+                f"L{diag.get('line')} Def{diag.get('type')} は {diag.get('directive')} の中"
+                "（評価しない。分岐で型が違えば unknown）"
+            )
+        elif diag.get("kind") == "missing_resource":
+            texts.append(
+                f"L{diag.get('line')} の `{diag.get('file')}` は参照されているがファイルが無い"
+            )
     return texts
+
+
+def designer_resource_refs(lines: list[str], source_path: Path) -> list[dict]:
+    """Designer ``$"file.frx":offset`` references. Bytes are not decoded.
+
+    ``exists`` is whether that file name sits next to the source file.
+    A missing file stays in the list; it is not dropped.
+    """
+    if source_path.suffix.lower() not in DESIGNER_SUFFIXES:
+        return []
+    found: list[dict] = []
+    for node in parse_designer(lines):
+        for frx in node.get("frx_refs") or []:
+            name = Path(str(frx.get("file") or "")).name
+            if not name:
+                continue
+            candidate = source_path.parent / name
+            item = {
+                "file": name,
+                "prop": frx.get("prop"),
+                "line": frx.get("line"),
+                "offset": frx.get("offset"),
+                "kind": frx.get("kind"),
+                "control": node.get("name"),
+                "exists": candidate.is_file(),
+            }
+            if candidate.is_file():
+                raw = candidate.read_bytes()
+                item["size"] = len(raw)
+                item["sha256"] = hashlib.sha256(raw).hexdigest()
+            found.append(item)
+    return found
 
 
 def _parse_bytes(raw: bytes, path: Path) -> dict:
@@ -1183,13 +1345,26 @@ def _parse_bytes(raw: bytes, path: Path) -> dict:
         [w["name"] for w in surface["with_events"]],
     )
     mark_special_members(surface, procs)
-    add_signature_details([*procs, *declares], decls["options"]["deftypes"])
     regions = conditional_regions(iter_statements(lines))
+    for item in decls["options"]["deftypes"]:
+        cond = _condition_at(regions, item["line"])
+        if cond is not None:
+            item["conditional"] = cond
+            item["conditional"]["depth"] = (innermost_region(regions, item["line"]) or {}).get("depth", 1)
+    reresolve_implicit_variables(decls["variables"], decls["options"]["deftypes"], regions)
+    add_signature_details([*procs, *declares], decls["options"]["deftypes"], regions)
     for proc in procs:
         region = innermost_region(regions, proc["line_start"])
         if region is not None:
             proc["conditional"] = {k: region[k] for k in ("line", "directive", "expr")}
-    diagnostics = file_diagnostics(lines, procs)
+    resources = designer_resource_refs(lines, path)
+    diagnostics = file_diagnostics(lines, procs, decls["options"]["deftypes"])
+    for ref in resources:
+        if not ref["exists"]:
+            diagnostics.append({
+                "kind": "missing_resource", "file": ref["file"], "line": ref["line"],
+                "prop": ref.get("prop"),
+            })
     out = {
         "file": path.name,
         "vb_name": vb_name,
@@ -1209,6 +1384,8 @@ def _parse_bytes(raw: bytes, path: Path) -> dict:
     }
     if regions:
         out["conditional_compilation"] = regions
+    if resources:
+        out["resource_refs"] = resources
     if diagnostics:
         out["diagnostics"] = diagnostics
     if is_form:
@@ -1282,12 +1459,18 @@ def build_report(
 
     def work(item: tuple[str, str]) -> dict:
         fname, ftype = item
+        raw = resolved[fname].read_bytes()
+        digest = hashlib.sha256(raw).hexdigest()
         if ftype in STUB_TYPES:
-            return stub_file(fname, ftype)
-        info = inventory_file(resolved[fname], use_cache=use_cache)
-        info['file'] = resolved[fname].relative_to(extract_dir.resolve()).as_posix()
-        info['vbp_reference'] = fname
-        info["type"] = ftype
+            info = stub_file(fname, ftype)
+        else:
+            # Copy so a cache hit shared by two identical files is not overwritten.
+            info = dict(inventory_file(resolved[fname], use_cache=use_cache))
+            info['file'] = resolved[fname].relative_to(extract_dir.resolve()).as_posix()
+            info['vbp_reference'] = fname
+            info["type"] = ftype
+        info["source_sha256"] = digest
+        info["source_rel"] = resolved[fname].relative_to(extract_dir.resolve()).as_posix()
         return info
 
     # ThreadPoolExecutor.map preserves input order, so VBP order is kept.
@@ -1313,11 +1496,28 @@ def build_report(
         )
         and p.name.lower() not in listed
     )
+    cfg_path = Path(load_config()["_config_path"])
+    try:
+        vbp_rel = vbp_path.resolve().relative_to(extract_dir.resolve()).as_posix()
+    except ValueError:
+        vbp_rel = vbp_path.name
     report = {
         "vbp": vbp_path.name,
         "stem": vbp_path.stem,
         "provenance": provenance(),
         "extract_dir": str(extract_dir.resolve()),
+        "input_hashes": {
+            "vbp_sha256": hashlib.sha256(vbp_path.read_bytes()).hexdigest(),
+            "vbp_rel": vbp_rel,
+            "config_sha256": (
+                hashlib.sha256(cfg_path.read_bytes()).hexdigest() if cfg_path.is_file() else None
+            ),
+            "files": [
+                {"file": f.pop("source_rel", f["file"]), "sha256": f["source_sha256"]}
+                for f in files
+                if f.get("source_sha256")
+            ],
+        },
         "meta": vbp["meta"],
         "objects": vbp["objects"],
         "references": vbp["references"],

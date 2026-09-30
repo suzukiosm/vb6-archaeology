@@ -15,8 +15,10 @@ names. Output goes to ``<index_dir>/<stem>/`` (default ``working/index``):
                       physical line numbers, a context header, VB6 notes,
                       effects, resolved references and a token estimate
 
-Local variables are not tracked, so a local that shadows a module-level name
-still yields a candidate; ``resolution`` says ``unique`` or ``ambiguous``.
+A parameter, or a ``Dim`` / ``Static`` / ``Const`` inside the procedure, hides an
+outer name: that use is ``resolution=local`` and is not a unique binding to the
+outer symbol. ``index`` refuses to run when the extract no longer matches the
+hashes ``inventory`` stored (``input_hashes``).
 
     python -m tools index
     python -m tools index --inventory working/reports/mini_vbp_inventory.json
@@ -36,11 +38,12 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO / "tools"))
 
-from lib.config import decode_vb6_bytes, index_root, reports_root  # noqa: E402
+from lib.config import VB6DecodeError, decode_vb6_report, index_root, load_config, reports_root  # noqa: E402
 from lib.console import enable_utf8_stdio  # noqa: E402
+from lib.declarators import parse_var_declarators, split_top_level  # noqa: E402
 from lib.designer import parse_designer  # noqa: E402
 from lib.effects import statement_effects  # noqa: E402
-from lib.vbparse import IDENT, code_mask, iter_statements  # noqa: E402
+from lib.vbparse import IDENT, code_mask, iter_statements, source_span  # noqa: E402
 
 SCHEMA_VERSION = 1
 SCHEMA_ID = "vb6-archaeology/index"
@@ -52,6 +55,95 @@ _DEFINITION_RE = re.compile(
     r"^(?:(?:Public|Private|Friend|Global|Static)\s+)*(?:Declare|Sub|Function|Property|Event|Enum|Type)\b",
     re.IGNORECASE,
 )
+_PROC_LOCAL_RE = re.compile(
+    r"^(Dim|Static|Const)\s+(?!Sub\b|Function\b|Property\b)(.+)$",
+    re.IGNORECASE,
+)
+_PROC_HEADER_RE = re.compile(
+    r"^(?:(?:Public|Private|Friend|Global|Static)\s+)*(?:Sub|Function|Property)\b",
+    re.IGNORECASE,
+)
+_WITH_RE = re.compile(r"^With\s+(.+)$", re.IGNORECASE)
+_END_WITH_RE = re.compile(r"^End\s+With\b", re.IGNORECASE)
+_FILE_SURFACE_KEYS = (
+    "implements", "with_events", "instancing", "vb_creatable", "vb_exposed",
+    "vb_global_name_space", "vb_predeclared_id", "vb_user_mem_id", "class_header",
+    "default_member", "enumerator_member",
+)
+_CONST_NAME_RE = re.compile(rf"^({IDENT})\b")
+
+
+class StaleInventory(Exception):
+    """The extract (or config) no longer matches the hashes stored by inventory."""
+
+    def __init__(self, problems: list[str]) -> None:
+        self.problems = problems
+        super().__init__("; ".join(problems))
+
+
+def format_stale(problems: list[str]) -> str:
+    lines = [
+        "inventory の入力と今のファイルが一致しない。"
+        "inventory を作り直してから index を作り直す。",
+        *(f"- {item}" for item in problems),
+    ]
+    return "\n".join(lines)
+
+
+def _sha256_file(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def _extract_child(root: Path, rel: str) -> Path | None:
+    if not rel or rel.startswith(("/", "\\")) or ".." in Path(rel).parts:
+        return None
+    path = (root / rel).resolve()
+    try:
+        path.relative_to(root)
+    except ValueError:
+        return None
+    return path
+
+
+def snapshot_problems(record: dict, extract_dir: Path) -> list[str]:
+    """Differences between stored input hashes and the files on disk.
+
+    ``record`` is an inventory or an index manifest (both carry ``input_hashes``
+    and ``vbp``). An empty result means the snapshot still matches.
+    """
+    recorded = record.get("input_hashes")
+    if not isinstance(recorded, dict) or "files" not in recorded:
+        return ["入力ファイルのハッシュが無い"]
+    root = extract_dir.resolve()
+    problems: list[str] = []
+    vbp_rel = str(recorded.get("vbp_rel") or record.get("vbp") or "")
+    vbp_hash = recorded.get("vbp_sha256")
+    if vbp_rel and vbp_hash:
+        vbp_path = _extract_child(root, vbp_rel)
+        if vbp_path is None:
+            problems.append(f"vbp のパスが抽出先の外: {vbp_rel}")
+        elif not vbp_path.is_file():
+            problems.append(f"vbp が無い: {vbp_rel}")
+        elif _sha256_file(vbp_path) != vbp_hash:
+            problems.append(f"vbp が inventory 作成後に変わった: {vbp_rel}")
+    for item in recorded["files"]:
+        rel = str(item.get("file") or "")
+        digest = str(item.get("sha256") or "")
+        path = _extract_child(root, rel)
+        if path is None:
+            problems.append(f"パスが抽出先の外: {rel}")
+            continue
+        if not path.is_file():
+            problems.append(f"ファイルが無い: {rel}")
+            continue
+        if _sha256_file(path) != digest:
+            problems.append(f"ソースが inventory 作成後に変わった: {rel}")
+    cfg_hash = recorded.get("config_sha256")
+    if cfg_hash:
+        cfg_path = Path(load_config()["_config_path"])
+        if cfg_path.is_file() and _sha256_file(cfg_path) != cfg_hash:
+            problems.append("設定ファイルが inventory 作成後に変わった")
+    return problems
 
 
 def estimate_tokens(text: str) -> int:
@@ -116,6 +208,13 @@ def build_symbols(inventory: dict) -> SymbolTable:
             file_record["form_kind"] = entry["form_kind"]
         if entry.get("options"):
             file_record["options"] = {k: v for k, v in entry["options"].items() if k != "deftypes"}
+        surface = entry.get("surface") or {}
+        for key in _FILE_SURFACE_KEYS:
+            value = surface.get(key)
+            if value not in (None, [], {}):
+                file_record[key] = value
+        if entry.get("resource_refs"):
+            file_record["resource_refs"] = entry["resource_refs"]
         table.add(file_record, global_scope=True)
         table.file_by_vb_name[vb_name.casefold()] = file
 
@@ -180,6 +279,8 @@ def build_symbols(inventory: dict) -> SymbolTable:
             for key in ("with_events", "new", "is_array"):
                 if var.get(key):
                     rec[key] = True
+            if var.get("type_candidates"):
+                rec["type_candidates"] = var["type_candidates"]
             table.add(rec, global_scope=_is_global(entry, str(var.get("visibility")), "Variable"))
         bindings = {b["control"].casefold(): b for b in entry.get("data_bindings") or []}
         for ctrl in entry.get("controls") or []:
@@ -247,10 +348,145 @@ def _context(tokens: list[re.Match], idx: int, masked: str) -> tuple[str, str | 
     return "expr", None
 
 
-def build_index(inventory: dict, extract_dir: Path) -> dict:
+def _const_names(rest: str) -> list[str]:
+    names: list[str] = []
+    for part in split_top_level(rest):
+        match = _CONST_NAME_RE.match(part)
+        if match:
+            names.append(match.group(1))
+    return names
+
+
+def _outer_symbols(table: SymbolTable, file: str, key: str) -> list[dict]:
+    return [
+        rec for rec in table.by_name.get(key, [])
+        if rec["file"] == file or rec.get("_global")
+    ]
+
+
+def _remember_local(
+    names: dict[str, dict[str, tuple[str, int]]],
+    shadows: dict[str, list[str]],
+    proc: dict,
+    table: SymbolTable,
+    spelling: str,
+    line: int,
+) -> None:
+    key = spelling.casefold()
+    bucket = names[proc["id"]]
+    if key in bucket:
+        return
+    bucket[key] = (spelling, line)
+    if _outer_symbols(table, proc["file"], key):
+        shadows[proc["id"]].append(spelling)
+
+
+def _procedure_locals(
+    procs: list[dict], lines: list[str], table: SymbolTable,
+) -> tuple[dict[str, dict[str, tuple[str, int]]], dict[str, list[str]]]:
+    """Per procedure: casefold name → (spelling, declaration line), and names that hide an outer symbol."""
+    names: dict[str, dict[str, tuple[str, int]]] = {}
+    shadows: dict[str, list[str]] = {}
+    for proc in procs:
+        names[proc["id"]] = {}
+        shadows[proc["id"]] = []
+        for param in proc.get("params") or []:
+            spelling = param.get("name")
+            if spelling:
+                _remember_local(names, shadows, proc, table, spelling, proc["span"][0])
+    if procs:
+        starts = [p["span"][0] for p in procs]
+
+        def enclosing(line: int) -> dict | None:
+            i = bisect_right(starts, line) - 1
+            return procs[i] if i >= 0 and line <= procs[i]["span"][1] else None
+
+        for stmt in iter_statements(lines):
+            if stmt.kind != "stmt":
+                continue
+            match = _PROC_LOCAL_RE.match(code_mask(stmt.text).strip())
+            if not match:
+                continue
+            owner = enclosing(stmt.phys_start)
+            if owner is None:
+                continue
+            kind, rest = match.group(1), match.group(2)
+            found = _const_names(rest) if kind.lower() == "const" else [
+                item["name"] for item in parse_var_declarators(rest)
+            ]
+            for spelling in found:
+                _remember_local(names, shadows, owner, table, spelling, stmt.phys_start)
+    return names, shadows
+
+
+def _is_local_declaration(masked: str) -> bool:
+    return _PROC_LOCAL_RE.match(masked) is not None or _PROC_HEADER_RE.match(masked) is not None
+
+
+def _visible_declares(table: SymbolTable, file: str) -> dict[str, dict]:
+    """Declares this file can call: same-file first, else Public/Global elsewhere."""
+    chosen: dict[str, dict] = {}
+    for rec in table.records:
+        if rec["kind"] != "Declare":
+            continue
+        same = rec["file"] == file
+        if not same and str(rec.get("visibility") or "Public") not in ("Public", "Global"):
+            continue
+        key = rec["name"].casefold()
+        prev = chosen.get(key)
+        if prev is None or (same and prev["file"] != file):
+            chosen[key] = rec
+    return chosen
+
+
+def _receiver_name(expr: str) -> str | None:
+    match = re.match(rf"({IDENT})\b", expr.strip())
+    return match.group(1) if match else None
+
+
+def _narrow_properties(candidates: list[dict], context: str, masked: str) -> list[dict]:
+    """Prefer Get for a read and Let/Set for an assignment when both exist."""
+    prop = [item for item in candidates if str(item["kind"]).startswith("Property")]
+    if len({item["kind"] for item in prop}) < 2:
+        return candidates
+    head = masked.strip().split(None, 1)[0].lower() if masked.strip() else ""
+    if context == "assign":
+        preferred = "Property Set" if head == "set" else "Property Let"
+        fallback = "Property Set" if preferred == "Property Let" else "Property Let"
+        picked = [item for item in prop if item["kind"] == preferred] \
+            or [item for item in prop if item["kind"] == fallback]
+    else:
+        picked = [item for item in prop if item["kind"] == "Property Get"]
+    other = [item for item in candidates if not str(item["kind"]).startswith("Property")]
+    return other + picked if picked else candidates
+
+
+def _remember(occurrences: list[dict], file_occ: list[dict], file_sha: str, record: dict) -> None:
+    span = source_span(
+        file=record["file"], sha256=file_sha, line=record["line"], end_line=record["end_line"],
+        stmt=record["stmt"], col=record["col"], end_col=record["end_col"],
+    )
+    record = {**record, "source_span": span}
+    occurrences.append(record)
+    file_occ.append(record)
+
+
+def _gap_reason(occ: dict) -> str:
+    if occ.get("reason"):
+        return occ["reason"]
+    if occ.get("resolution") == "ambiguous":
+        return "候補が複数あり、一つに決めない"
+    if occ.get("resolution") == "local":
+        return "引数またはローカルであり、外側の名前ではない"
+    return str(occ.get("resolution") or "unresolved")
+
+
+def build_index(inventory: dict, extract_dir: Path, *, strict_decode: bool = False) -> dict:
+    problems = snapshot_problems(inventory, extract_dir)
+    if problems:
+        raise StaleInventory(problems)
     table = build_symbols(inventory)
     definitions = _definition_lines(table)
-    declares = {r["name"].casefold(): r for r in table.records if r["kind"] == "Declare"}
     occurrences: list[dict] = []
     effects: list[dict] = []
     chunks: list[dict] = []
@@ -261,9 +497,13 @@ def build_index(inventory: dict, extract_dir: Path) -> dict:
             continue
         file = entry["file"]
         raw = (extract_dir / file).read_bytes()
-        lines = decode_vb6_bytes(raw).splitlines()
+        file_sha = hashlib.sha256(raw).hexdigest()
+        text, decoding = decode_vb6_report(raw, strict=strict_decode)
+        lines = text.splitlines()
         manifest_files.append({"file": file, "vb_name": entry.get("vb_name"), "type": entry.get("type"),
-                               "sha256": hashlib.sha256(raw).hexdigest(), "lines": len(lines)})
+                               "sha256": file_sha, "lines": len(lines),
+                               "decode": decoding})
+        declares = _visible_declares(table, file)
         procs = sorted(
             (r for r in table.records if r["file"] == file and "span" in r),
             key=lambda r: r["span"][0],
@@ -273,12 +513,18 @@ def build_index(inventory: dict, extract_dir: Path) -> dict:
             r["name"].casefold(): str(r.get("type") or "")
             for r in table.records if r["file"] == file and r["kind"] == "Variable"
         }
+        locals_by_proc, shadows = _procedure_locals(procs, lines, table)
 
         def enclosing(line: int) -> dict | None:
             i = bisect_right(starts, line) - 1
             return procs[i] if i >= 0 and line <= procs[i]["span"][1] else None
 
         in_code = not lines or not lines[0].startswith("VERSION")
+        with_stack: list[str] = []
+        current_owner: str | None = None
+        stmt_no = 0
+        file_occ: list[dict] = []
+        file_effects: list[dict] = []
         for stmt in iter_statements(lines):
             if not in_code:
                 in_code = bool(_VB_NAME_RE.match(stmt.text))
@@ -287,11 +533,36 @@ def build_index(inventory: dict, extract_dir: Path) -> dict:
                 continue
             owner = enclosing(stmt.phys_start)
             owner_id = owner["id"] if owner else None
+            owner_locals = locals_by_proc.get(owner_id, {}) if owner_id else {}
+            if owner_id != current_owner:
+                with_stack = []
+                current_owner = owner_id
+            stmt_no += 1
             masked = code_mask(stmt.text)
+            stripped_mask = masked.strip()
+            with_head = _WITH_RE.match(stripped_mask)
+            if with_head:
+                with_stack.append(with_head.group(1).strip())
+            elif _END_WITH_RE.match(stripped_mask) and with_stack:
+                with_stack.pop()
             if not _DEFINITION_RE.match(masked):
+                shown = stmt.text if len(stmt.text) <= 160 else stmt.text[:160]
                 for effect in statement_effects(stmt.text, declares):
-                    effects.append({**effect, "file": file, "line": stmt.phys_start,
-                                    "in": owner_id, "text": stmt.text[:160]})
+                    if effect.get("kind") == "api.call" and owner_locals \
+                            and str(effect.get("declare") or "").casefold() in owner_locals:
+                        continue
+                    record = {**effect, "file": file, "line": stmt.phys_start,
+                              "end_line": stmt.phys_end, "in": owner_id, "text": shown,
+                              "stmt": stmt_no, "col": 1, "end_col": max(len(stmt.text), 1)}
+                    record["source_span"] = source_span(
+                        file=file, sha256=file_sha, line=stmt.phys_start, end_line=stmt.phys_end,
+                        stmt=stmt_no, col=1, end_col=record["end_col"],
+                    )
+                    if len(stmt.text) > 160:
+                        record["text_truncated"] = True
+                        record["text_sha256"] = sha256_text(stmt.text)
+                    effects.append(record)
+                    file_effects.append(record)
             tokens = list(_TOKEN_RE.finditer(masked))
             for idx, tok in enumerate(tokens):
                 name = tok.group(0)
@@ -301,24 +572,95 @@ def build_index(inventory: dict, extract_dir: Path) -> dict:
                 if (file.casefold(), key, stmt.phys_start) in definitions:
                     continue
                 context, qualifier = _context(tokens, idx, masked)
+                member_assign = context == "member" and masked[tok.end():].lstrip().startswith("=") \
+                    and not masked[tok.end():].lstrip().startswith("==")
+                from_with = False
                 if context == "member" and not qualifier:
-                    continue  # ``.Foo`` inside With: the receiver is not known here
+                    if not with_stack:
+                        hit = table.by_name.get(key) or []
+                        if hit:
+                            _remember(occurrences, file_occ, file_sha, {
+                                "name": name, "file": file, "line": stmt.phys_start,
+                                "end_line": stmt.phys_end, "col": tok.start() + 1, "end_col": tok.end(), "stmt": stmt_no,
+                                "in": owner_id, "context": context,
+                                "candidates": [item["id"] for item in hit],
+                                "basis": "with", "resolution": "unresolved",
+                                "reason": "ドットの前が空で、With の受け手が無い",
+                            })
+                        continue
+                    qualifier = _receiver_name(with_stack[-1])
+                    from_with = True
+                    if not qualifier:
+                        _remember(occurrences, file_occ, file_sha, {
+                            "name": name, "file": file, "line": stmt.phys_start,
+                            "end_line": stmt.phys_end, "col": tok.start() + 1, "end_col": tok.end(), "stmt": stmt_no,
+                            "in": owner_id, "context": context,
+                            "candidates": [f"{owner_id or file}#with:{name}"],
+                            "basis": "with", "resolution": "unresolved",
+                            "reason": "With の受け手を名前にできない",
+                        })
+                        continue
+                if owner_locals and context == "member" and qualifier \
+                        and qualifier.casefold() in owner_locals:
+                    _remember(occurrences, file_occ, file_sha, {
+                        "name": name, "file": file, "line": stmt.phys_start,
+                        "end_line": stmt.phys_end, "col": tok.start() + 1, "end_col": tok.end(), "stmt": stmt_no,
+                        "in": owner_id, "context": context, "candidates": [f"{owner_id}#local:{qualifier}"],
+                        "basis": "local_qualifier", "resolution": "unresolved",
+                        "qualifier": qualifier,
+                        "reason": "修飾子は引数またはローカルなので、外側の型には結び付けない",
+                    })
+                    continue
+                if owner_locals and key in owner_locals and context != "member":
+                    _spelling, def_line = owner_locals[key]
+                    if stmt.phys_start == def_line and _is_local_declaration(masked.strip()):
+                        continue
+                    _remember(occurrences, file_occ, file_sha, {
+                        "name": name, "file": file, "line": stmt.phys_start,
+                        "end_line": stmt.phys_end, "col": tok.start() + 1, "end_col": tok.end(), "stmt": stmt_no,
+                        "in": owner_id, "context": context, "candidates": [f"{owner_id}#local:{name}"],
+                        "basis": "local", "resolution": "local",
+                        "reason": "引数またはローカルが同名の外側の名前を隠している",
+                    })
+                    continue
+                was_member = context == "member"
+                if member_assign:
+                    context = "assign"
                 candidates, basis = resolve(
-                    table, file, name, qualifier if context == "member" else None, variable_types
+                    table, file, name, qualifier if was_member else None, variable_types
                 )
                 if not candidates:
+                    if from_with:
+                        _remember(occurrences, file_occ, file_sha, {
+                            "name": name, "file": file, "line": stmt.phys_start,
+                            "end_line": stmt.phys_end, "col": tok.start() + 1, "end_col": tok.end(), "stmt": stmt_no,
+                            "in": owner_id, "context": context,
+                            "candidates": [f"{owner_id or file}#with:{name}"],
+                            "basis": "with", "resolution": "unresolved", "qualifier": qualifier,
+                            "reason": "With の受け手からメンバーを決められない",
+                        })
                     continue
+                if from_with:
+                    basis = "with"
                 if owner and context == "assign" and owner["name"].casefold() == key \
                         and owner["kind"] in ("Function", "Property Get"):
                     context = "function_result"
-                occ = {"name": name, "file": file, "line": stmt.phys_start, "in": owner_id,
-                       "context": context, "candidates": [c["id"] for c in candidates],
+                    own = [item for item in candidates if item["id"] == owner["id"]]
+                    if own:
+                        candidates = own
+                else:
+                    candidates = _narrow_properties(candidates, context, masked)
+                occ = {"name": name, "file": file, "line": stmt.phys_start,
+                       "end_line": stmt.phys_end, "col": tok.start() + 1, "end_col": tok.end(), "stmt": stmt_no,
+                       "in": owner_id, "context": context, "candidates": [c["id"] for c in candidates],
                        "basis": basis, "resolution": "unique" if len(candidates) == 1 else "ambiguous"}
                 if qualifier:
                     occ["qualifier"] = qualifier
-                occurrences.append(occ)
+                if occ["resolution"] != "unique":
+                    occ["reason"] = _gap_reason(occ)
+                _remember(occurrences, file_occ, file_sha, occ)
 
-        chunks.extend(_file_chunks(entry, lines, procs, effects, occurrences))
+        chunks.extend(_file_chunks(entry, lines, procs, file_effects, file_occ, shadows))
 
     manifest = {
         "schema": SCHEMA_ID,
@@ -329,16 +671,20 @@ def build_index(inventory: dict, extract_dir: Path) -> dict:
         "project_type": (inventory.get("meta") or {}).get("Type"),
         "inventory_provenance": inventory.get("provenance"),
         "references": [
-            {k: r.get(k) for k in ("kind", "description", "path", "version")}
+            {k: r[k] for k in ("kind", "description", "path", "version", "guid", "lcid", "raw") if r.get(k) is not None}
             for r in inventory.get("references") or []
         ],
         "objects": [{k: o.get(k) for k in ("file", "guid", "version")} for o in inventory.get("objects") or []],
         "files": manifest_files,
+        "extract_dir": str(extract_dir.resolve()),
+        "input_hashes": inventory.get("input_hashes"),
         "counts": {},
         "token_estimate": "ceil(ascii_chars / 4) + non_ascii_chars (heuristic)",
         "notes": [
             "occurrences.candidates are scope-rule candidates, not a call graph",
-            "local variables are not tracked (shadowing is not seen)",
+            "a parameter or Dim/Static/Const local hides an outer name (resolution=local, not a unique outer binding)",
+            "ambiguous and unresolved references stay on chunk ref_gaps; they are not omitted",
+            "index matches inventory input_hashes; rebuild inventory when sources change",
             "#If branches are not evaluated; both stay in symbols and chunks",
         ],
     }
@@ -349,14 +695,30 @@ def build_index(inventory: dict, extract_dir: Path) -> dict:
             "effects": effects, "chunks": chunks}
 
 
-def _notes(entry: dict, proc: dict) -> list[str]:
+def _notes(entry: dict, proc: dict, shadows: list[str] | None = None) -> list[str]:
     notes: list[str] = []
+    if shadows:
+        notes.append(
+            "引数またはローカルが同名の外側の名前を隠す: "
+            + ", ".join(shadows)
+            + "。外側の変数や手続きへの一意の参照にはしない"
+        )
     opts = entry.get("options") or {}
     if opts and not opts.get("explicit"):
-        notes.append("Option Explicit なし: 未宣言の名前は暗黙に Variant として作られる")
+        if opts.get("deftypes"):
+            notes.append(
+                "Option Explicit なし。DefType があるので、未宣言の型は DefType と分岐の両方があり得る"
+                "（#If は評価しない）"
+            )
+        else:
+            notes.append("Option Explicit なし: 未宣言の名前は暗黙に Variant として作られる")
     for item in proc.get("error_handling") or []:
         if item["kind"] == "on_error_resume_next":
-            notes.append(f"L{item['line']} On Error Resume Next: 以降のエラーは次の On Error まで無視される")
+            notes.append(
+                f"L{item['line']} に On Error Resume Next がある。"
+                "この手続きの中で、次の On Error までの失敗を無視する書き方。"
+                "呼び出し先には引き継がない。実行経路は解析していない"
+            )
     implicit = [p["name"] for p in proc.get("params") or [] if p.get("name") and not p.get("passing_explicit")
                 and not p.get("param_array")]
     if implicit:
@@ -403,15 +765,51 @@ def _signature(proc: dict) -> str:
     return f"{proc.get('visibility') or ''} {proc['kind']} {proc['name']}({params}){ret}".strip()
 
 
+def _child_statements(file: str, proc: dict, lines: list[str]) -> list[dict]:
+    """One chunk per statement so a long procedure can be fetched in pieces."""
+    start, end = proc["span"]
+    parts: list[dict] = []
+    number = 0
+    for stmt in iter_statements(lines):
+        if stmt.kind != "stmt" or not (start <= stmt.phys_start <= end):
+            continue
+        number += 1
+        code = f"{stmt.phys_start}| {stmt.text}"
+        header = f"{proc['id']} statement {number}"
+        parts.append({
+            "id": f"chunk:{proc['id']}#stmt:{number}",
+            "symbol": proc["id"],
+            "parent": f"chunk:{proc['id']}",
+            "file": file,
+            "span": [stmt.phys_start, stmt.phys_end],
+            "stmt": number,
+            "header": header,
+            "code": code,
+            "sha256": sha256_text(code),
+            "tokens_est": estimate_tokens(header + code),
+            "notes": [],
+            "effects": [],
+            "refs": [],
+        })
+    return parts
+
+
 def _numbered(lines: list[str], start: int, end: int) -> str:
     return "\n".join(f"{n}| {lines[n - 1]}" for n in range(start, min(end, len(lines)) + 1))
 
 
 def _file_chunks(entry: dict, lines: list[str], procs: list[dict], effects: list[dict],
-                 occurrences: list[dict]) -> list[dict]:
+                 occurrences: list[dict], shadows: dict[str, list[str]] | None = None) -> list[dict]:
+    shadows = shadows or {}
     file = entry["file"]
     out: list[dict] = []
     code_start = next((i + 1 for i, ln in enumerate(lines) if _VB_NAME_RE.match(ln.strip())), 1)
+    by_owner: dict[str | None, list[dict]] = {}
+    for occ in occurrences:
+        by_owner.setdefault(occ.get("in"), []).append(occ)
+    effects_by_owner: dict[str | None, list[dict]] = {}
+    for effect in effects:
+        effects_by_owner.setdefault(effect.get("in"), []).append(effect)
     if entry.get("form_kind"):
         rows = []
         for node in parse_designer(lines)[1:]:
@@ -427,13 +825,18 @@ def _file_chunks(entry: dict, lines: list[str], procs: list[dict], effects: list
         if rows:
             text = "\n".join(rows)
             header = _header(entry, None, "designer controls")
+            notes = [
+                f"L{ref.get('line')} {ref.get('prop')} → {ref.get('file')}（"
+                + ("ファイルあり。中身は未解析" if ref.get("exists") else "ファイルが無い")
+                + "）"
+                for ref in entry.get("resource_refs") or []
+            ]
             out.append({"id": f"chunk:{file}#designer", "symbol": file, "file": file,
                         "span": [1, code_start - 1], "header": header, "code": text,
                         "sha256": sha256_text(text), "tokens_est": estimate_tokens(header + text),
-                        "notes": [], "effects": [], "refs": []})
+                        "notes": notes, "effects": [], "refs": []})
     first_proc = procs[0]["span"][0] if procs else len(lines) + 1
-    decl_lines = [n for n in range(code_start + 1, first_proc)
-                  if lines[n - 1].strip() and not lines[n - 1].lstrip().lower().startswith("attribute ")]
+    decl_lines = [n for n in range(code_start, first_proc) if lines[n - 1].strip()]
     if decl_lines:
         text = _numbered(lines, decl_lines[0], decl_lines[-1])
         header = _header(entry, None, "module declarations")
@@ -445,18 +848,31 @@ def _file_chunks(entry: dict, lines: list[str], procs: list[dict], effects: list
         start, end = proc["span"]
         text = _numbered(lines, start, end)
         header = _header(entry, proc, _signature(proc))
+        owned = by_owner.get(proc["id"], [])
         refs = sorted({
-            occ["candidates"][0] for occ in occurrences
-            if occ["in"] == proc["id"] and occ["resolution"] == "unique" and occ["candidates"][0] != proc["id"]
+            occ["candidates"][0] for occ in owned
+            if occ["resolution"] == "unique" and occ["candidates"] and occ["candidates"][0] != proc["id"]
         })
+        gaps = [
+            {
+                "name": occ["name"], "line": occ["line"], "resolution": occ["resolution"],
+                "basis": occ.get("basis"), "candidates": occ.get("candidates") or [],
+                "reason": _gap_reason(occ),
+            }
+            for occ in owned if occ["resolution"] != "unique"
+        ]
+        children = _child_statements(file, proc, lines)
         out.append({
             "id": f"chunk:{proc['id']}", "symbol": proc["id"], "file": file, "span": [start, end],
             "header": header, "code": text, "sha256": sha256_text(text),
             "tokens_est": estimate_tokens(header + text),
-            "notes": _notes(entry, proc),
-            "effects": [{"kind": e["kind"], "line": e["line"]} for e in effects if e["in"] == proc["id"]],
+            "notes": _notes(entry, proc, shadows.get(proc["id"])),
+            "effects": [{"kind": e["kind"], "line": e["line"]} for e in effects_by_owner.get(proc["id"], [])],
             "refs": refs,
+            "ref_gaps": gaps,
+            "parts": [part["id"] for part in children],
         })
+        out.extend(children)
     return out
 
 
@@ -494,6 +910,8 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--inventory", type=Path, default=None,
                     help="<stem>_inventory.json (default: sole inventory under reports/)")
     ap.add_argument("--out", type=Path, default=None, help="Output dir (default: <index_dir>/<stem>)")
+    ap.add_argument("--strict-decode", action="store_true",
+                    help="Fail when a source file cannot be decoded without replacing characters")
     args = ap.parse_args(argv)
 
     inv_path = resolve_inventory(args.inventory)
@@ -502,7 +920,18 @@ def main(argv: list[str] | None = None) -> int:
     if not extract_dir.is_dir():
         print(f"extract not found: {extract_dir} (re-run inventory)", file=sys.stderr)
         return 1
-    data = build_index(inventory, extract_dir)
+    try:
+        data = build_index(inventory, extract_dir, strict_decode=args.strict_decode)
+    except StaleInventory as exc:
+        print(format_stale(exc.problems), file=sys.stderr)
+        return 1
+    except VB6DecodeError as exc:
+        where = ", ".join(str(n) for n in exc.replacements[:8])
+        print(
+            f"decode replaced characters ({exc.encoding}); positions: {where}",
+            file=sys.stderr,
+        )
+        return 1
     data["manifest"]["inventory"] = inv_path.name
     data["manifest"]["inventory_sha256"] = hashlib.sha256(inv_path.read_bytes()).hexdigest()
     stem = str(inventory.get("stem") or inv_path.name.replace("_inventory.json", ""))

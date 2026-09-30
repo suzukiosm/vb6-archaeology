@@ -91,6 +91,8 @@ python -m tools serve
 Open the URL `serve` / `demo` prints. Do not use `file://`.
 `index` writes `working/index/<stem>/` (manifest + symbols / occurrences / effects / chunks JSONL,
 shape in `schema/index.schema.json`). Occurrence candidates follow VB6 scope rules; they are not a call graph.
+A parameter or procedure-local name that hides an outer name is `resolution=local`, not a unique binding to that outer name.
+`index` and `bundle` refuse to run when the extract no longer matches inventory `input_hashes`.
 
 Verify order: `verify` (End counts) → `verify-names` (name set) → `verify-show` (show_style; range gaps are warnings).
 If extraction is wrong, fix the tool here — do not add `working/_verify_*.py`.
@@ -198,7 +200,7 @@ python -m tools serve
 ```
 
 `index` は `working/index/<stem>/` に manifest と JSONL（symbols / occurrences / effects / chunks）を出す（形は `schema/index.schema.json`）。
-`occurrences` は VB6 のスコープ規則で選んだ候補（`basis`）で、呼び出しグラフではない。
+`occurrences` は VB6 のスコープ規則で選んだ候補（`basis`）で、呼び出しグラフではない。引数や手続き内の宣言が外側の同名を隠すときは `resolution=local` とし、外側への一意参照にはしない。決められない参照はチャンクの `ref_gaps` と bundle の `unresolved` に残る。`index` / `bundle` は inventory の `input_hashes` と今のファイルが違うと拒否する。全文が予算を超える手続きは文ごとの子チャンクになり、`bundle PROC --span START-END` でその行だけを取る。`index --strict-decode` は読めないバイトを置換せず失敗する。
 
 `demo` は tick しない。`serve --live-get`（smoke 用の一時ポート GET）とは別。
 `serve` / `demo` が印刷した URL が正（8765 が占有なら空きポートへ落ちる）。`file://` は使わない。
@@ -250,6 +252,8 @@ python -m tools serve
   - VBP: **Form / Module / Class / UserControl / PropertyPage / UserDocument / Designer**、`RelatedDoc=` / `ResFile32=`（一覧のみ）、`Object=`（OCX 等）、Version / Command32 / HelpFile / Type / CondComp / CompatibleMode / CompilationType / CompatibleEXE32 / AutoIncrementVer などメタ（生文字列）
   - プロシージャ: Sub/Function/Property + **引数・戻り値**、Declare、モジュールレベル Const/Enum/Type/Event（`iter_statements`。`End` 照合は verify と同じ文単位。`Const A = 1, B = 2` は複数件）
   - 表面: Implements / WithEvents / Instancing / Attribute も `iter_statements`
+  - 追加事実（inv-16）: `#If` で型が食い違う DefType は `unknown` と `type_candidates`。Designer 資源参照は `resource_refs`（無いファイルも残す）
+  - 追加事実（inv-15）: 上記に加え、レポートの `input_hashes`（VBP・各ファイル・設定の SHA-256）。`index` は不一致なら再生成を要求する
   - 追加事実（inv-14）: `variables` / `options`（Explicit・Base・Compare・Deftype）、手続きの `params_detail` / `return_type` / `attributes` / `error_handling` / `labels` / `event_binding` / `conditional`、表面の `class_header` / `default_member` / `enumerator_member`、VBP `references`、`Declare` の `alias`、designer の `ocx_objects` / `external_control_classes` / `data_bindings`、`diagnostics`（`comment_continuation` / `duplicate_procedure`）。値の無いキーは出さないものがある（`diagnostics` 等）
 - パス欠落の `Form=` / `Module=` / `Class=` は一覧に入れず `warnings` に出す（JSON / MD / HTML / CLI サマリ）。
 - HTML レポートは検索ボックス（ファイル名 / VB_Name / プロシージャ / 宣言名）と全開閉ボタン付き。
@@ -336,7 +340,7 @@ python -m unittest discover -s tools -p "test_*.py" -v
 - `verify` fails on `missing_in_extract` as well as End-count mismatch. It checks
   internal consistency, not complete VB6 correctness. `test_review_regressions.py`
   supplies explicit expected results independent of End counts.
-- Parser version is `inv-14` (phase-1 facts above); cache keys also carry encoding settings and a
+- Parser version is `inv-16` (conditional DefType and resource refs). `inv-15` added `input_hashes`. Cache keys also carry encoding settings and a
   SHA-256 of `vb6_inventory.py` + `tools/lib/*.py`, so a parser edit without a version
   bump no longer serves stale facts. `inventory` JSON records `provenance`.
 - Protection hooks read Cursor's payload as `utf-8-sig` (Cursor on Windows sends a

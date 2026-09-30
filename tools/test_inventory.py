@@ -228,8 +228,8 @@ Const Callish = Foo(1, 2)
 
 
 class ParserVersionTests(unittest.TestCase):
-    def test_parser_version_is_inv14(self) -> None:
-        self.assertEqual(inv.PARSER_VERSION, "inv-14")
+    def test_parser_version_is_inv16(self) -> None:
+        self.assertEqual(inv.PARSER_VERSION, "inv-16")
 
 
 class DecodeTests(unittest.TestCase):

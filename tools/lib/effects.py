@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import re
 
+from .declarators import split_top_level
 from .file_statements import FILE_STATEMENT_PATTERNS, is_file_statement
 from .show_style import parse_lifetime_calls_in_line, parse_show_calls_in_line
 from .vbparse import code_mask
@@ -27,8 +28,7 @@ _FILE_EXTRA = (
     ("lock", re.compile(_HEAD + r"(?:Lock|Unlock)\s", re.IGNORECASE)),
 )
 _REGISTRY_RE = re.compile(r"\b(SaveSetting|GetSetting|GetAllSettings|DeleteSetting)\b", re.IGNORECASE)
-_CREATE_RE = re.compile(r'\b(CreateObject|GetObject)\s*\(\s*"([^"]*)"', re.IGNORECASE)
-_CREATE_DYNAMIC_RE = re.compile(r"\b(CreateObject|GetObject)\s*\(", re.IGNORECASE)
+_CREATE_CALL_RE = re.compile(r"\b(CreateObject|GetObject)\s*\(", re.IGNORECASE)
 _NEW_RE = re.compile(r"\bNew\s+([^\W\d]\w*\.[^\W\d]\w*)", re.IGNORECASE)
 _DB_METHOD_RE = re.compile(
     r"\.(Execute|OpenRecordset|OpenDatabase|OpenConnection|BeginTrans|CommitTrans|RollbackTrans)\b",
@@ -58,6 +58,75 @@ def _file_kind(masked: str) -> str | None:
     return None
 
 
+def _call_arguments(text: str, open_paren: int) -> list[str]:
+    """Arguments inside the parentheses that start at ``open_paren``."""
+    if open_paren >= len(text) or text[open_paren] != "(":
+        return []
+    depth = 0
+    in_str = False
+    i = open_paren + 1
+    start = i
+    while i < len(text):
+        ch = text[i]
+        if ch == '"':
+            if in_str and i + 1 < len(text) and text[i + 1] == '"':
+                i += 2
+                continue
+            in_str = not in_str
+        elif not in_str and ch == "(":
+            depth += 1
+        elif not in_str and ch == ")":
+            if depth == 0:
+                return [part for part in split_top_level(text[start:i]) if part]
+            depth -= 1
+        i += 1
+    return [part for part in split_top_level(text[start:]) if part]
+
+
+def _vb_string(arg: str) -> str | None:
+    text = arg.strip()
+    if len(text) < 2 or not text.startswith('"'):
+        return None
+    body: list[str] = []
+    i = 1
+    while i < len(text):
+        if text[i] == '"':
+            if i + 1 < len(text) and text[i + 1] == '"':
+                body.append('"')
+                i += 2
+                continue
+            return "".join(body)
+        body.append(text[i])
+        i += 1
+    return None
+
+
+def _object_calls(text: str, masked: str) -> list[dict]:
+    """``CreateObject`` / ``GetObject`` calls in code, not inside strings.
+
+    ``GetObject``'s first argument is a pathname and the second is a class.
+    ``CreateObject``'s first argument is a ProgID.
+    """
+    out: list[dict] = []
+    for match in _CREATE_CALL_RE.finditer(masked):
+        args = _call_arguments(text, match.end() - 1)
+        call = match.group(1)
+        if call.lower() == "getobject":
+            out.append({
+                "kind": "com.get",
+                "call": call,
+                "pathname": _vb_string(args[0]) if args else None,
+                "class": _vb_string(args[1]) if len(args) > 1 else None,
+            })
+        else:
+            out.append({
+                "kind": "com.create",
+                "call": call,
+                "progid": _vb_string(args[0]) if args else None,
+            })
+    return out
+
+
 def statement_effects(text: str, declares: dict[str, dict] | None = None) -> list[dict]:
     """Effects of one colon-split statement. ``declares``: lower name → Declare."""
     masked = code_mask(text)
@@ -67,12 +136,7 @@ def statement_effects(text: str, declares: dict[str, dict] | None = None) -> lis
         out.append({"kind": f"file.{fkind}"})
     for m in _REGISTRY_RE.finditer(masked):
         out.append({"kind": "registry", "call": m.group(1)})
-    literal_creates = list(_CREATE_RE.finditer(text))
-    for m in literal_creates:
-        out.append({"kind": "com.create", "call": m.group(1), "progid": m.group(2)})
-    if not literal_creates:
-        for m in _CREATE_DYNAMIC_RE.finditer(masked):
-            out.append({"kind": "com.create", "call": m.group(1), "progid": None})
+    out.extend(_object_calls(text, masked))
     for m in _NEW_RE.finditer(masked):
         out.append({"kind": "com.new", "class": m.group(1)})
     for m in _DB_METHOD_RE.finditer(masked):
@@ -89,8 +153,11 @@ def statement_effects(text: str, declares: dict[str, dict] | None = None) -> lis
         for word in set(re.findall(r"[^\W\d]\w*", masked)):
             decl = declares.get(word.lower())
             if decl is not None:
-                out.append({"kind": "api.call", "declare": decl["name"], "lib": decl.get("lib"),
-                            "alias": decl.get("alias")})
+                effect = {"kind": "api.call", "declare": decl["name"], "lib": decl.get("lib"),
+                          "alias": decl.get("alias")}
+                if decl.get("id"):
+                    effect["symbol"] = decl["id"]
+                out.append(effect)
     for call in parse_show_calls_in_line(text, 0):
         out.append({"kind": "ui.show", "target": call["target"], "arg": call["arg"]})
     for call in parse_lifetime_calls_in_line(text, 0):

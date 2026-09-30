@@ -64,8 +64,19 @@
 | F35 | ~~verify-names が一般の Sub 名などを照合せず、存在しない名前を素通りさせる~~ **採用済 2026-09-30**（既定は警告、`--strict` で失敗） | `verify_report_names.load_identifier_set` |
 | F36 | ~~tick がソースの版を持たず、ソースが変わっても古い理解が残る~~ **採用済 2026-09-30** `.ticks.jsonl` · `comprehend --stale` | `comprehension_scaffold.stale_ticks` |
 | F37 | ~~verify が inventory と同じ字句器で数えるだけで独立していない~~ **採用済 2026-09-30** 物理行ヘッダ数・範囲の重なり・重複 | `verify_inventory.raw_header_count` |
+| F38 | ~~inventory の後にソースを変えると、索引の見出しと本文が別版になる~~ **採用済 2026-09-30** `input_hashes`。不一致は index / bundle が拒否 | `index_build.snapshot_problems` |
+| F39 | ~~引数やローカルが同名のモジュール変数へ unique になる~~ **採用済 2026-09-30** `resolution=local` | `index_build._procedure_locals` |
+| F40 | ~~名前の無いコントロールをデッドとして skeleton から落とす~~ **採用済 2026-09-30** Designer は全保持。`Controls` 参照時は実行時表示を未知にする | `frm_deep_read.build_skeleton` |
+| F41 | ~~`#If` の両分岐の DefType を、後ろの型ひとつに畳んでいる~~ **採用済 2026-10-01** 食い違う型は `unknown` と `type_candidates`。共通 End の宣言も両方残す | `lib/declarators.implicit_type` |
+| F42 | ~~Property の曖昧参照と With 内の参照が文脈束から消え、`omitted` が空になる~~ **採用済 2026-10-01** 読みは Get、代入は Let/Set。未解決は `ref_gaps` と bundle の `unresolved` | `index_build.py` · `bundle.py` |
+| F43 | ~~文字列中の `CreateObject` だけで COM 生成になる。`GetObject` の第1引数を ProgID にする~~ **採用済 2026-10-01** コード上の呼出しだけ。GetObject は pathname と class | `lib/effects.py` |
+| F44 | ~~Caption が参照する `.frx` が無くても extract の `missing` が空~~ **採用済 2026-10-01** 参照先の有無・サイズ・ハッシュ。中身は未解析 | `extract_vbp.resource_references` |
+| F45 | ~~クラス属性・Implements・COM の識別子が索引と文脈束に十分渡らない~~ **採用済 2026-10-01** ファイルシンボルと bundle の Owner context。Reference の guid / lcid / raw | `index_build.py` · `bundle.py` |
+| F46 | ~~索引が手続きごとに参照一覧全体を走査する~~ **採用済 2026-10-01** ファイル内を所有者ごとに一度引く | `index_build._file_chunks` |
+| F47 | ~~`budget_exceeded` は返す。長大手続きを子チャンクに分けて取る手段はまだ無い~~ **採用済 2026-10-01** 文ごとの子チャンク。予算に全文が入らないときは頭と入る文だけ。`--span START-END` | `bundle.py` · `index_build._child_statements` |
+| F48 | ~~出現に終端行・列・文番号と `decode.replaced` は付いた。共通の位置型と、置換をエラーにするモードはまだ無い~~ **採用済 2026-10-01** `source_span`。`index --strict-decode` は置換せず失敗する | `lib/vbparse.source_span` · `lib/config.decode_vb6_report` |
 
-`show_calls` の出方向・入方向転置と `status` の機械集計は採用済。未着手は §3「後回し」と §0「やらない」だけ。
+`show_calls` の出方向・入方向転置と `status` の機械集計は採用済。未着手の穴は無い。ほかは §3「後回し」と §0「やらない」。
 
 ---
 
@@ -196,4 +207,4 @@ inventory の `parse_procedures` / `parse_declarations` が `iter_statements` �
 3. 採用したら [`kit-dev-context.md`](kit-dev-context.md) の「次手」に「採用済」と日付を足し、本ファイルの該当節を短くする
 4. 捨てる案は「やらない」表へ移す（消して忘れない）
 
-P0 · P1 · P2 · P3 · P4 と穴 F1–F37 は採用済。残るのは「後回し」表と「やらない」表。`python -m tools ideas` が機械集計する。
+P0 · P1 · P2 · P3 · P4 と穴 F1–F48 は採用済。残りは「後回し」表と「やらない」表。`python -m tools ideas` が機械集計する。

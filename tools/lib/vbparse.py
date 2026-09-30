@@ -100,6 +100,26 @@ class LogicalLine(NamedTuple):
     text: str
 
 
+def source_span(*, file: str, sha256: str, line: int, end_line: int, stmt: int,
+                col: int, end_col: int) -> dict:
+    """One place in a source file.
+
+    ``col`` / ``end_col`` are 1-based columns in the folded statement.
+    ``line`` / ``end_line`` are the physical lines of that statement.
+    ``folded`` is true when those lines were joined with ``_``.
+    """
+    return {
+        "file": file,
+        "sha256": sha256,
+        "line": line,
+        "end_line": end_line,
+        "stmt": stmt,
+        "col": col,
+        "end_col": end_col,
+        "folded": line != end_line,
+    }
+
+
 class Statement(NamedTuple):
     """One colon-split unit after ``_`` folding.
 

@@ -94,6 +94,123 @@ def deftype_letters(deftypes: list[dict]) -> dict[str, str]:
     return letters
 
 
+def _covers_letter(item: dict, letter: str) -> bool:
+    for rng in item.get("ranges") or []:
+        match = _RANGE_RE.match(rng)
+        if not match:
+            continue
+        lo, hi = match.group(1).upper(), (match.group(2) or match.group(1)).upper()
+        if min(lo, hi) <= letter <= max(lo, hi):
+            return True
+    return False
+
+
+def _sibling_groups(regions: list[dict]) -> list[list[dict]]:
+    """Depth-1 ``#If`` / ``#ElseIf`` / ``#Else`` branches that share one ``#End If``."""
+    groups: list[list[dict]] = []
+    current: list[dict] = []
+    for region in regions:
+        if region.get("directive") == "#Const" or region.get("depth") != 1:
+            continue
+        if region.get("directive") == "#If":
+            if current:
+                groups.append(current)
+            current = [region]
+        elif current and region.get("directive") in ("#ElseIf", "#Else"):
+            current.append(region)
+    if current:
+        groups.append(current)
+    return groups
+
+
+def _slim_condition(region: dict | None) -> dict | None:
+    if not region:
+        return None
+    return {key: region[key] for key in ("line", "directive", "expr") if key in region}
+
+
+def implicit_type(name: str, deftypes: list[dict], regions: list[dict] | None = None,
+                  ) -> tuple[str, str, list[dict] | None]:
+    """Type of an untyped name under DefType, without evaluating ``#If``.
+
+    Unconditional ``DefType`` statements still override earlier ones. A
+    ``DefType`` inside ``#If`` is not folded into that single map. When the
+    branches disagree, the type is ``unknown`` and each candidate keeps its
+    condition. Agreed branches stay one type.
+    """
+    letter = name[:1].upper()
+    if not letter.isalpha():
+        return "Variant", "default", None
+    regions = regions or []
+    plain = [item for item in deftypes if not item.get("conditional")]
+    base = deftype_letters(plain)
+    groups = _sibling_groups(regions)
+    affected: list[dict] | None = None
+    for group in groups:
+        lines = {branch["line"] for branch in group}
+        if any(
+            item.get("conditional") and item["conditional"].get("line") in lines
+            and _covers_letter(item, letter)
+            for item in deftypes
+        ):
+            affected = group
+            break
+    if affected is None:
+        nested = [
+            item for item in deftypes
+            if item.get("conditional") and item["conditional"].get("depth", 1) != 1
+            and _covers_letter(item, letter)
+        ]
+        if not nested:
+            if letter in base:
+                return base[letter], "deftype", None
+            return "Variant", "default", None
+        candidates = [{
+            "type": base.get(letter, "Variant"),
+            "type_source": "deftype" if letter in base else "default",
+        }]
+        for item in nested:
+            candidates.append({
+                "type": item["type"], "line": item["line"],
+                "conditional": _slim_condition(item.get("conditional")),
+            })
+        return _collapse_candidates(candidates)
+    candidates = []
+    for branch in affected:
+        hit = next((
+            item for item in deftypes
+            if item.get("conditional") and item["conditional"].get("line") == branch["line"]
+            and _covers_letter(item, letter)
+        ), None)
+        if hit is not None:
+            candidates.append({
+                "type": hit["type"], "line": hit["line"],
+                "conditional": _slim_condition(branch),
+            })
+        else:
+            candidates.append({
+                "type": base.get(letter, "Variant"),
+                "type_source": "deftype" if letter in base else "default",
+                "conditional": _slim_condition(branch),
+            })
+    return _collapse_candidates(candidates)
+
+
+def _collapse_candidates(candidates: list[dict]) -> tuple[str, str, list[dict] | None]:
+    """One type when every branch agrees; otherwise ``unknown`` plus the candidates."""
+    types = {item["type"] for item in candidates}
+    if len(types) != 1:
+        return "unknown", "conditional", candidates
+    agreed = candidates[0]["type"]
+    if all(item.get("type_source") == "default" for item in candidates):
+        return "Variant", "default", None
+    if any(item.get("type_source") == "default" for item in candidates):
+        # A branch with no DefType is Variant. That disagrees with a DefType branch
+        # only when the agreed type is not Variant — already handled by len != 1.
+        return agreed, "deftype" if agreed != "Variant" else "default", None
+    return agreed, "deftype", None
+
+
 def resolve_type(name: str, suffix: str | None, declared: str | None,
                  letters: dict[str, str]) -> tuple[str, str]:
     """(type, type_source) by VB6's precedence: As > suffix > Deftype > Variant."""

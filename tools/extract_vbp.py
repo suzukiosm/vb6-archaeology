@@ -26,6 +26,7 @@ from lib.config import (  # noqa: E402
     protected_path_markers,
 )
 from lib.console import enable_utf8_stdio  # noqa: E402
+from lib.designer import parse_designer  # noqa: E402
 
 # Keys that name project-relative source files in a .vbp
 FILE_KEYS = (
@@ -104,6 +105,39 @@ def companion_paths(path: Path) -> list[Path]:
     return found
 
 
+def resource_references(path: Path) -> list[dict]:
+    """Designer resource filenames named in a source file (``$"F.frx":0000``).
+
+    The binary is not decoded. ``exists`` is whether the file sits beside the source.
+    """
+    if path.suffix.lower() not in COMPANION_BY_SOURCE:
+        return []
+    lines = decode_vbp(path.read_bytes()).splitlines()
+    found: list[dict] = []
+    for node in parse_designer(lines):
+        for frx in node.get("frx_refs") or []:
+            name = Path(str(frx.get("file") or "")).name
+            if not name:
+                continue
+            candidate = path.parent / name
+            item = {
+                "file": name,
+                "referenced_by": path.name,
+                "control": node.get("name"),
+                "prop": frx.get("prop"),
+                "line": frx.get("line"),
+                "offset": frx.get("offset"),
+                "kind": frx.get("kind"),
+                "exists": candidate.is_file(),
+            }
+            if candidate.is_file():
+                raw = candidate.read_bytes()
+                item["size"] = len(raw)
+                item["sha256"] = hashlib.sha256(raw).hexdigest()
+            found.append(item)
+    return found
+
+
 def companion_frx(path: Path) -> Path | None:
     """Compat: ``.frm`` → ``.frx`` only. Prefer :func:`companion_paths`."""
     for candidate in companion_paths(path):
@@ -173,6 +207,18 @@ def extract(vbp_path: Path, out_dir: Path, source_root: Path) -> dict:
         for companion in companion_paths(src):
             plan_copy(companion, companion.name)
 
+    resources: list[dict] = []
+    for rel in rel_files:
+        src = (vbp_dir / Path(*PureWindowsPath(rel).parts)).resolve()
+        if not src.is_file():
+            continue
+        for ref in resource_references(src):
+            resources.append(ref)
+            if ref["exists"]:
+                plan_copy(src.parent / ref["file"], ref["file"])
+            elif ref["file"] not in missing:
+                missing.append(ref["file"])
+
     # Validate the complete plan before mutating even the destination VBP.
     report_path = out_dir / "_extract_report.json"
     ensure_not_writing_source(report_path, source_root)
@@ -191,6 +237,7 @@ def extract(vbp_path: Path, out_dir: Path, source_root: Path) -> dict:
         "skipped_ref_count": len(skipped_refs),
         "references": skipped_refs,
         "source_map": source_map,
+        "resources": resources,
         "manifest_version": 1,
     }
     report_path.write_text(

@@ -123,7 +123,8 @@ class IndexBuildTests(unittest.TestCase):
     def test_typed_module_variable_and_with_block(self) -> None:
         pings = self.uses("Ping")
         self.assertEqual([(o["line"], o["candidates"], o["basis"]) for o in pings],
-                         [(11, ["Widget.cls#Function:Ping"], "typed_variable")])
+                         [(11, ["Widget.cls#Function:Ping"], "typed_variable"),
+                          (16, ["Widget.cls#Function:Ping"], "with")])
 
     def test_function_result_assignment_is_not_a_call(self) -> None:
         twice = self.uses("Twice", "Main.bas")
@@ -155,6 +156,15 @@ class IndexBuildTests(unittest.TestCase):
         self.assertTrue(any(n.startswith("ByRef（省略時）の引数: x") for n in twice["notes"]))
         self.assertIn("chunk:Main.bas#declarations", chunks)
         self.assertIn("chunk:Form1.frm#designer", chunks)
+        boot = self.uses("Boot")[0]
+        span = boot["source_span"]
+        self.assertEqual((span["file"], span["line"], span["folded"]), ("Form1.frm", boot["line"], False))
+        self.assertLess(span["col"], span["end_col"])
+        self.assertEqual(len(span["sha256"]), 64)
+        parent = chunks["chunk:Form1.frm#Sub:cmdGo_Click"]
+        self.assertGreater(len(parent["parts"]), 1)
+        child = next(c for c in self.data["chunks"] if c["id"] == parent["parts"][0])
+        self.assertEqual(child["parent"], parent["id"])
 
     def test_every_record_matches_the_schema(self) -> None:
         defs = SCHEMA["$defs"]

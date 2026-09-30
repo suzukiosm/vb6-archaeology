@@ -67,7 +67,7 @@
     },
     "occurrence": {
       "type": "object",
-      "description": "A lexical use of a known name. candidates are chosen by VB6 scope rules named in basis (same_file | global | qualified | typed_variable | me); they are candidates, not resolved call edges.",
+      "description": "A lexical use of a known name. candidates are chosen by VB6 scope rules named in basis (same_file | global | qualified | typed_variable | me | local | local_qualifier). resolution=local means a parameter or procedure-local name hid an outer symbol; that candidate is not the outer symbol. They are candidates, not resolved call edges.",
       "required": ["name", "file", "line", "context", "candidates", "basis", "resolution"],
       "properties": {
         "name": { "type": "string", "minLength": 1 },

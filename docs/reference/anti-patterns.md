@@ -13,7 +13,7 @@
 | 8b | PowerShell 二重引用符内のバッククォートで Markdown を壊す（`` `F ``→FF・`` `v ``→VT） | バルク文字列を PS に載せない。混入検知は `python -m tools scan-chars`（hits=0） |
 | 9 | 到達不能 Form を必須機能扱い | 証拠を残して除外 or Dev 専用と明記 |
 | 9b | `frm_deep_read` のイベント 0 や `unobserved` を孤立・到達不能と即断する | 本ツールは .frm 単体解析。他 .frm/.bas からの `Show` / 操作は見えない。`unobserved` は「この .frm と .bas の正規表現では呼び出し未観測」であり到達不能ではない |
-| 9c | 親 Frame/PictureBox が `Visible=0` かつコード未参照なのに子孫を必須 UI にする | `ancestor_hidden` を確認し実行時非表示相当として扱う |
+| 9c | 親 Frame/PictureBox が設計時非表示かつ名前参照なしなのに、子孫を必須 UI として実装する | `ancestor_hidden` は静的近似であり、実行時に出ない証明ではない。`runtime_visibility_unknown`（コントロール集合の参照）のときは非表示扱いにしない。Designer のノードは skeleton から落とさない |
 | 9d | deep-read の文列挙をソース順＝実行順と読む（GoTo 飛び越しを無視） | 「GoTo で飛び越えられる文（候補）」「GoTo / ラベル地図」を確認。条件付き GoTo でもその分岐では届かない |
 | 9e | GoTo 飛び越え候補を「デッド確定」とレポートする | 候補のまま残す。断定は tick で証拠つき。`On Error GoTo` / `GoSub` はラベル地図の候補（飛び越えスパンは作らない）。後方 GoTo は未対応 |
 | 10 | デザイナ座標だけで runtime UI を確定する | `/runtime-layout` も見る。両方をレポートに残す |

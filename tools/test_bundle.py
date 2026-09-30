@@ -47,11 +47,24 @@ class BundleTests(unittest.TestCase):
         self.assertIn("Referenced procedure Main.bas#Sub:Boot", titles)
         self.assertEqual(got["omitted"], [])
 
-    def test_small_budget_keeps_the_code_and_lists_omissions(self) -> None:
+    def test_small_budget_keeps_the_head_and_lists_parts(self) -> None:
         got = bundle.build_bundle(self.index, self.target("cmdGo_Click"), budget=10)
-        self.assertEqual([s["title"] for s in got["sections"]], ["Procedure Form1.frm#Sub:cmdGo_Click"])
-        self.assertIn("VB6 notes", got["omitted"])
-        self.assertIn("Omitted (budget)", bundle.render_markdown(got))
+        titles = [s["title"] for s in got["sections"]]
+        self.assertTrue(titles[0].startswith("Procedure head "))
+        self.assertIn("VB6 notes", titles)
+        self.assertNotIn("Procedure Form1.frm#Sub:cmdGo_Click", titles)
+        self.assertTrue(got["budget_exceeded"])
+        self.assertTrue(got["procedure_exceeds_budget"])
+        self.assertGreater(len(got["parts"]), 1)
+        self.assertTrue(any(title.startswith("Part ") for title in got["omitted"]))
+        self.assertIn("budget_exceeded", bundle.render_markdown(got))
+
+    def test_span_returns_only_those_lines(self) -> None:
+        got = bundle.build_bundle(self.index, self.target("cmdGo_Click"), budget=5000, span=(10, 10))
+        bodies = "\n".join(s["body"] for s in got["sections"])
+        self.assertIn("Boot", bodies)
+        self.assertNotIn("Form2.Refresh2", bodies)
+        self.assertTrue(any(part["included"] for part in got["parts"]))
 
     def test_inbound_candidates_for_a_module_procedure(self) -> None:
         got = bundle.build_bundle(self.index, self.target("Boot"), budget=5000)

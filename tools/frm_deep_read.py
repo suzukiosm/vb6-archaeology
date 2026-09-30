@@ -5,7 +5,7 @@
 ワンショットを増やさず、本ファイルを改定してから再実行すること。
 
 Outputs:
-  - skeleton JSON (live controls only) -> working/skeletons/<out_key>-skeleton.json
+  - skeleton JSON (every designer control) -> working/skeletons/<out_key>-skeleton.json
   - deep read report -> working/reports/<out_key>_deep_read.md
 
   out_key = deep_read_name_map[VB_Name] or lowercase VB_Name
@@ -884,6 +884,17 @@ def annotate_offscreen(form_info: dict, controls: list[dict]):
 
 
 CONTAINER_KINDS = ("VB.Frame", "VB.PictureBox")
+_CONTROLS_COLLECTION_RE = re.compile(r"\bControls\b", re.IGNORECASE)
+
+
+def dynamic_control_access(code_text: str) -> bool:
+    """True when form code mentions the Controls collection outside strings and comments.
+
+    A loop such as ``For Each c In Me.Controls`` can show a control that the
+    source never names. That is not proof the control is unreachable.
+    """
+    masked = "\n".join(code_mask(line) for line in code_text.splitlines())
+    return _CONTROLS_COLLECTION_RE.search(masked) is not None
 
 
 def _find_parent(controls: list[dict], child: dict):
@@ -907,15 +918,19 @@ def _find_parent(controls: list[dict], child: dict):
     return hits[0]
 
 
-def annotate_hidden_ancestor(controls: list[dict]):
-    """Flag children of a permanently invisible container.
+def annotate_hidden_ancestor(controls: list[dict], dynamic_controls: bool = False):
+    """Flag children of a design-time-hidden container that code does not name.
 
-    Only dead containers count: a code-referenced Frame/PictureBox can be
-    switched to Visible=True at runtime, so its children must stay in the
-    skeleton as normally visible. A container with Visible=0 and zero code
-    references can never appear, so its children are unreachable at runtime
-    (``ancestor_hidden`` / ``ancestor_hidden_by``).
+    This is a static approximation. A code-referenced Frame/PictureBox can be
+    switched to Visible=True, so its children are not flagged. When
+    ``dynamic_controls`` is true, the form mentions the Controls collection, so
+    unnamed controls may still be shown: nothing is flagged as hidden.
+    ``ancestor_hidden`` is not proof that the control can never appear.
     """
+    if dynamic_controls:
+        for ctrl in controls:
+            ctrl["runtime_visibility_unknown"] = True
+        return controls
     for c in controls:
         if c["kind"] in ("VB.Menu", "VB.Timer"):
             continue
@@ -951,25 +966,23 @@ CAT_MAP = {
 
 
 def build_skeleton(form_info, controls):
-    """Skeleton = code-live controls + visible on-screen statics.
+    """Every designer control. Name reference and design-time visibility are separate.
 
-    Static labels/frames with no code reference are still real design-time UI
-    (Form14 has 13 controls and zero code). Excluding them broke UI fidelity
-    (form9 Label12(1) regression). ``code_ref: false`` marks display-only.
+    Unreferenced controls stay in the tree. ``code_ref`` / ``code_reference_observed``
+    record whether this form's code names the control. ``design_time_visible`` is
+    the designer Visible flag. ``runtime_visibility_unknown`` means code can reach
+    controls without naming them, so runtime visibility is not a fact.
     """
     skel = {"form": form_info}
+    unknown = bool(form_info.get("runtime_visibility_unknown"))
     for ctrl in controls:
         code_live = bool(ctrl.get("live", True))
-        display_only = (
-            not code_live
-            and ctrl.get("visible", True)
-            and not ctrl.get("offscreen", False)
-            and ctrl["kind"] not in ("VB.Menu", "VB.Timer")
-        )
-        if not code_live and not display_only:
-            continue
         entry = {k: v for k, v in ctrl.items() if k != "live"}
         entry["code_ref"] = code_live
+        entry["code_reference_observed"] = code_live
+        entry["design_time_visible"] = bool(ctrl.get("visible", True))
+        if unknown or ctrl.get("runtime_visibility_unknown"):
+            entry["runtime_visibility_unknown"] = True
         cat = CAT_MAP.get(ctrl["kind"], "others")
         skel.setdefault(cat, []).append(entry)
     return {k: v for k, v in skel.items() if v or k == "form"}
@@ -1004,10 +1017,13 @@ def write_report(
 
     md = []
     md.append(f"# {form_info['name']}（{frm_filename}）深読みレポート\n\n")
-    md.append(f"日付: {date.today().isoformat()}（デッドコード除外済み）\n")
+    md.append(f"日付: {date.today().isoformat()}\n")
     md.append(f"ソース: `{src}`（CP932, {total_lines}行）\n")
     md.append(f"Form Caption: `{form_info['caption']}`\n\n")
-    md.append(f"> コントロール: {len(controls)} 全体 → **{len(live)} ライブ** / {len(dead)} デッド（コード未参照）\n")
+    md.append(
+        f"> コントロール: {len(controls)} 全体 → **{len(live)} 名前参照あり**"
+        f" / {len(dead)} 名前参照なし（skeleton から除かない）\n"
+    )
     md.append(
         f"> イベント: {len(events)} 全体 → **{len(live_events)} ライブ**"
         f" / {len(unobserved_events)} 未観測"
@@ -1174,12 +1190,21 @@ def write_report(
         if len(offscreen_live) > 20:
             md.append(f"\n他 {len(offscreen_live) - 20} 件省略\n")
 
+    if form_info.get("runtime_visibility_unknown"):
+        md.append("\n## 実行時の表示は未確定\n\n")
+        md.append(
+            "> このフォームのコードがコントロール集合を参照している。"
+            "名前が直接出てこないコントロールも実行時に操作され得る。"
+            "Designer のコントロールは skeleton に残す。\n\n"
+        )
+
     hidden_ancestor = [c for c in controls if c.get("ancestor_hidden")]
     if hidden_ancestor:
-        md.append(f"\n## 親コンテナ非表示で到達不能（{len(hidden_ancestor)}件）\n\n")
+        md.append(f"\n## 親が設計時非表示（静的近似）（{len(hidden_ancestor)}件）\n\n")
         md.append(
-            "> 親 Frame/PictureBox が `Visible=0` かつコード未参照＝実行時に表示され得ない。"
-            "skeleton には `ancestor_hidden: true` で含まれる。\n\n"
+            "> 親 Frame/PictureBox が設計時に非表示で、このフォームのコードにその名前が無い。"
+            "実行時に表示されないという証明ではない。"
+            "skeleton には `ancestor_hidden: true` で残す。\n\n"
         )
         for c in hidden_ancestor[:20]:
             idx = f"({c['index']})" if c.get("index") is not None else ""
@@ -1607,7 +1632,10 @@ def main(argv: list[str] | None = None) -> int:
         controls, code_text, project_text, events, form_name=form_info.get("name") or "",
     )
     controls = annotate_offscreen(form_info, controls)
-    controls = annotate_hidden_ancestor(controls)
+    dynamic_controls = dynamic_control_access(code_text)
+    if dynamic_controls:
+        form_info["runtime_visibility_unknown"] = True
+    controls = annotate_hidden_ancestor(controls, dynamic_controls=dynamic_controls)
     menu_findings = analyze_menus(controls, events)
     menu_tree = build_menu_tree(controls, events)
     show_map = extract_show_map(events)

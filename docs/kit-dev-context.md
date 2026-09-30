@@ -15,7 +15,7 @@ VB6 を壊さず理解するための汎用 OS（docs / .cursor / tools）を維
 - 設定検証: `schema/archaeology.config.schema.json` + `lib/config_schema.py`（stdlib のみ）
 - 自己点検: `kit_smoke.py`（config-check → extract → readable → inventory → … → serve --check · --live-get → scan-chars → ideas + unittest）· CI: ubuntu/windows × Python 3.10/3.13
 - 補助: `frm_lines.py` · `scan_control_chars.py` · `frm_deep_read_all.py`（`deep_read_name_map`）
-- `frm_deep_read`: .frm 単体解析注記、`show_style`、GoTo 飛び越え文候補（I/O·Call 等）+ ラベル地図、`menu_tree`（デザイナ値。実行時 Enabled は layout）、`ancestor_hidden`（静的近似・断定しない）。`.bas`/`.cls` は表面レポート（Implements / GoTo / Show 文面。デザイナ live/dead なし）
+- `frm_deep_read`: .frm 単体解析注記、`show_style`、GoTo 飛び越え文候補（I/O·Call 等）+ ラベル地図、`menu_tree`（デザイナ値。実行時 Enabled は layout）、`ancestor_hidden`（静的近似・断定しない。`Controls` 参照時は付けない）。skeleton は Designer のコントロールを落とさない。`.bas`/`.cls` は表面レポート（Implements / GoTo / Show 文面。デザイナ live/dead なし）
 - `runtime_layout`: `.frm` + `.bas` + `.cls` を走査。Show 文脈は Sub 境界で `recent_shows` クリア。開経路スコアは `layout_sub_scores`（既定 `form_load` / `mdiform_load` のみ）。MDI chrome は `mdi_chrome`（キット既定空）
 - フィクスチャ: `source/mini_vbp/`（`make_fixture.py`・日本語 Caption・隠れた Frame 配下 Label 含む CP932）
 - hooks: 保護ディレクトリへの書込拒否（キット既定名は `source/` のみ。別名は消費者 config）。`make_fixture.py` のみ shell allowlist
@@ -26,7 +26,10 @@ VB6 を壊さず理解するための汎用 OS（docs / .cursor / tools）を維
 - 2026-09-30 レビュー改善第1段階: パス対応表・衝突防止、共通字句処理、deep-read 境界共通化、WithEvents/未解決 owner、Property accessor tick、欠落ファイル検証を実装。詳細は tools/README.md の Review fixes。
 - （採用済 2026-09-30 · レビュー追補 第2段階）穴 F21–F32（`kit-improvement-ideas.md`）: キャッシュ指紋、保護 hooks の BOM・抜け穴、イベント持ち主の一本化、`#` 無しファイル番号、`Sub Main`、deep-read の計算量、MS-VBAL の字句規則と `#If` 診断、`.cls` ヘッダとメンバー属性、変数・Option・Deftype・引数、Reference / Declare / OCX、エラー処理と文単位 GoTo、共通デザイナパーサ。PARSER_VERSION inv-14。
 - （採用済 2026-09-30 · レビュー追補 第3段階）穴 F33–F37: AI 索引 `index`（symbols / occurrences=スコープ規則の候補 / effects / chunks、`schema/index.schema.json`）、`bundle` と `lines --proc`、verify-names の一般識別子（警告・`--strict`）、tick の錨と `comprehend --stale`、verify の独立検査。完全 callgraph を正規表現で推定しない方針は維持（参照は `basis` つきの候補）。
-- 次（未着手）: 同名ファイルを共存できる抽出 ID、ローカル変数を追跡した参照候補の精度向上、SQL の文をまたぐ連結、IDE 保存形式の正解コーパス（実案件由来のため許諾が要る）、検索評価（質問 → 期待シンボル ID の再現率）。
+- （採用済 2026-09-30 · レビュー優先1）ソース鮮度: inventory `input_hashes`。不一致の `index` / `bundle` は拒否。引数・手続き内 `Dim`/`Static`/`Const` は外側同名へ `unique` にしない。Designer コントロールは skeleton から落とさない。`Controls` 参照時は `runtime_visibility_unknown`。PARSER_VERSION inv-15。
+- （採用済 2026-10-01 · レビュー優先2）`#If` の DefType が食い違う型は `unknown`。Property は読みと代入で Get/Let/Set を分ける。With と未解決は `ref_gaps` / bundle `unresolved`。COM はコード上の呼出しだけ。参照された FRX の欠落を extract と inventory に出す。クラス属性と Reference の guid を索引と文脈束へ。PARSER_VERSION inv-16。
+- （採用済 2026-10-01 · レビュー優先4）手続きの文ごとの子チャンク。全文が予算を超えるときは署名と注意を先に残し、`--span START-END` で文を取る。出現は `source_span`。`index --strict-decode` は読めないバイトを置換せず失敗する。
+- 次（未着手）: 同名ファイルを共存できる抽出 ID、SQL の文をまたぐ連結、IDE 保存形式の正解コーパス（実案件由来のため許諾が要る）、検索評価（質問 → 期待シンボル ID の再現率）。
 
 
 - （採用済 2026-09-03 · readable）`python -m tools readable` — extract の UTF-8 サイドカー（物理行一致。extract は触らない。`.frx` 等はスキップ）。Cursor Read 用。分析の正は extracts。`readable_dir`（既定 `working/readable`）

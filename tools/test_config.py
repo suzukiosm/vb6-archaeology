@@ -149,5 +149,17 @@ class TestOptionalAssignMarkers(unittest.TestCase):
             self.assertEqual(config.optional_assign_markers(root), ["PARA"])
 
 
+class DecodeReportTests(unittest.TestCase):
+    def test_replacement_positions_and_strict_mode(self) -> None:
+        raw = b"\x81\xff"
+        text, info = config.decode_vb6_report(raw)
+        self.assertTrue(info["replaced"])
+        self.assertEqual(info["encoding"], "cp932")
+        self.assertEqual(info["replacements"], [i + 1 for i, ch in enumerate(text) if ch == "\ufffd"])
+        self.assertTrue(info["replacements"])
+        with self.assertRaises(config.VB6DecodeError):
+            config.decode_vb6_report(raw, strict=True)
+
+
 if __name__ == "__main__":
     unittest.main()

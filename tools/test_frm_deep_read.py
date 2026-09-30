@@ -12,9 +12,11 @@ from tools.frm_deep_read import (
     analyze_module_file,
     annotate_hidden_ancestor,
     build_menu_tree,
+    build_skeleton,
     classify_controls,
     classify_events,
     collect_goto_label_maps,
+    dynamic_control_access,
     extract_controls,
     extract_events,
     extract_para,
@@ -119,6 +121,89 @@ class AncestorHiddenTests(unittest.TestCase):
         ]
         annotate_hidden_ancestor(controls)
         self.assertFalse(controls[1].get("ancestor_hidden"))
+
+
+_HIDDEN_FRAME_FRM = """\
+VERSION 5.00
+Begin VB.Form Form1
+   Caption         =   "F"
+   ClientHeight    =   3000
+   ClientWidth     =   4800
+   Begin VB.Frame Frame1
+      Caption         =   "Box"
+      Visible         =   0   'False
+      Begin VB.Label Label1
+         Caption         =   "Child"
+      End
+   End
+End
+Attribute VB_Name = "Form1"
+"""
+
+
+class DesignerTreeTests(unittest.TestCase):
+    def _controls(self, code: str):
+        lines = (_HIDDEN_FRAME_FRM + code).splitlines()
+        form_info, controls = extract_controls(lines)
+        events = classify_events(extract_events(lines), code, "", controls, "Form1")
+        classify_controls(controls, code, code, events, form_name="Form1")
+        dynamic = dynamic_control_access(code)
+        if dynamic:
+            form_info["runtime_visibility_unknown"] = True
+        annotate_hidden_ancestor(controls, dynamic_controls=dynamic)
+        return form_info, controls, build_skeleton(form_info, controls)
+
+    def test_controls_collection_keeps_unnamed_nodes(self) -> None:
+        code = (
+            "Private Sub Form_Load()\n"
+            "    Dim c As Control\n"
+            "    For Each c In Me.Controls\n"
+            "        c.Visible = True\n"
+            "    Next\n"
+            "End Sub\n"
+        )
+        form_info, controls, skel = self._controls(code)
+        names = {c["name"] for c in controls}
+        self.assertEqual(names, {"Frame1", "Label1"})
+        self.assertTrue(form_info.get("runtime_visibility_unknown"))
+        self.assertFalse(any(c.get("ancestor_hidden") for c in controls))
+        kept = [item["name"] for group in skel.values() if isinstance(group, list) for item in group]
+        self.assertEqual(set(kept), {"Frame1", "Label1"})
+        label = next(item for group in skel.values() if isinstance(group, list) for item in group
+                     if item["name"] == "Label1")
+        self.assertFalse(label["code_reference_observed"])
+        self.assertTrue(label["design_time_visible"])
+        self.assertTrue(label["runtime_visibility_unknown"])
+        frame = next(item for group in skel.values() if isinstance(group, list) for item in group
+                     if item["name"] == "Frame1")
+        self.assertFalse(frame["design_time_visible"])
+
+    def test_string_and_comment_do_not_count_as_controls_access(self) -> None:
+        code = "Private Sub Form_Load()\n    MsgBox \"Me.Controls\"\n    ' Me.Controls\nEnd Sub\n"
+        self.assertFalse(dynamic_control_access(code))
+        _form, controls, skel = self._controls(code)
+        self.assertTrue(controls[0].get("ancestor_hidden") or controls[1].get("ancestor_hidden"))
+        kept = {item["name"] for group in skel.values() if isinstance(group, list) for item in group}
+        self.assertEqual(kept, {"Frame1", "Label1"})
+
+    def test_report_does_not_claim_runtime_absence(self) -> None:
+        code = (
+            "Private Sub Form_Load()\n"
+            "    For Each c In Me.Controls\n"
+            "        c.Visible = True\n"
+            "    Next\n"
+            "End Sub\n"
+        )
+        form_info, controls, _skel = self._controls(code)
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "out.md"
+            write_report(
+                path, "Form1.frm", form_info, controls, [], {}, [], 20, [], [],
+            )
+            text = path.read_text(encoding="utf-8")
+        self.assertNotIn("デッドコード除外済み", text)
+        self.assertNotIn("実行時に表示され得ない", text)
+        self.assertIn("実行時の表示は未確定", text)
 
 
 class GotoSkippedOpenTests(unittest.TestCase):

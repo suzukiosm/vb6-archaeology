@@ -29,7 +29,7 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO / "tools"))
 
-from index_build import estimate_tokens  # noqa: E402
+from index_build import estimate_tokens, format_stale, snapshot_problems  # noqa: E402
 from lib.config import index_root  # noqa: E402
 from lib.console import enable_utf8_stdio  # noqa: E402
 
@@ -66,6 +66,36 @@ def find_target(symbols: list[dict], name: str, file_hint: str | None, kind: str
     return matches[0]
 
 
+def _owner_context(index: dict, target: dict, by_id: dict[str, dict]) -> str:
+    """Module and project facts the procedure body does not repeat."""
+    file_sym = by_id.get(target["file"]) or {}
+    lines: list[str] = []
+    implements = file_sym.get("implements") or []
+    if implements:
+        lines.append("Implements: " + ", ".join(
+            item["name"] if isinstance(item, dict) else str(item) for item in implements
+        ))
+    for key, label in (
+        ("vb_predeclared_id", "VB_PredeclaredId"),
+        ("vb_global_name_space", "VB_GlobalNameSpace"),
+        ("default_member", "default member"),
+        ("instancing", "Instancing"),
+    ):
+        value = file_sym.get(key)
+        if value not in (None, "", [], {}):
+            lines.append(f"{label}: {value}")
+    for ref in file_sym.get("resource_refs") or []:
+        if not ref.get("exists"):
+            lines.append(f"欠落資源 L{ref.get('line')} {ref.get('file')}（中身は未解析）")
+    project = index.get("manifest", {}).get("references") or []
+    if project:
+        lines.append("References: " + "; ".join(
+            " ".join(str(item.get(key)) for key in ("kind", "guid", "lcid", "description") if item.get(key))
+            for item in project
+        ))
+    return "\n".join(lines)
+
+
 def summary_line(sym: dict) -> str:
     kind = sym["kind"]
     where = f"{sym['file']}:{sym.get('line') or (sym.get('span') or ['?'])[0]}"
@@ -91,7 +121,19 @@ def summary_line(sym: dict) -> str:
     return f"{kind} {sym['name']} — {where}"
 
 
-def build_bundle(index: dict, target: dict, budget: int) -> dict:
+def _overlaps(span: list[int], wanted: tuple[int, int]) -> bool:
+    start, end = span
+    lo, hi = wanted
+    return not (end < lo or start > hi)
+
+
+def _part_rows(index: dict, parent_id: str) -> list[dict]:
+    rows = [chunk for chunk in index["chunks"] if chunk.get("parent") == parent_id]
+    return sorted(rows, key=lambda chunk: chunk.get("stmt") or 0)
+
+
+def build_bundle(index: dict, target: dict, budget: int,
+                 span: tuple[int, int] | None = None) -> dict:
     by_id = {s["id"]: s for s in index["symbols"]}
     chunks = {c["id"]: c for c in index["chunks"]}
     main = chunks[f"chunk:{target['id']}"]
@@ -109,9 +151,42 @@ def build_bundle(index: dict, target: dict, budget: int) -> dict:
         used += cost
         return True
 
-    add(f"Procedure {target['id']}", f"{main['header']}\n```vb\n{main['code']}\n```", required=True)
-    if main["notes"]:
-        add("VB6 notes", "\n".join(f"- {n}" for n in main["notes"]))
+    procedure_title = f"Procedure {target['id']}"
+    procedure_body = f"{main['header']}\n```vb\n{main['code']}\n```"
+    procedure_tokens = estimate_tokens(procedure_title + procedure_body)
+    children = _part_rows(index, main["id"])
+    if span is not None:
+        children = [child for child in children if _overlaps(child["span"], span)]
+    part_list = [
+        {"id": child["id"], "span": child["span"], "stmt": child.get("stmt"),
+         "tokens_est": child["tokens_est"]}
+        for child in _part_rows(index, main["id"])
+    ]
+    context = _owner_context(index, target, by_id)
+    notes_body = "\n".join(f"- {n}" for n in main["notes"]) if main["notes"] else ""
+    full_fits = span is None and procedure_tokens <= budget
+    if full_fits:
+        add(procedure_title, procedure_body, required=True)
+        if context:
+            add("Owner context", context, required=True)
+        if notes_body:
+            add("VB6 notes", notes_body)
+        for row in part_list:
+            row["included"] = False
+    else:
+        add(f"Procedure head {target['id']}", main["header"], required=True)
+        if context:
+            add("Owner context", context, required=True)
+        if notes_body:
+            add("VB6 notes", notes_body, required=True)
+        included_stmts: set[int] = set()
+        for child in children:
+            title = f"Part {child['stmt']} L{child['span'][0]}-{child['span'][1]}"
+            if add(title, child["code"]):
+                included_stmts.add(child["stmt"])
+        for row in part_list:
+            row["included"] = row.get("stmt") in included_stmts
+    minimum_tokens = used
     effects = [e for e in index["effects"] if e.get("in") == target["id"]]
     if effects:
         add("Effects (facts)", "\n".join(
@@ -133,10 +208,26 @@ def build_bundle(index: dict, target: dict, budget: int) -> dict:
     for sym in outbound:
         chunk = chunks.get(f"chunk:{sym['id']}")
         if chunk:
-            add(f"Referenced procedure {sym['id']}", f"{chunk['header']}\n```vb\n{chunk['code']}\n```")
+            body = f"{chunk['header']}\n```vb\n{chunk['code']}\n```"
+            owner = _owner_context(index, sym, by_id)
+            if owner:
+                body = owner + "\n" + body
+            add(f"Referenced procedure {sym['id']}", body)
+    gaps = list(main.get("ref_gaps") or [])
+    if gaps:
+        add("Unresolved or ambiguous references", "\n".join(
+            f"- L{g['line']} {g['name']} ({g.get('resolution')}, {g.get('basis')}): {g.get('reason')}"
+            for g in gaps
+        ))
     return {"target": target["id"], "budget": budget, "tokens_est": used,
-            "sections": sections, "omitted": omitted,
-            "note": "references are scope-rule candidates from the index, not a call graph"}
+            "sections": sections, "omitted": omitted, "unresolved": gaps,
+            "budget_exceeded": used > budget or (span is None and not full_fits),
+            "procedure_exceeds_budget": procedure_tokens > budget,
+            "minimum_tokens": minimum_tokens,
+            "parts": part_list,
+            "span": list(span) if span else None,
+            "note": "references are scope-rule candidates from the index, not a call graph. "
+                    "token counts are an estimate."}
 
 
 def render_markdown(bundle: dict) -> str:
@@ -146,7 +237,25 @@ def render_markdown(bundle: dict) -> str:
         parts.append(f"## {section['title']}\n{section['body']}")
     if bundle["omitted"]:
         parts.append("## Omitted (budget)\n" + "\n".join(f"- {t}" for t in bundle["omitted"]))
+    titles = {section["title"] for section in bundle["sections"]}
+    if bundle.get("unresolved") and "Unresolved or ambiguous references" not in titles:
+        parts.append("## Unresolved or ambiguous references\n" + "\n".join(
+            f"- L{item['line']} {item['name']}: {item.get('reason')}" for item in bundle["unresolved"]
+        ))
+    if bundle.get("budget_exceeded"):
+        parts.append("budget_exceeded")
     return "\n\n".join(parts) + "\n"
+
+
+def _parse_span(text: str) -> tuple[int, int]:
+    try:
+        start_text, end_text = text.split("-", 1)
+        start, end = int(start_text), int(end_text)
+    except ValueError:
+        raise SystemExit("--span is START-END") from None
+    if start < 1 or end < start:
+        raise SystemExit("--span is START-END")
+    return start, end
 
 
 def resolve_index_dir(arg: Path | None) -> Path:
@@ -170,13 +279,28 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--kind", choices=sorted(PROCEDURE_KINDS), default=None)
     ap.add_argument("--budget", type=int, default=3000, help="Token estimate budget (default 3000)")
     ap.add_argument("--index", type=Path, default=None, help="Index dir (default: sole one under index_dir)")
+    ap.add_argument("--span", default=None, metavar="START-END",
+                    help="Physical lines to take instead of the whole procedure")
     ap.add_argument("--json", action="store_true", help="Print JSON instead of Markdown")
     args = ap.parse_args(argv)
+    span = _parse_span(args.span) if args.span else None
 
     index = load_index(resolve_index_dir(args.index))
+    manifest = index["manifest"]
+    extract = manifest.get("extract_dir")
+    if not extract:
+        print(format_stale(["index に抽出先が無い"]), file=sys.stderr)
+        return 1
+    problems = snapshot_problems(manifest, Path(extract))
+    if problems:
+        print(format_stale(problems), file=sys.stderr)
+        return 1
     name, _, file_hint = args.target.partition("@")
     target = find_target(index["symbols"], name, file_hint or None, args.kind)
-    bundle = build_bundle(index, target, args.budget)
+    bundle = build_bundle(index, target, args.budget, span=span)
+    if span and not any(part.get("included") for part in bundle["parts"]):
+        print(f"no statement in lines {span[0]}-{span[1]}", file=sys.stderr)
+        return 1
     if args.json:
         print(json.dumps(bundle, ensure_ascii=False, indent=2))
     else:

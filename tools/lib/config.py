@@ -188,13 +188,39 @@ def optional_assign_markers(repo_root: Path | None = None) -> list[str]:
     return [str(m) for m in markers]
 
 
+class VB6DecodeError(UnicodeError):
+    """Strict decode refused to replace bytes it could not read."""
+
+    def __init__(self, encoding: str, replacements: list[int]) -> None:
+        self.encoding = encoding
+        self.replacements = replacements
+        super().__init__(
+            f"{encoding} decode would replace {len(replacements)} character(s)"
+        )
+
+
 def decode_vb6_bytes(raw: bytes, repo_root: Path | None = None) -> str:
+    return decode_vb6_report(raw, repo_root)[0]
+
+
+def decode_vb6_report(raw: bytes, repo_root: Path | None = None, *,
+                      strict: bool = False) -> tuple[str, dict]:
+    """``(text, {"encoding", "replaced", "replacements"})``.
+
+    ``replacements`` lists 1-based character positions of U+FFFD.
+    ``strict`` raises :class:`VB6DecodeError` instead of replacing.
+    """
     cfg = load_config(repo_root)
     primary = cfg.get("encoding") or "cp932"
     fallbacks = list(cfg.get("encoding_fallbacks") or [])
     for enc in [primary, *fallbacks]:
         try:
-            return raw.decode(enc)
+            return raw.decode(enc), {"encoding": enc, "replaced": False, "replacements": []}
         except UnicodeDecodeError:
             continue
-    return raw.decode(primary, errors="replace")
+    text = raw.decode(primary, errors="replace")
+    replacements = [i + 1 for i, ch in enumerate(text) if ch == "\ufffd"]
+    info = {"encoding": primary, "replaced": True, "replacements": replacements}
+    if strict:
+        raise VB6DecodeError(primary, replacements)
+    return text, info

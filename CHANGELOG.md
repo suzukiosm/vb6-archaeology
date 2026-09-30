@@ -7,11 +7,32 @@ Versions are exposed by `python -m tools --version` (`tools/__init__.py`).
 
 ## [Unreleased]
 
+### Added — split retrieval and source spans (review 2026-10-01)
+
+- 索引の手続きチャンクに、文ごとの子チャンク（`chunk:…#stmt:N`）を付ける。`bundle` は全文が予算に入るとき全文を出し、入らないときは署名・注意を先に残して入る文だけを出す。`budget_exceeded` / `minimum_tokens` / `parts` を返す。`bundle PROC --span START-END` でその行の文だけを取る
+- 出現と副作用に `source_span`（ファイルハッシュ、物理行、文番号、折り畳み後の列範囲）。160 字を超える副作用文面は `text_truncated` と全文の `text_sha256`
+- デコードできないバイトは `decode.replacements` に位置を残す。`python -m tools index --strict-decode` はそのとき索引を書かず失敗する
+
+### Fixed — keep unknown facts (review 2026-10-01)
+
+- `#If` の中の DefType は、分岐で型が違うとき一つの型にしない。変数と引数は `type=unknown` / `type_source=conditional` と `type_candidates`。共通の End を持つ宣言ヘッダも両方残す。PARSER_VERSION inv-16
+- Property の同名 Get/Let/Set は、読みなら Get、代入なら Let（`Set` 文なら Set）に絞る。With の `.Name` は受け手を使う。決められない参照はチャンクの `ref_gaps` と bundle の `unresolved` に理由つきで残る。`omitted` は予算で落ちた節だけ
+- `CreateObject` / `GetObject` はコード上の呼出しだけを見る。文字列の中は数えない。`GetObject` の第1引数は pathname、第2引数は class
+- Designer が指す `.frx` 等が無いと extract の `missing` と `resources`、inventory の `resource_refs` に出る。ファイルがあればサイズとハッシュ。中身は解析しない
+- 索引のファイルシンボルに Implements・VB_PredeclaredId・既定メンバー等。manifest の Reference に guid / lcid / raw。bundle に Owner context。宣言チャンクに Attribute 行
+- 索引は手続きごとに参照一覧全体を走査しない。bundle は `budget_exceeded` と `procedure_exceeds_budget` を返す。出現に終端行・列・文番号。デコードが置換したファイルは `decode.replaced`
+
+### Fixed — stale index, shadowed names, designer nodes (review 2026-09-30)
+
+- inventory が VBP・各入力ファイル・設定の SHA-256 を `input_hashes` に残す（PARSER_VERSION inv-15）。`index` と `bundle` は、そのハッシュと今のファイルが違うとき、古い手続き名と新しい本文を混ぜずに拒否する
+- 引数、および手続き内の `Dim` / `Static` / `Const` がモジュール変数やグローバルと同名のとき、その使用は外側への `resolution=unique` にしない。チャンクの注意に、隠している名前を書く
+- deep-read の skeleton は Designer のコントロールを落とさない。名前参照・設計時の可視・実行時表示が未知かを分ける。`Controls` 集合の参照があるときは、名前の無い子を実行時非表示とはしない。レポートから「デッドコード除外済み」「実行時に表示され得ない」を外した
+
 ### Added — AI index (review follow-up, phase 2)
 
 - `python -m tools index` — inventory と extract から `<index_dir>/<stem>/`（既定 `working/index`）に `manifest.json` と `symbols` / `occurrences` / `effects` / `chunks` の JSONL を出す。記録の形は `schema/index.schema.json`（schema_version 1）
   - `symbols`: ファイル・手続き・Declare・Const・Enum（メンバー）・Type・Event・モジュール変数・コントロールに安定 ID（`<file>#<Kind>:<name>`）
-  - `occurrences`: 既知の名前の字句上の出現と、VB6 のスコープ規則で選んだ候補（`basis`: `same_file` / `global` / `qualified` / `typed_variable` / `me`）。呼び出しグラフではない（ローカル変数の隠蔽は見ない。`resolution` が `unique` / `ambiguous`）
+  - `occurrences`: 既知の名前の字句上の出現と、VB6 のスコープ規則で選んだ候補（`basis`: `same_file` / `global` / `qualified` / `typed_variable` / `me` / `local` / `local_qualifier`）。呼び出しグラフではない。引数・手続き内の `Dim` / `Static` / `Const` が外側の同名を隠すときは `resolution=local` で、外側への一意参照にはしない
   - `effects`: ファイル文・レジストリ・`CreateObject` の ProgID・`New` の型・DB メソッド候補・SQL で始まる文字列リテラル・Shell・Declare 呼び出し・Show / Load / Unload / MsgBox / PopupMenu・Printer・SendKeys・`End`（業務意味なし）
   - `chunks`: 手続き単位（＋宣言部・デザイナ）のコードを物理行番号つきで、文脈ヘッダ・VB6 の注意（`On Error Resume Next`・Option Explicit なし・省略時 ByRef・既定メンバー・Static・`#If`）・副作用・一意に解決した参照・`sha256`・トークン見積もりと一緒に
 - 設定 `index_dir`（schema に追加）
